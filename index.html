@@ -240,7 +240,7 @@ function loginPi(){
   $('loginBtn').disabled=true;$('loginBtn').textContent='Connecting to Pi...';
   try{
     Pi.init({version:'2.0',sandbox:true});
-    Pi.authenticate(['username'],p=>console.log('Incomplete payment:',p))
+    Pi.authenticate(['username','payments'],p=>console.log('Incomplete payment:',p))
       .then(async auth=>{
         const u=auth.user||{};
         currentUser={uid:u.uid||'',username:u.username||'Pioneer',wallet_address:u.wallet_address||'',accessToken:auth.accessToken||''};
