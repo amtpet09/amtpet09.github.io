@@ -98,7 +98,7 @@ button{cursor:pointer}
       <span class="pill">🐾 Catalog: <b id="count">0</b></span>
       <span class="pill">⭐ Common</span>
       <span class="pill">⚡ 7 Elements</span>
-      <span class="pill">🟣 Pi Testnet</span>
+      <span class="pill">💰 AMT</span>
     </div>
   </section>
 
@@ -212,8 +212,8 @@ button{cursor:pointer}
     <h2 id="modalName">Pet</h2>
     <img id="modalImg" class="modalImg">
     <div id="modalDetails"></div>
-    <button class="action gold" style="margin-top:10px" onclick="buyPetPrepared()">🛒 BUY PET — PI</button>
-    <div class="muted" style="margin-top:8px">Secure Pi Testnet payment and server-side ownership verification will be used before the pet is added to your collection.</div>
+    <button class="action gold" style="margin-top:10px" onclick="buyPetPrepared()">🟣 BUY PET — PI TESTNET</button>
+    <div class="muted" style="margin-top:8px">Pi Testnet payment uses the Pi SDK. Server approval and completion are required before ownership is created.</div>
   </div>
 </div>
 <div id="toast" class="toast"></div>
@@ -234,78 +234,30 @@ function showPanel(id,btn){
   if(id==='pets')loadMyPets();
 }
 function featureSoon(name){toast(name+' is prepared. Backend rules will be connected next.')}
-function logoutPi(){
-  localStorage.removeItem('amtPetPiUid');
-  localStorage.removeItem('amtPetPiUsername');
-  localStorage.removeItem('amtPetPiWallet');
-  localStorage.removeItem('amtPetPiAccessToken');
-  localStorage.removeItem('amtPetProfileImage');
-  currentUser=null;
-  $('app').style.display='none';
-  $('loginScreen').style.display='flex';
-  $('loginBtn').disabled=false;
-  $('loginBtn').textContent='🟣 LOGIN WITH PI';
-}
-
-async function loginPi(){
-  if(!window.Pi){toast('Open AMT Pet Marketplace in Pi Browser.');return;}
-  const b=$('loginBtn');b.disabled=true;b.textContent='Connecting to Pi...';
+function logoutPi(){localStorage.removeItem('amtPetPiUid');localStorage.removeItem('amtPetPiUsername');localStorage.removeItem('amtPetPiWallet');localStorage.removeItem('amtPetPiAccessToken');localStorage.removeItem('amtPetProfileImage');currentUser=null;$('app').style.display='none';$('loginScreen').style.display='flex';$('loginBtn').disabled=false;$('loginBtn').textContent='🟣 LOGIN WITH PI'}
+function loginPi(){
+  if(!window.Pi){toast('Open AMT Pet Marketplace in Pi Browser.');return}
+  $('loginBtn').disabled=true;$('loginBtn').textContent='Connecting to Pi...';
   try{
     Pi.init({version:'2.0',sandbox:true});
-    const auth=await new Promise((resolve,reject)=>{
-      let done=false;
-      const timer=setTimeout(()=>{if(!done){done=true;reject(new Error('Pi Login timed out. Please try again in Pi Browser.'));}},30000);
-      Pi.authenticate(['username'],payment=>console.log('Incomplete payment:',payment)).then(result=>{
-        if(done)return;done=true;clearTimeout(timer);resolve(result);
-      }).catch(error=>{if(done)return;done=true;clearTimeout(timer);reject(error);});
-    });
-    if(!auth?.user?.uid||!auth?.accessToken)throw new Error('Pi did not return a valid authenticated session.');
-    currentUser={uid:auth.user.uid,username:auth.user.username||'Pioneer',wallet_address:'',accessToken:auth.accessToken};
-    localStorage.setItem('amtPetPiUid',currentUser.uid);
-    localStorage.setItem('amtPetPiUsername',currentUser.username);
-    localStorage.setItem('amtPetPiAccessToken',currentUser.accessToken);
-    localStorage.removeItem('amtPetPiWallet');
-    enterApp();updateLoggedInWallet();b.disabled=false;b.textContent='🟢 PI CONNECTED';
-    toast('Welcome, @'+currentUser.username+'! Login successful.');
-    setTimeout(()=>syncPiWallet(),800);
-  }catch(e){
-    console.error('Pi Login Error:',e);currentUser=null;b.disabled=false;b.textContent='🟣 LOGIN WITH PI';toast(e?.message||'Pi Login failed.');
-  }
+    Pi.authenticate(['username','payments','wallet_address'],p=>console.log('Incomplete payment:',p))
+      .then(async auth=>{
+        const u=auth.user||{};
+        currentUser={uid:u.uid||'',username:u.username||'Pioneer',wallet_address:u.wallet_address||'',accessToken:auth.accessToken||''};
+        localStorage.setItem('amtPetPiUid',currentUser.uid);
+        localStorage.setItem('amtPetPiUsername',currentUser.username);
+        localStorage.setItem('amtPetPiWallet',currentUser.wallet_address);
+         localStorage.setItem('amtPetPiAccessToken',currentUser.accessToken);
+        await syncPioneer();
+        enterApp();
+        toast('Welcome, @'+currentUser.username+'! Wallet synchronized.');
+      })
+      .catch(e=>{console.error(e);$('loginBtn').disabled=false;$('loginBtn').textContent='🟣 LOGIN WITH PI';toast('Pi Login failed. Please try again in Pi Browser.')});
+  }catch(e){console.error(e);$('loginBtn').disabled=false;$('loginBtn').textContent='🟣 LOGIN WITH PI';toast('Unable to start Pi Login.')}
 }
-
-async function syncPiWallet(){
-  if(!currentUser){toast('Login with Pi first.');return;}
-  try{
-    const auth=await new Promise((resolve,reject)=>{
-      let done=false;
-      const timer=setTimeout(()=>{if(!done){done=true;reject(new Error('Wallet permission timed out.'));}},30000);
-      Pi.authenticate(['username','wallet_address'],payment=>console.log('Incomplete payment:',payment)).then(result=>{
-        if(done)return;done=true;clearTimeout(timer);resolve(result);
-      }).catch(error=>{if(done)return;done=true;clearTimeout(timer);reject(error);});
-    });
-    const wallet=auth?.user?.wallet_address||'';
-    if(!wallet)throw new Error('Pi did not return a wallet address.');
-    currentUser.wallet_address=wallet;
-    if(auth.accessToken){currentUser.accessToken=auth.accessToken;localStorage.setItem('amtPetPiAccessToken',auth.accessToken);}
-    localStorage.setItem('amtPetPiWallet',wallet);
-    await syncPioneer();enterApp();updateLoggedInWallet();toast('Pi Testnet wallet synchronized.');
-  }catch(e){console.log('Wallet synchronization:',e);updateLoggedInWallet();}
-}
-
-function connectOrRefreshPiWallet(){syncPiWallet();}
-
-function copyPiWalletAddress(){
-  const address=currentUser?.wallet_address||localStorage.getItem('amtPetPiWallet')||'';
-  if(!address){toast('Pi Wallet address is not connected yet.');return;}
-  if(navigator.clipboard){navigator.clipboard.writeText(address).then(()=>toast('Pi Wallet address copied.')).catch(()=>toast('Copy failed.'));}
-  else toast(address);
-}
-
 async function syncPioneer(){
-  const token=currentUser?.accessToken||localStorage.getItem('amtPetPiAccessToken')||'';
-  if(!token)return;
   try{
-    const r=await fetch(API+'/api/auth/verify',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token}});
+    const r=await fetch(API+'/api/auth/verify',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(currentUser?.accessToken||'')}});
     if(r.ok){
       const d=await r.json();
       if(d.walletAddress)currentUser.wallet_address=d.walletAddress;
@@ -313,21 +265,9 @@ async function syncPioneer(){
       if(d.username)currentUser.username=d.username;
       if(d.uid)currentUser.uid=d.uid;
     }
-  }catch(e){console.log('Optional backend sync:',e);}
-  localStorage.setItem('amtPetPiUid',currentUser.uid||'');
-  localStorage.setItem('amtPetPiUsername',currentUser.username||'Pioneer');
+  }catch(e){console.log('Optional backend sync:',e)}
   localStorage.setItem('amtPetPiWallet',currentUser.wallet_address||'');
-  localStorage.setItem('amtPetPiAccessToken',currentUser.accessToken||token);
 }
-
-function updateLoggedInWallet(){
-  if(!currentUser)return;
-  $('navUser').textContent='@'+currentUser.username;
-  $('profileName').textContent='@'+currentUser.username;
-  $('profileUid').textContent='Pi UID: '+(currentUser.uid||'—');
-  $('walletAddress').textContent=currentUser.wallet_address||'Wallet address not connected yet.';
-}
-
 function enterApp(){
   $('loginScreen').style.display='none';$('app').style.display='block';
   $('navUser').textContent='@'+currentUser.username;
@@ -360,6 +300,7 @@ function renderMarket(){
   a.sort((x,y)=>z==='name'?String(x.name).localeCompare(String(y.name)):Number(y['base_'+z]||0)-Number(x['base_'+z]||0));
   $('grid').innerHTML=a.length?a.map(p=>`<article class="petCard"><span class="petBadge">${esc(p.element)} • ${esc(p.rarity)}</span><img class="petPic" src="${img(p.image)}" alt="${esc(p.name)}" loading="lazy"><div class="petBody"><div class="petName">${esc(p.name)}</div><div class="meta"><span>${esc(p.pet_code)}</span><span>Lv.1</span></div><div class="stats"><span class="stat">❤️ ${p.base_hp}</span><span class="stat">⚔️ ${p.base_atk}</span><span class="stat">🛡️ ${p.base_def}</span></div><div class="price">🟣 Price: ${Number(p.pi_price||p.price_pi||100)} Pi Testnet</div><button class="action" onclick='openPet(${JSON.stringify(p)})'>VIEW PET</button><button class="action gold" style="margin-top:8px" onclick='quickBuyPet(${JSON.stringify(p)})'>🛒 BUY WITH PI</button></div></article>`).join(''):'<div class="msg">No pets found.</div>';
 }
+function quickBuyPet(p){selectedPet=p;buyPetPrepared();}
 function openPet(p){
   selectedPet=p;$('modalName').textContent=p.name;$('modalImg').src=img(p.image);
   $('modalDetails').innerHTML=`<div class="stats"><span class="stat">🌍 ${esc(p.element)}</span><span class="stat">⭐ ${esc(p.rarity)}</span><span class="stat">❤️ HP ${p.base_hp}</span><span class="stat">⚔️ ATK ${p.base_atk}</span><span class="stat">🛡️ DEF ${p.base_def}</span></div><div class="muted">${esc(p.pet_code)} • Level 1 • XP 0</div><hr style="border:0;border-top:1px solid #1c3b52;margin:12px 0"><div class="row"><span class="muted">Evolution</span><b>Common → Uncommon → Rare → Epic → Legend → Mythic</b></div>`;
@@ -370,75 +311,121 @@ async function buyPetPrepared(){
   if(!selectedPet){toast('Select a pet first.');return}
   if(!currentUser){toast('Login with Pi first.');return}
   if(!window.Pi){toast('Open AMT Pet Marketplace in Pi Browser.');return}
-  const token=currentUser.accessToken||localStorage.getItem('amtPetPiAccessToken')||'';
-  if(!token){toast('Please log in with Pi again.');return}
+  if(!currentUser.accessToken){toast('Please log in with Pi again.');return}
+
   const amount=Number(selectedPet.pi_price||selectedPet.price_pi||100);
   const petCode=selectedPet.pet_code;
-  const petName=selectedPet.name;
-  let busy=false;
-  if(window.__buyBusy)return;
-  window.__buyBusy=true;
+  const memo='AMT Pet Marketplace - '+petCode;
+  const metadata={
+    type:'pet_purchase',
+    pet_code:petCode,
+    pet_name:selectedPet.name
+  };
+
   try{
-    toast('Opening Pi payment for '+petName+'...');
+    toast('Opening Pi payment...');
     await new Promise((resolve,reject)=>{
-      try{
-        Pi.createPayment({
-          amount:amount,
-          currency:'Pi',
-          memo:'AMT Pet Marketplace - '+petCode,
-          metadata:{type:'pet_purchase',pet_code:petCode,pet_name:petName,pi_uid:currentUser.uid}
-        },{
+      let settled=false;
+      const fail=e=>{
+        if(settled)return;
+        settled=true;
+        reject(e instanceof Error?e:Error(String(e||'Pi payment failed.')));
+      };
+      const done=v=>{
+        if(settled)return;
+        settled=true;
+        resolve(v);
+      };
+
+      Pi.createPayment(
+        {amount,currency:'Pi',memo,metadata},
+        {
           onReadyForServerApproval:async paymentId=>{
             try{
-              const r=await fetch(API+'/api/payments/pi/prepare',{
+              /* IMPORTANT: prepare must happen before approval.
+                 The Render backend requires payment_id + pet_code. */
+              const prep=await fetch(API+'/api/payments/pi/prepare',{
                 method:'POST',
-                headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-                body:JSON.stringify({payment_id:paymentId,pet_code:petCode})
+                headers:{
+                  'Content-Type':'application/json',
+                  'Authorization':'Bearer '+currentUser.accessToken
+                },
+                body:JSON.stringify({
+                  payment_id:paymentId,
+                  pet_code:petCode
+                })
               });
-              const d=await r.json().catch(()=>({}));
-              if(!r.ok)throw new Error(d.error||'Payment preparation failed.');
-              const a=await fetch(API+'/api/payments/pi/approve',{
+              const prepData=await prep.json().catch(()=>({}));
+              if(!prep.ok){
+                throw Error(prepData.error||'Payment preparation failed.');
+              }
+
+              const approval=await fetch(API+'/api/payments/pi/approve',{
                 method:'POST',
-                headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-                body:JSON.stringify({payment_id:paymentId,pet_code:petCode})
+                headers:{
+                  'Content-Type':'application/json',
+                  'Authorization':'Bearer '+currentUser.accessToken
+                },
+                body:JSON.stringify({
+                  payment_id:paymentId,
+                  pet_code:petCode
+                })
               });
-              const ad=await a.json().catch(()=>({}));
-              if(!a.ok)throw new Error(ad.error||'Server approval failed.');
-            }catch(e){reject(e)}
+              const approvalData=await approval.json().catch(()=>({}));
+              if(!approval.ok){
+                throw Error(approvalData.error||'Server approval failed.');
+              }
+              console.log('Pi payment approved:',approvalData);
+            }catch(e){
+              console.error('Pi approval:',e);
+              fail(e);
+            }
           },
-          onReadyForServerCompletion:async(paymentId)=>{
+
+          onReadyForServerCompletion:async paymentId=>{
             try{
-              const r=await fetch(API+'/api/payments/pi/complete',{
+              const complete=await fetch(API+'/api/payments/pi/complete',{
                 method:'POST',
-                headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
-                body:JSON.stringify({payment_id:paymentId,pet_code:petCode})
+                headers:{
+                  'Content-Type':'application/json',
+                  'Authorization':'Bearer '+currentUser.accessToken
+                },
+                body:JSON.stringify({
+                  payment_id:paymentId,
+                  pet_code:petCode
+                })
               });
-              const d=await r.json().catch(()=>({}));
-              if(!r.ok)throw new Error(d.error||'Payment completion failed.');
-              resolve(d);
-            }catch(e){reject(e)}
+              const completeData=await complete.json().catch(()=>({}));
+              if(!complete.ok){
+                throw Error(completeData.error||'Payment completion failed.');
+              }
+              console.log('Pi payment completed:',completeData);
+              done(completeData);
+            }catch(e){
+              console.error('Pi completion:',e);
+              fail(e);
+            }
           },
-          onCancel:()=>reject(new Error('Pi payment was cancelled.')),
-          onError:error=>reject(new Error(error?.message||'Pi payment failed.'))
-        });
-      }catch(e){reject(e)}
+
+          onCancel:()=>fail(Error('Payment cancelled.')),
+          onError:error=>fail(Error(error?.message||'Pi payment failed.'))
+        }
+      );
     });
+
     closeModal();
-    toast('✅ '+petName+' purchased successfully with Pi Testnet.');
+    toast(selectedPet.name+' purchased successfully with Pi Testnet.');
     await loadMyPets();
   }catch(e){
     console.error('BUY PET:',e);
-    toast(e?.message||'Pi payment was not completed.');
-  }finally{
-    window.__buyBusy=false;
+    toast(e.message||'Pi payment was not completed.');
   }
 }
-function quickBuyPet(p){selectedPet=p;buyPetPrepared()}
 async function loadMyPets(){
   $('myPets').innerHTML='<div class="msg">Loading your pets...</div>';
   try{
     const uid=currentUser?.uid||localStorage.getItem('amtPetPiUid');
-    const r=await fetch(API+'/api/my-pets/'+encodeURIComponent(uid||''),{cache:'no-store'});
+    const r=await fetch(API+'/api/my-pets?pi_uid='+encodeURIComponent(uid||''),{cache:'no-store'});
     if(!r.ok)throw Error('not available');
     const d=await r.json(),list=d.pets||d.ownedPets||[];
     renderMyPets(list);
@@ -450,15 +437,8 @@ function renderMyPets(list){
   $('myPets').innerHTML=list.map(p=>`<div class="owned"><img src="${img(p.image)}" alt="${esc(p.name)}"><div><b>${esc(p.name)}</b><br><span class="muted">${esc(p.element||'—')} • ${esc(p.rarity||'Common')} • Lv.${esc(p.level||1)}</span></div></div>`).join('');
 }
 document.addEventListener('DOMContentLoaded',()=>{
-  const uid=localStorage.getItem('amtPetPiUid');
-  const name=localStorage.getItem('amtPetPiUsername');
-  const wallet=localStorage.getItem('amtPetPiWallet');
-  const accessToken=localStorage.getItem('amtPetPiAccessToken');
-  if(uid&&name&&accessToken){
-    currentUser={uid,username:name,wallet_address:wallet||'',accessToken};
-    enterApp();
-    syncPioneer().catch(()=>{});
-  }
+  const uid=localStorage.getItem('amtPetPiUid'),name=localStorage.getItem('amtPetPiUsername'),wallet=localStorage.getItem('amtPetPiWallet'),accessToken=localStorage.getItem('amtPetPiAccessToken');
+  if(uid&&name&&accessToken){currentUser={uid,username:name,wallet_address:wallet||'',accessToken};enterApp()}
   load();
 });
 </script>
