@@ -153,6 +153,7 @@ button{cursor:pointer}
     <div class="card">
       <div class="cardTitle">🔐 PIONEER WALLET</div>
       <div class="walletBox" id="walletAddress">Not synchronized</div>
+      <button id="walletSyncBtn" class="action" style="margin-top:10px" onclick="syncPiWallet()">🔄 SYNC PI TESTNET WALLET</button>
       <div class="muted" style="margin-top:9px">The wallet shown here is the wallet returned by the logged-in Pi session. Never enter a private key or secret key in this app.</div>
     </div>
     <div class="profileGrid">
@@ -269,24 +270,12 @@ async function loginPi(){
     enterApp();
     toast('Welcome, @'+currentUser.username+'! Login successful.');
 
-    // Wallet synchronization is a separate, non-blocking step.
+    // Try wallet synchronization once after login.
+    // If Pi does not grant the permission, the profile button remains available.
     try{
-      const walletAuth=await withTimeout(
-        Pi.authenticate(['username','wallet_address'],p=>console.log('Incomplete payment:',p)),
-        15000,
-        'Wallet permission timed out.'
-      );
-      if(walletAuth?.user?.wallet_address){
-        currentUser.wallet_address=walletAuth.user.wallet_address;
-        if(walletAuth.accessToken)currentUser.accessToken=walletAuth.accessToken;
-        localStorage.setItem('amtPetPiWallet',currentUser.wallet_address);
-        localStorage.setItem('amtPetPiAccessToken',currentUser.accessToken||'');
-        updateLoggedInWallet();
-        toast('Pi wallet synchronized successfully.');
-      }
+      await syncPiWallet();
     }catch(walletErr){
       console.warn('Wallet permission not available yet:',walletErr);
-      toast('Login successful. Wallet can be synchronized from your profile.');
     }
     await syncPioneer();
     updateLoggedInWallet();
@@ -302,8 +291,62 @@ async function loginPi(){
 }
 function updateLoggedInWallet(){
   if(!currentUser)return;
-  $('walletAddress').textContent=currentUser.wallet_address||'Wallet permission not granted yet';
+  const w=currentUser.wallet_address||'';
+  $('walletAddress').textContent=w||'Wallet permission not granted yet';
   if($('navUser'))$('navUser').textContent='@'+currentUser.username;
+  const b=$('walletSyncBtn');
+  if(b){
+    b.disabled=false;
+    b.textContent=w?'✅ PI WALLET SYNCHRONIZED':'🔄 SYNC PI TESTNET WALLET';
+  }
+}
+async function syncPiWallet(){
+  if(!currentUser){
+    toast('Login with Pi first.');
+    return;
+  }
+  if(!window.Pi){
+    toast('Open this app in Pi Browser.');
+    return;
+  }
+
+  const b=$('walletSyncBtn');
+  if(b){b.disabled=true;b.textContent='🔄 REQUESTING WALLET...';}
+
+  try{
+    // Request the wallet_address permission explicitly after login.
+    // No private key or secret is ever requested.
+    Pi.init({version:'2.0',sandbox:true});
+    const walletAuth=await withTimeout(
+      Pi.authenticate(['username','wallet_address'],p=>console.log('Incomplete payment:',p)),
+      20000,
+      'Wallet permission request timed out. Please try again.'
+    );
+
+    const wallet=walletAuth?.user?.wallet_address||'';
+    if(!wallet){
+      throw new Error('Pi did not return a wallet address. Please allow wallet permission and try again.');
+    }
+
+    currentUser.wallet_address=wallet;
+    if(walletAuth.accessToken){
+      currentUser.accessToken=walletAuth.accessToken;
+      localStorage.setItem('amtPetPiAccessToken',currentUser.accessToken);
+    }
+    localStorage.setItem('amtPetPiWallet',wallet);
+
+    updateLoggedInWallet();
+
+    // Verify/synchronize the same Pioneer session with the AMT Pet backend.
+    await syncPioneer();
+
+    updateLoggedInWallet();
+    toast('Pi Testnet wallet synchronized successfully.');
+  }catch(e){
+    console.error('Pi wallet sync error:',e);
+    if(b){b.disabled=false;b.textContent='🔄 SYNC PI TESTNET WALLET';}
+    toast(e?.message||'Wallet synchronization failed. Please try again.');
+  }
 }
 async function syncPioneer(){
   try{
@@ -376,7 +419,11 @@ function renderMyPets(list){
 }
 document.addEventListener('DOMContentLoaded',()=>{
   const uid=localStorage.getItem('amtPetPiUid'),name=localStorage.getItem('amtPetPiUsername'),wallet=localStorage.getItem('amtPetPiWallet');
-  if(uid&&name){currentUser={uid,username:name,wallet_address:wallet||'',accessToken:localStorage.getItem('amtPetPiAccessToken')||''};enterApp()}
+  if(uid&&name){
+    currentUser={uid,username:name,wallet_address:wallet||'',accessToken:localStorage.getItem('amtPetPiAccessToken')||''};
+    enterApp();
+    updateLoggedInWallet();
+  }
   load();
 });
 </script>
