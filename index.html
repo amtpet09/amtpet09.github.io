@@ -235,40 +235,75 @@ function showPanel(id,btn){
 }
 function featureSoon(name){toast(name+' is prepared. Backend rules will be connected next.')}
 function logoutPi(){localStorage.removeItem('amtPetPiUid');localStorage.removeItem('amtPetPiUsername');localStorage.removeItem('amtPetPiWallet');localStorage.removeItem('amtPetPiAccessToken');localStorage.removeItem('amtPetProfileImage');currentUser=null;$('app').style.display='none';$('loginScreen').style.display='flex';$('loginBtn').disabled=false;$('loginBtn').textContent='🟣 LOGIN WITH PI'}
+let piLoginBusy=false;
+function withTimeout(promise,ms,label){
+  return Promise.race([promise,new Promise((_,reject)=>setTimeout(()=>reject(new Error(label||'Pi request timed out.')),ms))]);
+}
 async function loginPi(){
+  if(piLoginBusy)return;
   if(!window.Pi){toast('Open AMT Pet Marketplace in Pi Browser.');return}
-  $('loginBtn').disabled=true;$('loginBtn').textContent='Connecting to Pi...';
+  piLoginBusy=true;
+  const btn=$('loginBtn');
+  btn.disabled=true;
+  btn.textContent='Connecting to Pi...';
   try{
+    // Keep the first login request minimal. Wallet permission is requested only after login.
     Pi.init({version:'2.0',sandbox:true});
-    // First authenticate only with the basic username scope. This avoids blocking login
-    // if wallet permission is not yet available in the current Pi Browser session.
-    const auth=await Pi.authenticate(['username'],p=>console.log('Incomplete payment:',p));
+    const auth=await withTimeout(
+      Pi.authenticate(['username'],p=>console.log('Incomplete payment:',p)),
+      20000,
+      'Pi Login timed out. Please tap LOGIN WITH PI again in Pi Browser.'
+    );
     if(!auth||!auth.user)throw new Error('Pi did not return a user account.');
     const u=auth.user;
     currentUser={uid:u.uid||'',username:u.username||'Pioneer',wallet_address:u.wallet_address||'',accessToken:auth.accessToken||''};
     if(!currentUser.uid)throw new Error('Pi UID was not returned.');
+    if(!currentUser.accessToken)throw new Error('Pi did not return an access token.');
+
     localStorage.setItem('amtPetPiUid',currentUser.uid);
     localStorage.setItem('amtPetPiUsername',currentUser.username);
-    localStorage.setItem('amtPetPiWallet',currentUser.wallet_address);
+    localStorage.setItem('amtPetPiWallet',currentUser.wallet_address||'');
     localStorage.setItem('amtPetPiAccessToken',currentUser.accessToken);
-    // Try to request the wallet address after successful login. Failure here must NOT cancel login.
+
+    // Login must succeed even if wallet permission is unavailable.
+    enterApp();
+    toast('Welcome, @'+currentUser.username+'! Login successful.');
+
+    // Wallet synchronization is a separate, non-blocking step.
     try{
-      const walletAuth=await Pi.authenticate(['username','wallet_address'],p=>console.log('Incomplete payment:',p));
+      const walletAuth=await withTimeout(
+        Pi.authenticate(['username','wallet_address'],p=>console.log('Incomplete payment:',p)),
+        15000,
+        'Wallet permission timed out.'
+      );
       if(walletAuth?.user?.wallet_address){
         currentUser.wallet_address=walletAuth.user.wallet_address;
         if(walletAuth.accessToken)currentUser.accessToken=walletAuth.accessToken;
         localStorage.setItem('amtPetPiWallet',currentUser.wallet_address);
         localStorage.setItem('amtPetPiAccessToken',currentUser.accessToken||'');
+        updateLoggedInWallet();
+        toast('Pi wallet synchronized successfully.');
       }
-    }catch(walletErr){console.warn('Wallet permission not available yet:',walletErr)}
+    }catch(walletErr){
+      console.warn('Wallet permission not available yet:',walletErr);
+      toast('Login successful. Wallet can be synchronized from your profile.');
+    }
     await syncPioneer();
-    enterApp();
-    toast(currentUser.wallet_address?'Welcome, @'+currentUser.username+'! Wallet synchronized.':'Welcome, @'+currentUser.username+'! Login successful.');
+    updateLoggedInWallet();
   }catch(e){
     console.error('Pi login error:',e);
-    $('loginBtn').disabled=false;$('loginBtn').textContent='🟣 LOGIN WITH PI';
-    toast('Pi Login failed: '+(e?.message||'Please try again in Pi Browser.'));
+    btn.disabled=false;
+    btn.textContent='🟣 LOGIN WITH PI';
+    toast(e?.message||'Pi Login failed. Please try again in Pi Browser.');
+  }finally{
+    piLoginBusy=false;
+    if(currentUser){btn.disabled=false;btn.textContent='🟢 PI CONNECTED';}
   }
+}
+function updateLoggedInWallet(){
+  if(!currentUser)return;
+  $('walletAddress').textContent=currentUser.wallet_address||'Wallet permission not granted yet';
+  if($('navUser'))$('navUser').textContent='@'+currentUser.username;
 }
 async function syncPioneer(){
   try{
