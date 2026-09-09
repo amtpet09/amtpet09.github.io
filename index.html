@@ -98,7 +98,7 @@ button{cursor:pointer}
       <span class="pill">🐾 Catalog: <b id="count">0</b></span>
       <span class="pill">⭐ Common</span>
       <span class="pill">⚡ 7 Elements</span>
-      <span class="pill">💰 AMT</span>
+      <span class="pill">🟣 Pi Testnet</span>
     </div>
   </section>
 
@@ -212,8 +212,8 @@ button{cursor:pointer}
     <h2 id="modalName">Pet</h2>
     <img id="modalImg" class="modalImg">
     <div id="modalDetails"></div>
-    <button class="action gold" style="margin-top:10px" onclick="buyPetPrepared()">🛒 BUY PET — AMT</button>
-    <div class="muted" style="margin-top:8px">Secure AMT Testnet payment/transfer verification will be required before ownership is created.</div>
+    <button class="action gold" style="margin-top:10px" onclick="buyPetPrepared()">🛒 BUY PET — PI</button>
+    <div class="muted" style="margin-top:8px">Secure Pi Testnet payment and server-side ownership verification will be used before the pet is added to your collection.</div>
   </div>
 </div>
 <div id="toast" class="toast"></div>
@@ -358,7 +358,7 @@ function renderMarket(){
   const s=($('q')?.value||'').toLowerCase().trim(),e=$('el')?.value||'All Elements',z=$('sort')?.value||'name';
   let a=pets.filter(p=>(!s||String(p.name).toLowerCase().includes(s)||String(p.pet_code).toLowerCase().includes(s))&&(e==='All Elements'||p.element===e));
   a.sort((x,y)=>z==='name'?String(x.name).localeCompare(String(y.name)):Number(y['base_'+z]||0)-Number(x['base_'+z]||0));
-  $('grid').innerHTML=a.length?a.map(p=>`<article class="petCard"><span class="petBadge">${esc(p.element)} • ${esc(p.rarity)}</span><img class="petPic" src="${img(p.image)}" alt="${esc(p.name)}" loading="lazy"><div class="petBody"><div class="petName">${esc(p.name)}</div><div class="meta"><span>${esc(p.pet_code)}</span><span>Lv.1</span></div><div class="stats"><span class="stat">❤️ ${p.base_hp}</span><span class="stat">⚔️ ${p.base_atk}</span><span class="stat">🛡️ ${p.base_def}</span></div><div class="price">💰 Price: TBA AMT</div><button class="action" onclick='openPet(${JSON.stringify(p)})'>VIEW PET</button></div></article>`).join(''):'<div class="msg">No pets found.</div>';
+  $('grid').innerHTML=a.length?a.map(p=>`<article class="petCard"><span class="petBadge">${esc(p.element)} • ${esc(p.rarity)}</span><img class="petPic" src="${img(p.image)}" alt="${esc(p.name)}" loading="lazy"><div class="petBody"><div class="petName">${esc(p.name)}</div><div class="meta"><span>${esc(p.pet_code)}</span><span>Lv.1</span></div><div class="stats"><span class="stat">❤️ ${p.base_hp}</span><span class="stat">⚔️ ${p.base_atk}</span><span class="stat">🛡️ ${p.base_def}</span></div><div class="price">🟣 Price: ${Number(p.pi_price||p.price_pi||100)} Pi Testnet</div><button class="action" onclick='openPet(${JSON.stringify(p)})'>VIEW PET</button><button class="action gold" style="margin-top:8px" onclick='quickBuyPet(${JSON.stringify(p)})'>🛒 BUY WITH PI</button></div></article>`).join(''):'<div class="msg">No pets found.</div>';
 }
 function openPet(p){
   selectedPet=p;$('modalName').textContent=p.name;$('modalImg').src=img(p.image);
@@ -366,12 +366,79 @@ function openPet(p){
   $('modal').classList.add('show');
 }
 function closeModal(){$('modal').classList.remove('show')}
-function buyPetPrepared(){if(!selectedPet)return;if(!currentUser){toast('Login with Pi first.');return}toast('BUY '+selectedPet.name+' is ready for secure AMT Testnet payment integration.')}
+async function buyPetPrepared(){
+  if(!selectedPet){toast('Select a pet first.');return}
+  if(!currentUser){toast('Login with Pi first.');return}
+  if(!window.Pi){toast('Open AMT Pet Marketplace in Pi Browser.');return}
+  const token=currentUser.accessToken||localStorage.getItem('amtPetPiAccessToken')||'';
+  if(!token){toast('Please log in with Pi again.');return}
+  const amount=Number(selectedPet.pi_price||selectedPet.price_pi||100);
+  const petCode=selectedPet.pet_code;
+  const petName=selectedPet.name;
+  let busy=false;
+  if(window.__buyBusy)return;
+  window.__buyBusy=true;
+  try{
+    toast('Opening Pi payment for '+petName+'...');
+    await new Promise((resolve,reject)=>{
+      try{
+        Pi.createPayment({
+          amount:amount,
+          currency:'Pi',
+          memo:'AMT Pet Marketplace - '+petCode,
+          metadata:{type:'pet_purchase',pet_code:petCode,pet_name:petName,pi_uid:currentUser.uid}
+        },{
+          onReadyForServerApproval:async paymentId=>{
+            try{
+              const r=await fetch(API+'/api/payments/pi/prepare',{
+                method:'POST',
+                headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+                body:JSON.stringify({payment_id:paymentId,pet_code:petCode})
+              });
+              const d=await r.json().catch(()=>({}));
+              if(!r.ok)throw new Error(d.error||'Payment preparation failed.');
+              const a=await fetch(API+'/api/payments/pi/approve',{
+                method:'POST',
+                headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+                body:JSON.stringify({payment_id:paymentId,pet_code:petCode})
+              });
+              const ad=await a.json().catch(()=>({}));
+              if(!a.ok)throw new Error(ad.error||'Server approval failed.');
+            }catch(e){reject(e)}
+          },
+          onReadyForServerCompletion:async(paymentId)=>{
+            try{
+              const r=await fetch(API+'/api/payments/pi/complete',{
+                method:'POST',
+                headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+                body:JSON.stringify({payment_id:paymentId,pet_code:petCode})
+              });
+              const d=await r.json().catch(()=>({}));
+              if(!r.ok)throw new Error(d.error||'Payment completion failed.');
+              resolve(d);
+            }catch(e){reject(e)}
+          },
+          onCancel:()=>reject(new Error('Pi payment was cancelled.')),
+          onError:error=>reject(new Error(error?.message||'Pi payment failed.'))
+        });
+      }catch(e){reject(e)}
+    });
+    closeModal();
+    toast('✅ '+petName+' purchased successfully with Pi Testnet.');
+    await loadMyPets();
+  }catch(e){
+    console.error('BUY PET:',e);
+    toast(e?.message||'Pi payment was not completed.');
+  }finally{
+    window.__buyBusy=false;
+  }
+}
+function quickBuyPet(p){selectedPet=p;buyPetPrepared()}
 async function loadMyPets(){
   $('myPets').innerHTML='<div class="msg">Loading your pets...</div>';
   try{
     const uid=currentUser?.uid||localStorage.getItem('amtPetPiUid');
-    const r=await fetch(API+'/api/my-pets?pi_uid='+encodeURIComponent(uid||''),{cache:'no-store'});
+    const r=await fetch(API+'/api/my-pets/'+encodeURIComponent(uid||''),{cache:'no-store'});
     if(!r.ok)throw Error('not available');
     const d=await r.json(),list=d.pets||d.ownedPets||[];
     renderMyPets(list);
