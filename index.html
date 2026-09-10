@@ -13,6 +13,7 @@
   --green:#54e39a;--red:#ff7180
 }
 *{box-sizing:border-box}
+html{overflow-x:hidden}body{overflow-x:hidden}
 html,body{margin:0;min-height:100%;background:radial-gradient(circle at top,#163a55 0,#06101c 48%,#02060b 100%);color:var(--text);font-family:Arial,sans-serif}
 button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!important}
 #loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:22px}
@@ -46,8 +47,7 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 .msg{text-align:center;color:var(--muted);padding:45px 10px}.card{background:linear-gradient(145deg,#10263a,#081522);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:12px}
 .cardTitle{font-weight:1000;margin-bottom:12px}.row{display:flex;justify-content:space-between;gap:10px;align-items:center;margin:8px 0}.muted{color:var(--muted);font-size:12px}
 .profileHead{display:flex;gap:14px;align-items:center}.avatar{width:82px;height:82px;border-radius:22px;object-fit:cover;background:#091a29;border:2px solid #376987;display:flex;align-items:center;justify-content:center;font-size:35px}.profileName{font-size:23px;font-weight:1000}.reputation{color:var(--gold);font-weight:1000;margin-top:4px}
-.walletBox{padding:13px;border-radius:13px;background:#071522;border:1px solid #1d3a51;word-break:break-all;font-size:11px;color:#b9d0df}
-.profileGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:12px}.mini{padding:12px;background:#081724;border:1px solid #1c3b52;border-radius:12px}.mini b{display:block;font-size:18px;margin-top:4px}
+.walletBox{padding:12px;border-radius:13px;background:#071522;border:1px solid #1d3a51;font-size:11px;color:#b9d0df;min-width:0;overflow:hidden}.walletValue{font-weight:900;color:#e9f6ff;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.walletLabel{font-size:9px;color:#6f8da1;font-weight:900;margin-bottom:5px}.walletActions{display:flex;gap:7px;margin-top:8px}.copyBtn{border:1px solid #244965;background:#0a1a29;color:#b9d9eb;border-radius:8px;padding:7px 9px;font-size:10px;font-weight:900}.row>*{min-width:0}.row span:last-child,.row b:last-child{max-width:62%;overflow-wrap:anywhere;word-break:break-word;text-align:right}.profileGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:12px}.mini{padding:12px;background:#081724;border:1px solid #1c3b52;border-radius:12px}.mini b{display:block;font-size:18px;margin-top:4px}
 .featureGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.feature{padding:16px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(145deg,#10263a,#081522)}.feature .ico{font-size:28px}.feature h3{margin:8px 0 5px}.feature p{font-size:11px;color:var(--muted);line-height:1.45;margin:0 0 10px}
 .collection{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:10px}.owned{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#091725}.owned img{width:100%;aspect-ratio:1;object-fit:cover}.owned div{padding:8px;font-size:11px}
 .modal{display:none;position:fixed;inset:0;background:#000c;z-index:100;align-items:center;justify-content:center;padding:16px}.modal.show{display:flex}.modalBox{width:min(450px,100%);max-height:92vh;overflow:auto;background:#0b1b2b;border:1px solid #315572;border-radius:20px;padding:16px;box-shadow:0 25px 80px #000b}
@@ -171,9 +171,14 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 
   <div class="card">
     <div class="cardTitle">🔐 SYNCHRONIZED PI WALLET</div>
-    <div class="walletBox" id="walletAddress">Not synchronized</div>
+    <div class="walletBox">
+      <div class="walletLabel">PUBLIC WALLET ADDRESS</div>
+      <div class="walletValue" id="walletAddress">Not synchronized</div>
+      <div class="walletActions"><button class="copyBtn" onclick="copyWalletAddress()">📋 COPY ADDRESS</button></div>
+    </div>
     <div class="row" style="margin-top:10px"><span class="muted">Wallet status</span><b id="walletSyncStatus">NOT SYNCHRONIZED</b></div>
-    <div class="row"><span class="muted">On-chain AMT</span><b id="onChainAMT">— AMT</b></div>
+    <div class="row"><span class="muted">🟣 Pi Wallet Balance</span><b id="piBalance">— PI</b></div>
+    <div class="row"><span class="muted">🪙 On-chain AMT</span><b id="onChainAMT">— AMT</b></div>
     <div class="row"><span class="muted">AMT issuer</span><span id="amtIssuer">Not configured</span></div>
     <div class="row" style="gap:8px;margin-top:10px">
       <button class="action" style="margin-top:0;flex:1" onclick="refreshWalletSync()">🔄 SYNC / REFRESH WALLET</button>
@@ -282,6 +287,12 @@ const $=id=>document.getElementById(id);
 
 function esc(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function img(x){return './'+String(x||'').replace(/[^\w.-]/g,'')}
+function shortAddress(x){const w=String(x||'').trim();return w.length>16?w.slice(0,8)+'…'+w.slice(-8):w}
+async function copyWalletAddress(){
+  const w=String(currentUser?.wallet_address||'').trim();
+  if(!validWallet(w)){toast('Wallet address is not available yet.');return}
+  try{await navigator.clipboard.writeText(w);toast('Wallet address copied.')}catch{toast('Copy failed. Long-press the address if needed.')}
+}
 function toast(msg){$('toast').textContent=msg;$('toast').style.display='block';clearTimeout(window.__toast);window.__toast=setTimeout(()=>$('toast').style.display='none',2600)}
 function authHeaders(){return {'Content-Type':'application/json','Authorization':'Bearer '+(currentUser?.accessToken||'')}}
 async function apiPost(path,body){
@@ -519,7 +530,7 @@ function testWalletFallbackForCurrentUser(){
 async function refreshWalletSync(){
   if(!currentUser?.accessToken){
     $('walletSyncStatus').textContent='NOT SYNCHRONIZED';$('walletSyncStatus').style.color='';
-    $('walletAddress').textContent='Login with Pi first';$('onChainAMT').textContent='— AMT';$('amtIssuer').textContent='Not configured';return;
+    $('walletAddress').textContent='Login with Pi first';$('piBalance').textContent='— PI';$('onChainAMT').textContent='— AMT';$('amtIssuer').textContent='Not configured';return;
   }
   try{
     $('walletSyncStatus').textContent='SYNCING...';$('walletSyncStatus').style.color='#ffd66b';
@@ -528,7 +539,7 @@ async function refreshWalletSync(){
     const candidate=walletOf(currentUser)||savedWalletForCurrentUser();
     if(!validWallet(candidate)){
       $('walletSyncStatus').textContent='WALLET PERMISSION REQUIRED';$('walletSyncStatus').style.color='#ffd66b';
-      $('walletAddress').textContent='Wallet address permission is not active for this app.';$('onChainAMT').textContent='— AMT';
+      $('walletAddress').textContent='Wallet address permission is not active for this app.';$('piBalance').textContent='— PI';$('onChainAMT').textContent='— AMT';
       $('amtIssuer').textContent='Not configured';
       throw Error('Pi did not return a public wallet address. Tap AUTHORIZE WALLET in Pi Browser and approve wallet_address.');
     }
@@ -558,7 +569,10 @@ async function refreshWalletSync(){
     const r=await fetch(API+'/api/wallet/onchain',{headers:authHeaders(),cache:'no-store'}),d=await r.json().catch(()=>({}));
     if(!r.ok)throw Error(d.error||'Unable to read on-chain AMT balance.');
     $('walletSyncStatus').textContent='SYNCHRONIZED';$('walletSyncStatus').style.color='#79ffad';
-    $('walletAddress').textContent=currentUser.wallet_address;$('onChainAMT').textContent=Number(d.balance||0).toFixed(8)+' AMT';$('amtIssuer').textContent=d.issuer||d.amt?.issuer||'Not configured';$('walletDiag').textContent=(currentUser.wallet_address===DEBUG_TEST_WALLET_FALLBACK&&String(currentUser.username||'').toLowerCase()===DEBUG_TEST_USERNAME.toLowerCase())?'Wallet source: TEMPORARY TESTNET DIAGNOSTIC FALLBACK':'Wallet source: Pi SDK / synchronized wallet';window.__amtWalletConfig=d;
+    $('walletAddress').textContent=shortAddress(currentUser.wallet_address);$('walletAddress').title=currentUser.wallet_address;
+    $('piBalance').textContent=Number(d.pi_balance??d.piBalance??0).toFixed(8)+' PI';
+    $('onChainAMT').textContent=Number(d.balance||0).toFixed(8)+' AMT';
+    const issuer=d.issuer||d.amt?.issuer||'Not configured';$('amtIssuer').textContent=shortAddress(issuer);$('amtIssuer').title=issuer;$('walletDiag').textContent=(currentUser.wallet_address===DEBUG_TEST_WALLET_FALLBACK&&String(currentUser.username||'').toLowerCase()===DEBUG_TEST_USERNAME.toLowerCase())?'Wallet source: TEMPORARY TESTNET DIAGNOSTIC FALLBACK':'Wallet source: Pi SDK / synchronized wallet';window.__amtWalletConfig=d;
     saveWalletForCurrentUser(currentUser.wallet_address);
   }catch(e){
     console.error('WALLET SYNC ERROR:',e);
@@ -569,7 +583,7 @@ async function refreshWalletSync(){
     }else{
       $('walletSyncStatus').textContent='SYNC FAILED';$('walletSyncStatus').style.color='#ff8090';
     }
-    $('onChainAMT').textContent='— AMT';toast(msg);
+    $('piBalance').textContent='— PI';$('onChainAMT').textContent='— AMT';toast(msg);
   }
 }
 
