@@ -67,32 +67,6 @@ async function initializeDatabase() {
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     completed_at TIMESTAMPTZ
   );`);
-  await dbQuery(`CREATE TABLE IF NOT EXISTS pioneer_stats(
-    pioneer_id BIGINT PRIMARY KEY REFERENCES pioneers(id) ON DELETE CASCADE,
-    reputation INTEGER NOT NULL DEFAULT 100, battles INTEGER NOT NULL DEFAULT 0,
-    trades INTEGER NOT NULL DEFAULT 0, sales INTEGER NOT NULL DEFAULT 0, completed_deals INTEGER NOT NULL DEFAULT 0,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );`);
-  await dbQuery(`CREATE TABLE IF NOT EXISTS pet_actions(
-    id BIGSERIAL PRIMARY KEY, pioneer_id BIGINT NOT NULL REFERENCES pioneers(id) ON DELETE CASCADE,
-    user_pet_id BIGINT REFERENCES user_pets(id) ON DELETE CASCADE, action TEXT NOT NULL, detail JSONB, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );`);
-  await dbQuery(`CREATE TABLE IF NOT EXISTS pet_listings(
-    id BIGSERIAL PRIMARY KEY, user_pet_id BIGINT UNIQUE NOT NULL REFERENCES user_pets(id) ON DELETE CASCADE,
-    seller_pioneer_id BIGINT NOT NULL REFERENCES pioneers(id) ON DELETE CASCADE, price_amt NUMERIC(30,8) NOT NULL,
-    status TEXT NOT NULL DEFAULT 'ACTIVE', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );`);
-  await dbQuery(`CREATE TABLE IF NOT EXISTS pet_escrows(
-    id BIGSERIAL PRIMARY KEY, user_pet_id BIGINT NOT NULL REFERENCES user_pets(id) ON DELETE CASCADE,
-    seller_pioneer_id BIGINT NOT NULL REFERENCES pioneers(id) ON DELETE CASCADE, buyer_pioneer_id BIGINT REFERENCES pioneers(id) ON DELETE SET NULL,
-    type TEXT NOT NULL, amount_amt NUMERIC(30,8) NOT NULL DEFAULT 0, amt_txid TEXT, status TEXT NOT NULL DEFAULT 'OPEN',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );`);
-  await dbQuery(`CREATE TABLE IF NOT EXISTS amt_stakes(
-    id BIGSERIAL PRIMARY KEY, pioneer_id BIGINT NOT NULL REFERENCES pioneers(id) ON DELETE CASCADE, amount_amt NUMERIC(30,8) NOT NULL,
-    lock_days INTEGER NOT NULL, reward_percent NUMERIC(10,4) NOT NULL, txid TEXT, status TEXT NOT NULL DEFAULT 'PENDING',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), unlock_at TIMESTAMPTZ NOT NULL, claimed_at TIMESTAMPTZ
-  );`);
   await dbQuery(`CREATE INDEX IF NOT EXISTS idx_pets_catalog_element ON pets_catalog(element);`);
   await dbQuery(`CREATE INDEX IF NOT EXISTS idx_user_pets_pioneer ON user_pets(pioneer_id);`);
   await dbQuery(`CREATE INDEX IF NOT EXISTS idx_pet_payments_uid ON pet_payments(pi_uid);`);
@@ -152,7 +126,6 @@ async function upsertPioneer(pi_uid,username,wallet_address) {
     updated_at=NOW()
     RETURNING id,pi_uid,username,wallet_address,created_at,updated_at`,
     [pi_uid,username||null,wallet_address||null]);
-  await dbQuery(`INSERT INTO pioneer_stats(pioneer_id) VALUES($1) ON CONFLICT(pioneer_id) DO NOTHING`,[r.rows[0].id]);
   return r.rows[0];
 }
 
@@ -199,8 +172,7 @@ app.get("/api/health",async(req,res)=>{
 
 app.get("/api/pets",async(req,res)=>{
   try {
-    const r=await dbQuery(`SELECT pet_code,name,element,rarity,image,base_hp,base_atk,base_def,
-      ${PET_PI_PRICE}::numeric AS pi_price,${PET_PI_PRICE}::numeric AS price_pi,${PET_AMT_PRICE}::numeric AS amt_price
+    const r=await dbQuery(`SELECT pet_code,name,element,rarity,image,base_hp,base_atk,base_def
       FROM pets_catalog ORDER BY CASE element WHEN 'Earth' THEN 1 WHEN 'Water' THEN 2
       WHEN 'Nature' THEN 3 WHEN 'Ice' THEN 4 WHEN 'Fire' THEN 5 WHEN 'Wind' THEN 6
       WHEN 'Thunder' THEN 7 ELSE 99 END,pet_code`);
@@ -382,39 +354,6 @@ app.post("/api/dev/give-pet",async(req,res)=>{
     res.json({ok:true,message:"Pet added to Pioneer collection.",pet});
   } catch(e) { console.error(e);res.status(500).json({ok:false,error:"Unable to give pet."}); }
 });
-
-
-async function ownedPet(req,petId){
-  const r=await dbQuery(`SELECT up.*,pc.name,pc.element,pc.image,pc.base_hp,pc.base_atk,pc.base_def
-    FROM user_pets up JOIN pets_catalog pc ON pc.pet_code=up.pet_code
-    WHERE up.id=$1 AND up.pioneer_id=$2 LIMIT 1`,[petId,req.pioneer.id]);
-  if(!r.rows.length) throw new Error('Pet not owned by this Pioneer.');
-  return r.rows[0];
-}
-async function changeRep(pioneerId,delta,field=null){
-  await dbQuery(`INSERT INTO pioneer_stats(pioneer_id) VALUES($1) ON CONFLICT DO NOTHING`,[pioneerId]);
-  const col=field && ['battles','trades','sales','completed_deals'].includes(field)?field:null;
-  if(col) await dbQuery(`UPDATE pioneer_stats SET ${col}=${col}+1,reputation=GREATEST(0,LEAST(1000,reputation+$2)),updated_at=NOW() WHERE pioneer_id=$1`,[pioneerId,delta]);
-  else await dbQuery(`UPDATE pioneer_stats SET reputation=GREATEST(0,LEAST(1000,reputation+$2)),updated_at=NOW() WHERE pioneer_id=$1`,[pioneerId,delta]);
-}
-app.get('/api/reputation/:pi_uid',async(req,res)=>{
-  try{const r=await dbQuery(`SELECT p.username,p.pi_uid,COALESCE(s.reputation,100) reputation,COALESCE(s.battles,0) battles,COALESCE(s.trades,0) trades,COALESCE(s.sales,0) sales,COALESCE(s.completed_deals,0) completed_deals FROM pioneers p LEFT JOIN pioneer_stats s ON s.pioneer_id=p.id WHERE p.pi_uid=$1 LIMIT 1`,[req.params.pi_uid]);if(!r.rows.length)return res.status(404).json({ok:false,error:'Pioneer not found.'});res.json({ok:true,reputation:r.rows[0]});}catch(e){res.status(500).json({ok:false,error:e.message});}
-});
-app.get('/api/market/listings',async(req,res)=>{
-  try{const r=await dbQuery(`SELECT l.id,l.price_amt,l.status,l.created_at,up.id pet_id,up.level,up.xp,up.hp,up.atk,up.def,pc.pet_code,pc.name,pc.element,pc.rarity,pc.image,p.pi_uid,p.username,COALESCE(s.reputation,100) seller_reputation FROM pet_listings l JOIN user_pets up ON up.id=l.user_pet_id JOIN pets_catalog pc ON pc.pet_code=up.pet_code JOIN pioneers p ON p.id=l.seller_pioneer_id LEFT JOIN pioneer_stats s ON s.pioneer_id=p.id WHERE l.status='ACTIVE' ORDER BY l.created_at DESC`);res.json({ok:true,listings:r.rows});}catch(e){res.status(500).json({ok:false,error:e.message});}
-});
-app.post('/api/pets/care',requirePiAuth,async(req,res)=>{try{const pet=await ownedPet(req,req.body?.pet_id);const hp=Math.min(Number(pet.base_hp),Number(pet.hp)+20);const r=await dbQuery(`UPDATE user_pets SET hp=$1,updated_at=NOW() WHERE id=$2 RETURNING *`,[hp,pet.id]);await dbQuery(`INSERT INTO pet_actions(pioneer_id,user_pet_id,action,detail) VALUES($1,$2,'CARE',$3)`,[req.pioneer.id,pet.id,JSON.stringify({hp})]);await changeRep(req.pioneer.id,1);res.json({ok:true,message:'Pet cared for.',pet:r.rows[0]});}catch(e){res.status(400).json({ok:false,error:e.message});}});
-app.post('/api/pets/train',requirePiAuth,async(req,res)=>{try{const pet=await ownedPet(req,req.body?.pet_id);const oldLevel=Number(pet.level),xp=Number(pet.xp)+25,level=Math.min(50,1+Math.floor(xp/100)),up=level>oldLevel,atk=Number(pet.atk)+(up?level-oldLevel:0),def=Number(pet.def)+(up?level-oldLevel:0);const r=await dbQuery(`UPDATE user_pets SET xp=$1,level=$2,atk=$3,def=$4,updated_at=NOW() WHERE id=$5 RETURNING *`,[xp,level,atk,def,pet.id]);await dbQuery(`INSERT INTO pet_actions(pioneer_id,user_pet_id,action,detail) VALUES($1,$2,'TRAIN',$3)`,[req.pioneer.id,pet.id,JSON.stringify({xp,level})]);await changeRep(req.pioneer.id,2);res.json({ok:true,message:up?'Training complete — level up!':'Training complete.',pet:r.rows[0]});}catch(e){res.status(400).json({ok:false,error:e.message});}});
-app.post('/api/pets/battle',requirePiAuth,async(req,res)=>{try{const pet=await ownedPet(req,req.body?.pet_id);const opponent=PET_SEED[Math.floor(Math.random()*PET_SEED.length)];const power=Number(pet.atk)+Number(pet.def)+Number(pet.hp)/5,enemy=opponent.atk+opponent.def+opponent.hp/5+Math.random()*25,win=power>=enemy,xp=Number(pet.xp)+(win?30:10),level=Math.min(50,1+Math.floor(xp/100));await dbQuery(`UPDATE user_pets SET xp=$1,level=$2,updated_at=NOW() WHERE id=$3`,[xp,level,pet.id]);await dbQuery(`INSERT INTO pet_actions(pioneer_id,user_pet_id,action,detail) VALUES($1,$2,'BATTLE',$3)`,[req.pioneer.id,pet.id,JSON.stringify({opponent:opponent.name,win})]);await changeRep(req.pioneer.id,win?5:-1,'battles');res.json({ok:true,win,opponent:opponent.name,xpEarned:win?30:10,message:win?'🏆 Victory!':'⚔️ Defeat — train and try again.'});}catch(e){res.status(400).json({ok:false,error:e.message});}});
-app.post('/api/pets/breed',requirePiAuth,async(req,res)=>{try{const a=await ownedPet(req,req.body?.parent1_id),b=await ownedPet(req,req.body?.parent2_id);if(a.id===b.id)throw new Error('Choose two different parents.');const poolCodes=[a.pet_code,b.pet_code];const code=poolCodes[Math.floor(Math.random()*poolCodes.length)];const cat=await dbQuery('SELECT * FROM pets_catalog WHERE pet_code=$1',[code]);const c=cat.rows[0];const r=await dbQuery(`INSERT INTO user_pets(pioneer_id,pet_code,rarity,level,xp,hp,atk,def) VALUES($1,$2,'Common',1,0,$3,$4,$5) RETURNING *`,[req.pioneer.id,c.pet_code,c.base_hp,c.base_atk,c.base_def]);await dbQuery(`INSERT INTO pet_actions(pioneer_id,user_pet_id,action,detail) VALUES($1,$2,'BREED',$3)`,[req.pioneer.id,r.rows[0].id,JSON.stringify({parent1:a.id,parent2:b.id})]);await changeRep(req.pioneer.id,3);res.json({ok:true,message:'New testnet pet bred successfully.',pet:{...r.rows[0],name:c.name,element:c.element,image:c.image}});}catch(e){res.status(400).json({ok:false,error:e.message});}});
-app.post('/api/trade/create',requirePiAuth,async(req,res)=>{try{const pet=await ownedPet(req,req.body?.pet_id);const target=String(req.body?.target_username||'').trim();if(!target)throw new Error('Target Pioneer username is required.');if(target.toLowerCase()===String(req.piUser.username).toLowerCase())throw new Error('You cannot trade with yourself.');const tp=await dbQuery('SELECT id,pi_uid,username FROM pioneers WHERE LOWER(username)=LOWER($1) LIMIT 1',[target]);if(!tp.rows.length)throw new Error('Target Pioneer not found.');const busy=await dbQuery(`SELECT 1 FROM pet_escrows WHERE user_pet_id=$1 AND status='OPEN' LIMIT 1`,[pet.id]);if(busy.rows.length)throw new Error('Pet is already in escrow.');const r=await dbQuery(`INSERT INTO pet_escrows(user_pet_id,seller_pioneer_id,buyer_pioneer_id,type,status) VALUES($1,$2,$3,'TRADE','OPEN') RETURNING *`,[pet.id,req.pioneer.id,tp.rows[0].id]);await changeRep(req.pioneer.id,1);res.json({ok:true,escrow:r.rows[0],message:'Trade escrow opened. Target Pioneer can accept it.'});}catch(e){res.status(400).json({ok:false,error:e.message});}});
-app.post('/api/trade/accept',requirePiAuth,async(req,res)=>{try{const r=await dbQuery(`SELECT * FROM pet_escrows WHERE id=$1 AND buyer_pioneer_id=$2 AND type='TRADE' AND status='OPEN' LIMIT 1`,[req.body?.escrow_id,req.pioneer.id]);if(!r.rows.length)throw new Error('Trade escrow not found.');const e=r.rows[0];await dbQuery('UPDATE user_pets SET pioneer_id=$1,updated_at=NOW() WHERE id=$2',[req.pioneer.id,e.user_pet_id]);await dbQuery(`UPDATE pet_escrows SET status='COMPLETED',updated_at=NOW() WHERE id=$1`,[e.id]);await changeRep(req.pioneer.id,3,'trades');await changeRep(e.seller_pioneer_id,5,'trades');res.json({ok:true,message:'Trade completed through escrow.'});}catch(e){res.status(400).json({ok:false,error:e.message});}});
-app.post('/api/trade/cancel',requirePiAuth,async(req,res)=>{try{const r=await dbQuery(`UPDATE pet_escrows SET status='CANCELLED',updated_at=NOW() WHERE id=$1 AND seller_pioneer_id=$2 AND status='OPEN' RETURNING *`,[req.body?.escrow_id,req.pioneer.id]);if(!r.rows.length)throw new Error('Trade escrow not found.');res.json({ok:true,message:'Trade escrow cancelled.'});}catch(e){res.status(400).json({ok:false,error:e.message});}});
-app.post('/api/sell/list',requirePiAuth,async(req,res)=>{try{const pet=await ownedPet(req,req.body?.pet_id);const price=Number(req.body?.price_amt);if(!Number.isFinite(price)||price<=0)throw new Error('Valid AMT price is required.');const busy=await dbQuery(`SELECT 1 FROM pet_escrows WHERE user_pet_id=$1 AND status='OPEN' LIMIT 1`,[pet.id]);if(busy.rows.length)throw new Error('Pet is already in escrow.');const r=await dbQuery(`INSERT INTO pet_listings(user_pet_id,seller_pioneer_id,price_amt,status) VALUES($1,$2,$3,'ACTIVE') ON CONFLICT(user_pet_id) DO UPDATE SET price_amt=EXCLUDED.price_amt,status='ACTIVE',updated_at=NOW() RETURNING *`,[pet.id,req.pioneer.id,price]);await changeRep(req.pioneer.id,1);res.json({ok:true,listing:r.rows[0],message:'Pet is now publicly listed. Buyer AMT settlement must be verified before final ownership transfer.'});}catch(e){res.status(400).json({ok:false,error:e.message});}});
-app.post('/api/sell/cancel',requirePiAuth,async(req,res)=>{try{const r=await dbQuery(`UPDATE pet_listings SET status='CANCELLED',updated_at=NOW() WHERE id=$1 AND seller_pioneer_id=$2 AND status='ACTIVE' RETURNING *`,[req.body?.listing_id,req.pioneer.id]);if(!r.rows.length)throw new Error('Listing not found.');res.json({ok:true,message:'Listing cancelled.'});}catch(e){res.status(400).json({ok:false,error:e.message});}});
-app.post('/api/staking/create',requirePiAuth,async(req,res)=>{try{const amount=Number(req.body?.amount_amt),days=Number(req.body?.lock_days),txid=String(req.body?.txid||'').trim();const plans={30:5,90:10,180:15};if(!Number.isFinite(amount)||amount<0.01)throw new Error('Minimum stake is 0.01 AMT.');if(!plans[days])throw new Error('Invalid staking plan.');if(!txid)throw new Error('Enter the AMT on-chain transaction hash.');const r=await dbQuery(`INSERT INTO amt_stakes(pioneer_id,amount_amt,lock_days,reward_percent,txid,status,unlock_at) VALUES($1,$2,$3,$4,$5,'PENDING',NOW()+($3||' days')::interval) RETURNING *`,[req.pioneer.id,amount,days,plans[days],txid]);res.json({ok:true,stake:r.rows[0],message:'Stake recorded for on-chain verification.'});}catch(e){res.status(400).json({ok:false,error:e.message});}});
-app.get('/api/staking',requirePiAuth,async(req,res)=>{try{const r=await dbQuery(`SELECT * FROM amt_stakes WHERE pioneer_id=$1 ORDER BY created_at DESC`,[req.pioneer.id]);res.json({ok:true,stakes:r.rows});}catch(e){res.status(500).json({ok:false,error:e.message});}});
-app.get('/api/escrows',requirePiAuth,async(req,res)=>{try{const r=await dbQuery(`SELECT e.*,up.pet_code,pc.name,pc.image,p.username seller_username,b.username buyer_username FROM pet_escrows e JOIN user_pets up ON up.id=e.user_pet_id JOIN pets_catalog pc ON pc.pet_code=up.pet_code JOIN pioneers p ON p.id=e.seller_pioneer_id LEFT JOIN pioneers b ON b.id=e.buyer_pioneer_id WHERE e.seller_pioneer_id=$1 OR e.buyer_pioneer_id=$1 ORDER BY e.created_at DESC`,[req.pioneer.id]);res.json({ok:true,escrows:r.rows});}catch(e){res.status(500).json({ok:false,error:e.message});}});
 
 app.use((req,res)=>res.status(404).json({ok:false,error:"Endpoint not found."}));
 
