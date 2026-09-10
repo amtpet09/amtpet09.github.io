@@ -65,6 +65,7 @@ button{cursor:pointer}
 .footer{text-align:center;color:#5f7a8d;font-size:10px;padding:20px}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#10283a;border:1px solid #37617d;color:#fff;padding:11px 14px;border-radius:12px;z-index:200;display:none;font-size:12px;max-width:90%}
 @media(max-width:700px){.tools{grid-template-columns:1fr 1fr}.tools .input{grid-column:1/-1}.petGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.navUser{display:none}.tabs{top:54px}.profileGrid,.featureGrid{grid-template-columns:1fr 1fr}}
+.publicGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px}.publicCard{background:#081724;border:1px solid var(--line);border-radius:14px;padding:10px}.publicCard img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px}.status{font-size:10px;color:var(--green);font-weight:900}.formGrid{display:grid;gap:8px}.formGrid input,.formGrid select{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:#071522;color:#fff}.small{font-size:10px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -165,8 +166,8 @@ button{cursor:pointer}
 
   <section id="care" class="panel">
     <div class="featureGrid">
-      <div class="feature"><div class="ico">❤️</div><h3>Pet Care</h3><p>Feed, heal and maintain your pet's care level. Care actions can later use AMT and produce pet reputation.</p><button class="action" onclick="featureSoon('Pet Care')">CARE PET</button></div>
-      <div class="feature"><div class="ico">📈</div><h3>Train & Level Up</h3><p>Train your pet from Common toward Uncommon, Rare, Epic, Legend and Mythic.</p><button class="action" onclick="featureSoon('Training')">TRAIN PET</button></div>
+      <div class="feature"><div class="ico">❤️</div><h3>Pet Care</h3><p>Restore HP and earn reputation.</p><button class="action" onclick="choosePetAction('care')">CARE PET</button></div>
+      <div class="feature"><div class="ico">📈</div><h3>Train & Level Up</h3><p>Train your owned pet and gain XP.</p><button class="action" onclick="choosePetAction('train')">TRAIN PET</button></div>
     </div>
   </section>
 
@@ -174,7 +175,7 @@ button{cursor:pointer}
     <div class="card">
       <div class="cardTitle">⚔️ PET BATTLE ARENA</div>
       <p class="muted">Choose one of your pets and challenge another Pioneer. Battle rewards and reputation will be connected to the backend after the battle rules are finalized.</p>
-      <button class="action" onclick="featureSoon('Battle Arena')">ENTER BATTLE</button>
+      <button class="action" onclick="choosePetAction('battle')">ENTER BATTLE</button>
     </div>
   </section>
 
@@ -182,7 +183,7 @@ button{cursor:pointer}
     <div class="card">
       <div class="cardTitle">🧬 PET BREEDING</div>
       <p class="muted">Pair two eligible pets to create a new pet. Breeding rules, cooldowns, fees and rarity inheritance will be enforced server-side.</p>
-      <button class="action" onclick="featureSoon('Breeding')">CHOOSE PARENTS</button>
+      <button class="action" onclick="breedPets()">CHOOSE PARENTS</button>
     </div>
   </section>
 
@@ -190,7 +191,7 @@ button{cursor:pointer}
     <div class="card">
       <div class="cardTitle">🔄 PET TRADE</div>
       <p class="muted">Trade a pet with another Pioneer. Ownership will only change after the backend confirms the trade.</p>
-      <button class="action" onclick="featureSoon('Pet Trade')">CREATE TRADE</button>
+      <button class="action" onclick="createTrade()">CREATE TRADE ESCROW</button>
     </div>
   </section>
 
@@ -198,10 +199,20 @@ button{cursor:pointer}
     <div class="card">
       <div class="cardTitle">💰 SELL YOUR PET</div>
       <p class="muted">List an owned pet for AMT. The final AMT payment and ownership transfer will be verified server-side.</p>
-      <button class="action gold" onclick="featureSoon('Pet Sell')">LIST PET FOR SALE</button>
+      <button class="action gold" onclick="sellPet()">LIST PET FOR SALE</button>
     </div>
   </section>
 
+  <nav class="tabs" style="margin-top:8px"><button class="tab" onclick="showPanel('public',this);loadPublicListings()">🌐 PUBLIC SALES</button><button class="tab" onclick="showPanel('staking',this);loadStakes()">🔒 AMT STAKING</button></nav>
+  <section id="public" class="panel">
+    <div class="card"><div class="cardTitle">🌐 PUBLIC PET SALES</div><div class="muted">All active public listings are visible to every Pioneer.</div></div>
+    <div id="publicListings" class="publicGrid"><div class="msg">Loading public listings...</div></div>
+  </section>
+  <section id="staking" class="panel">
+    <div class="card"><div class="cardTitle">🔒 AMT STAKING</div><div class="muted">30D = 5% • 90D = 10% • 180D = 15%. Enter the real AMT on-chain transaction hash. The record stays pending until verification.</div>
+      <div class="formGrid" style="margin-top:10px"><input id="stakeAmount" type="number" min="0.01" step="0.01" placeholder="AMT amount"><select id="stakeDays"><option value="30">30 Days • 5%</option><option value="90">90 Days • 10%</option><option value="180">180 Days • 15%</option></select><input id="stakeTxid" placeholder="AMT on-chain transaction hash"><button class="action" onclick="stakeAMT()">🔒 STAKE AMT</button></div>
+    </div><div id="stakes" class="card"><div class="muted">No stakes loaded.</div></div>
+  </section>
   <div class="footer">AMT Pet Marketplace • Pi Testnet • Login first • Secure server-side ownership and AMT verification</div>
 </main>
 </div>
@@ -233,7 +244,16 @@ function showPanel(id,btn){
   btn.classList.add('active');
   if(id==='pets')loadMyPets();
 }
-function featureSoon(name){toast(name+' is prepared. Backend rules will be connected next.')}
+function authHeaders(){return {'Content-Type':'application/json','Authorization':'Bearer '+(currentUser?.accessToken||'')}}
+async function apiPost(path,body){const r=await fetch(API+path,{method:'POST',headers:authHeaders(),body:JSON.stringify(body)});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'Request failed.');return d}
+async function chooseOwnedPet(title){await loadMyPets();const list=window.__ownedPets||[];if(!list.length){toast('Buy a pet first.');return null}const labels=list.map((p,i)=>`${i+1}. ${p.name} (ID ${p.id})`).join('\n');const n=Number(prompt(title+'\n\n'+labels+'\n\nEnter number:'));if(!Number.isInteger(n)||n<1||n>list.length)return null;return list[n-1]}
+async function choosePetAction(action){try{const p=await chooseOwnedPet(action==='care'?'Choose pet to care for':action==='train'?'Choose pet to train':'Choose pet for battle');if(!p)return;if(action==='care')toast((await apiPost('/api/pets/care',{pet_id:p.id})).message);if(action==='train')toast((await apiPost('/api/pets/train',{pet_id:p.id})).message);if(action==='battle'){const d=await apiPost('/api/pets/battle',{pet_id:p.id});toast(d.message+' +'+d.xpEarned+' XP');}await loadMyPets();}catch(e){toast(e.message)}}
+async function breedPets(){try{await loadMyPets();const list=window.__ownedPets||[];if(list.length<2){toast('Need at least 2 owned pets.');return}const a=Number(prompt(list.map((p,i)=>`${i+1}. ${p.name} ID:${p.id}`).join('\n')+'\n\nParent 1 number:'));const b=Number(prompt(list.map((p,i)=>`${i+1}. ${p.name} ID:${p.id}`).join('\n')+'\n\nParent 2 number:'));if(!list[a-1]||!list[b-1]||a===b)return;const d=await apiPost('/api/pets/breed',{parent1_id:list[a-1].id,parent2_id:list[b-1].id});toast(d.message+' '+d.pet.name);await loadMyPets();}catch(e){toast(e.message)}}
+async function createTrade(){try{const p=await chooseOwnedPet('Choose pet to place in trade escrow');if(!p)return;const u=prompt('Enter target Pioneer username:');if(!u)return;const d=await apiPost('/api/trade/create',{pet_id:p.id,target_username:u});toast(d.message);await loadMyPets();}catch(e){toast(e.message)}}
+async function sellPet(){try{const p=await chooseOwnedPet('Choose pet to list publicly');if(!p)return;const price=Number(prompt('AMT sale price:','100'));if(!price||price<=0)return;const d=await apiPost('/api/sell/list',{pet_id:p.id,price_amt:price});toast(d.message);await loadPublicListings();}catch(e){toast(e.message)}}
+async function loadPublicListings(){try{const r=await fetch(API+'/api/market/listings',{cache:'no-store'}),d=await r.json();const a=d.listings||[];$('publicListings').innerHTML=a.length?a.map(x=>`<div class="publicCard"><img src="${img(x.image)}"><b>${esc(x.name)}</b><div class="small">Seller: @${esc(x.username||'Pioneer')}</div><div class="small">⭐ Reputation ${x.seller_reputation}</div><div class="price">${x.price_amt} AMT</div><div class="status">🔒 ESCROW-READY LISTING</div></div>`).join(''):'<div class="msg">No public listings yet.</div>'}catch(e){$('publicListings').innerHTML='<div class="msg">Unable to load public listings.</div>'}}
+async function loadStakes(){try{const r=await fetch(API+'/api/staking',{headers:authHeaders()}),d=await r.json();const a=d.stakes||[];$('stakes').innerHTML=a.length?a.map(x=>`<div class="row"><span>${x.amount_amt} AMT • ${x.lock_days}D • ${x.reward_percent}%</span><span class="status">${esc(x.status)}</span></div><div class="small">TX: ${esc(x.txid||'—')} • Unlock: ${esc(x.unlock_at)}</div>`).join(''):'<div class="muted">No stakes yet.</div>'}catch(e){$('stakes').innerHTML='<div class="muted">Unable to load stakes.</div>'}}
+async function stakeAMT(){try{const amount=Number($('stakeAmount').value),days=Number($('stakeDays').value),txid=$('stakeTxid').value.trim();const d=await apiPost('/api/staking/create',{amount_amt:amount,lock_days:days,txid});toast(d.message);$('stakeAmount').value='';$('stakeTxid').value='';await loadStakes();}catch(e){toast(e.message)}}
 function logoutPi(){localStorage.removeItem('amtPetPiUid');localStorage.removeItem('amtPetPiUsername');localStorage.removeItem('amtPetPiWallet');localStorage.removeItem('amtPetPiAccessToken');localStorage.removeItem('amtPetProfileImage');currentUser=null;$('app').style.display='none';$('loginScreen').style.display='flex';$('loginBtn').disabled=false;$('loginBtn').textContent='🟣 LOGIN WITH PI'}
 function loginPi(){
   if(!window.Pi){toast('Open AMT Pet Marketplace in Pi Browser.');return}
@@ -453,6 +473,7 @@ async function loadMyPets(){
   }catch(e){renderMyPets([])}
 }
 function renderMyPets(list){
+  window.__ownedPets=list||[];
   $('ownedCount').textContent=list.length;
   if(!list.length){$('myPets').innerHTML='<div class="msg">🐾 No owned pets yet.<br>Buy a pet from the Marketplace to start your collection.</div>';return}
   $('myPets').innerHTML=list.map(p=>`<div class="owned"><img src="${img(p.image)}" alt="${esc(p.name)}"><div><b>${esc(p.name)}</b><br><span class="muted">${esc(p.element||'—')} • ${esc(p.rarity||'Common')} • Lv.${esc(p.level||1)}</span></div></div>`).join('');
