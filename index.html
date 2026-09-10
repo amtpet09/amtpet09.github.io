@@ -5,69 +5,596 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>AMT Pet Marketplace</title>
 <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+
 <style>
-:root{--bg:#06101c;--p:#0b1b2b;--p2:#102a40;--line:#244965;--text:#eff8ff;--muted:#91a9bd;--blue:#35c9ff;--gold:#ffd66b;--green:#54e39a;--red:#ff7180}
+:root{
+  --bg:#06101c;
+  --p:#0b1b2b;
+  --p2:#102a40;
+  --line:#244965;
+  --text:#eff8ff;
+  --muted:#91a9bd;
+  --blue:#35c9ff;
+  --gold:#ffd66b;
+  --green:#54e39a;
+  --red:#ff7180
+}
+
 *{box-sizing:border-box}
-html,body{margin:0;min-height:100%;background:radial-gradient(circle at top,#163a55 0,#06101c 48%,#02060b 100%);color:var(--text);font-family:Arial,sans-serif}
+
+html,body{
+  margin:0;
+  min-height:100%;
+  background:radial-gradient(circle at top,#163a55 0,#06101c 48%,#02060b 100%);
+  color:var(--text);
+  font-family:Arial,sans-serif
+}
+
 button,input,select{font:inherit}
 button{cursor:pointer}
 .hidden{display:none!important}
-#loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:22px}
-.login-card{width:min(470px,100%);background:linear-gradient(145deg,#102a40,#071321);border:1px solid #315a77;border-radius:28px;padding:28px 20px;box-shadow:0 20px 70px #0009;text-align:center}
-.logo{font-size:24px;font-weight:1000;letter-spacing:1px}
+
+#loginScreen{
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:22px
+}
+
+.login-card{
+  width:min(470px,100%);
+  background:linear-gradient(145deg,#102a40,#071321);
+  border:1px solid #315a77;
+  border-radius:28px;
+  padding:28px 20px;
+  box-shadow:0 20px 70px #0009;
+  text-align:center
+}
+
+.logo{
+  font-size:24px;
+  font-weight:1000;
+  letter-spacing:1px
+}
+
 .logo span{color:var(--blue)}
-.logoMark{width:88px;height:88px;border-radius:25px;margin:25px auto 16px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0ca8e0,#4169ff);font-size:28px;font-weight:1000;box-shadow:0 0 35px #1daeff55}
-.login-card h1{font-size:30px;margin:10px 0 8px}
-.login-card p{color:var(--muted);line-height:1.55;margin:0 auto 18px}
-.testnet{display:inline-block;padding:7px 11px;border:1px solid #315a77;border-radius:99px;color:var(--blue);font-size:11px;font-weight:900;background:#071725}
-.loginBtn{width:100%;padding:15px;border:0;border-radius:14px;color:#fff;font-weight:1000;background:linear-gradient(135deg,#12a9df,#4169ff);font-size:15px;margin-top:8px}
-.login-note{font-size:10px!important;margin-top:14px!important}
+
+.logoMark{
+  width:88px;
+  height:88px;
+  border-radius:25px;
+  margin:25px auto 16px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:linear-gradient(135deg,#0ca8e0,#4169ff);
+  font-size:28px;
+  font-weight:1000;
+  box-shadow:0 0 35px #1daeff55
+}
+
+.login-card h1{
+  font-size:30px;
+  margin:10px 0 8px
+}
+
+.login-card p{
+  color:var(--muted);
+  line-height:1.55;
+  margin:0 auto 18px
+}
+
+.testnet{
+  display:inline-block;
+  padding:7px 11px;
+  border:1px solid #315a77;
+  border-radius:99px;
+  color:var(--blue);
+  font-size:11px;
+  font-weight:900;
+  background:#071725
+}
+
+.loginBtn{
+  width:100%;
+  padding:15px;
+  border:0;
+  border-radius:14px;
+  color:#fff;
+  font-weight:1000;
+  background:linear-gradient(135deg,#12a9df,#4169ff);
+  font-size:15px;
+  margin-top:8px
+}
+
+.login-note{
+  font-size:10px!important;
+  margin-top:14px!important
+}
+
 #app{display:none}
-.top{position:sticky;top:0;z-index:50;background:#06101cf0;backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
-.nav{max-width:1180px;margin:auto;padding:12px 14px;display:flex;align-items:center;gap:10px}
-.brand{font-weight:1000;font-size:18px}.brand span{color:var(--blue)}
-.navUser{margin-left:auto;color:var(--muted);font-size:12px}
-.logout{border:1px solid var(--line);background:#0b1c2b;color:#fff;border-radius:10px;padding:9px 11px;font-weight:800}
-.wrap{max-width:1180px;margin:auto;padding:14px}
-.hero{padding:20px 4px 12px}
-.hero h1{font-size:clamp(27px,6vw,44px);margin:0 0 7px}
-.hero p{color:var(--muted);line-height:1.5;margin:0}
-.pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.pill{border:1px solid var(--line);background:#091a29;border-radius:99px;padding:7px 10px;font-size:11px;color:#c8dbea}.pill b{color:var(--blue)}
-.tabs{display:flex;gap:7px;overflow:auto;padding:8px 0 13px;position:sticky;top:57px;z-index:30;background:#06101cf0;backdrop-filter:blur(12px)}
-.tab{white-space:nowrap;border:1px solid var(--line);background:#0a1a29;color:#b9ccdb;border-radius:11px;padding:10px 12px;font-size:11px;font-weight:900}
-.tab.active{background:linear-gradient(135deg,#118fc3,#4169ff);color:#fff;border-color:transparent}
-.panel{display:none}.panel.active{display:block}
-.tools{display:grid;grid-template-columns:1fr 170px 150px;gap:9px;margin-bottom:10px}
-.input,.select{width:100%;padding:12px;border:1px solid var(--line);border-radius:11px;background:#081724;color:#fff;outline:0}
-.petGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:11px}
-.petCard{background:linear-gradient(#10263b,#091725);border:1px solid var(--line);border-radius:16px;overflow:hidden;position:relative}
-.petPic{display:block;width:100%;aspect-ratio:1/1.08;object-fit:cover;background:#07111d}
-.petBadge{position:absolute;top:7px;left:7px;background:#06101ddd;border:1px solid #4b718b;border-radius:99px;padding:5px 7px;font-size:9px;font-weight:900}
-.petBody{padding:9px}.petName{font-weight:1000;font-size:16px}.meta{font-size:10px;color:var(--muted);display:flex;justify-content:space-between;margin-top:3px}
-.stats{display:flex;gap:4px;flex-wrap:wrap;margin:8px 0}.stat{font-size:10px;background:#07111d;border:1px solid #1b354c;border-radius:7px;padding:5px}
-.price{color:var(--gold);font-weight:1000;font-size:12px;margin:8px 0}
-.action{width:100%;padding:9px;border:0;border-radius:9px;background:linear-gradient(135deg,#12a9df,#4169ff);color:#fff;font-weight:1000}
-.action.gold{background:linear-gradient(135deg,#a97016,#ffd66b);color:#171007}
-.action.dark{background:#0a1a29;border:1px solid var(--line)}
-.msg{text-align:center;color:var(--muted);padding:45px 10px}
-.card{background:linear-gradient(145deg,#10263a,#081522);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:12px}
-.cardTitle{font-weight:1000;margin-bottom:12px}.row{display:flex;justify-content:space-between;gap:10px;align-items:center;margin:8px 0}.muted{color:var(--muted);font-size:12px}
-.profileHead{display:flex;gap:14px;align-items:center}.avatar{width:82px;height:82px;border-radius:22px;object-fit:cover;background:#091a29;border:2px solid #376987;display:flex;align-items:center;justify-content:center;font-size:35px}
-.profileName{font-size:23px;font-weight:1000}.reputation{color:var(--gold);font-weight:1000;margin-top:4px}
-.walletBox{padding:13px;border-radius:13px;background:#071522;border:1px solid #1d3a51;word-break:break-all;font-size:11px;color:#b9d0df}
-.profileGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-top:12px}.mini{padding:12px;background:#081724;border:1px solid #1c3b52;border-radius:12px}.mini b{display:block;font-size:18px;margin-top:4px}
-.featureGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.feature{padding:16px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(145deg,#10263a,#081522)}
-.feature .ico{font-size:28px}.feature h3{margin:8px 0 5px}.feature p{font-size:11px;color:var(--muted);line-height:1.45;margin:0 0 10px}
-.collection{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:10px}.owned{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#091725}.owned img{width:100%;aspect-ratio:1;object-fit:cover}.owned div{padding:8px;font-size:11px}
-.modal{display:none;position:fixed;inset:0;background:#000c;z-index:100;align-items:center;justify-content:center;padding:16px}.modal.show{display:flex}
-.modalBox{width:min(450px,100%);max-height:92vh;overflow:auto;background:#0b1b2b;border:1px solid #315572;border-radius:20px;padding:16px}.close{float:right;border:0;background:transparent;color:#9fb4c4;font-size:28px}.modalImg{width:100%;max-height:340px;object-fit:contain;background:#06101c;border-radius:14px;margin-top:5px}
-.footer{text-align:center;color:#5f7a8d;font-size:10px;padding:20px}
-.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#10283a;border:1px solid #37617d;color:#fff;padding:11px 14px;border-radius:12px;z-index:200;display:none;font-size:12px;max-width:90%}
-@media(max-width:700px){.tools{grid-template-columns:1fr 1fr}.tools .input{grid-column:1/-1}.petGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.navUser{display:none}.tabs{top:54px}.profileGrid,.featureGrid{grid-template-columns:1fr 1fr}}
-.publicGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px}.publicCard{background:#081724;border:1px solid var(--line);border-radius:14px;padding:10px}.publicCard img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px}.status{font-size:10px;color:var(--green);font-weight:900}.formGrid{display:grid;gap:8px}.formGrid input,.formGrid select{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:#071522;color:#fff}.small{font-size:10px;color:var(--muted)}
+
+.top{
+  position:sticky;
+  top:0;
+  z-index:50;
+  background:#06101cf0;
+  backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)
+}
+
+.nav{
+  max-width:1180px;
+  margin:auto;
+  padding:12px 14px;
+  display:flex;
+  align-items:center;
+  gap:10px
+}
+
+.brand{
+  font-weight:1000;
+  font-size:18px
+}
+
+.brand span{color:var(--blue)}
+
+.navUser{
+  margin-left:auto;
+  color:var(--muted);
+  font-size:12px
+}
+
+.logout{
+  border:1px solid var(--line);
+  background:#0b1c2b;
+  color:#fff;
+  border-radius:10px;
+  padding:9px 11px;
+  font-weight:800
+}
+
+.wrap{
+  max-width:1180px;
+  margin:auto;
+  padding:14px
+}
+
+.hero{
+  padding:20px 4px 12px
+}
+
+.hero h1{
+  font-size:clamp(27px,6vw,44px);
+  margin:0 0 7px
+}
+
+.hero p{
+  color:var(--muted);
+  line-height:1.5;
+  margin:0
+}
+
+.pills{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:14px
+}
+
+.pill{
+  border:1px solid var(--line);
+  background:#091a29;
+  border-radius:99px;
+  padding:7px 10px;
+  font-size:11px;
+  color:#c8dbea
+}
+
+.pill b{color:var(--blue)}
+
+.tabs{
+  display:flex;
+  gap:7px;
+  overflow:auto;
+  padding:8px 0 13px;
+  position:sticky;
+  top:57px;
+  z-index:30;
+  background:#06101cf0;
+  backdrop-filter:blur(12px)
+}
+
+.tab{
+  white-space:nowrap;
+  border:1px solid var(--line);
+  background:#0a1a29;
+  color:#b9ccdb;
+  border-radius:11px;
+  padding:10px 12px;
+  font-size:11px;
+  font-weight:900
+}
+
+.tab.active{
+  background:linear-gradient(135deg,#118fc3,#4169ff);
+  color:#fff;
+  border-color:transparent
+}
+
+.panel{display:none}
+.panel.active{display:block}
+
+.tools{
+  display:grid;
+  grid-template-columns:1fr 170px 150px;
+  gap:9px;
+  margin-bottom:10px
+}
+
+.input,.select{
+  width:100%;
+  padding:12px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:#081724;
+  color:#fff;
+  outline:0
+}
+
+.petGrid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(155px,1fr));
+  gap:11px
+}
+
+.petCard{
+  background:linear-gradient(#10263b,#091725);
+  border:1px solid var(--line);
+  border-radius:16px;
+  overflow:hidden;
+  position:relative
+}
+
+.petPic{
+  display:block;
+  width:100%;
+  aspect-ratio:1/1.08;
+  object-fit:cover;
+  background:#07111d
+}
+
+.petBadge{
+  position:absolute;
+  top:7px;
+  left:7px;
+  background:#06101ddd;
+  border:1px solid #4b718b;
+  border-radius:99px;
+  padding:5px 7px;
+  font-size:9px;
+  font-weight:900
+}
+
+.petBody{padding:9px}
+
+.petName{
+  font-weight:1000;
+  font-size:16px
+}
+
+.meta{
+  font-size:10px;
+  color:var(--muted);
+  display:flex;
+  justify-content:space-between;
+  margin-top:3px
+}
+
+.stats{
+  display:flex;
+  gap:4px;
+  flex-wrap:wrap;
+  margin:8px 0
+}
+
+.stat{
+  font-size:10px;
+  background:#07111d;
+  border:1px solid #1b354c;
+  border-radius:7px;
+  padding:5px
+}
+
+.price{
+  color:var(--gold);
+  font-weight:1000;
+  font-size:12px;
+  margin:8px 0
+}
+
+.action{
+  width:100%;
+  padding:9px;
+  border:0;
+  border-radius:9px;
+  background:linear-gradient(135deg,#12a9df,#4169ff);
+  color:#fff;
+  font-weight:1000
+}
+
+.action.gold{
+  background:linear-gradient(135deg,#a97016,#ffd66b);
+  color:#171007
+}
+
+.action.dark{
+  background:#0a1a29;
+  border:1px solid var(--line)
+}
+
+.msg{
+  text-align:center;
+  color:var(--muted);
+  padding:45px 10px
+}
+
+.card{
+  background:linear-gradient(145deg,#10263a,#081522);
+  border:1px solid var(--line);
+  border-radius:18px;
+  padding:16px;
+  margin-bottom:12px
+}
+
+.cardTitle{
+  font-weight:1000;
+  margin-bottom:12px
+}
+
+.row{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:center;
+  margin:8px 0
+}
+
+.muted{
+  color:var(--muted);
+  font-size:12px
+}
+
+.profileHead{
+  display:flex;
+  gap:14px;
+  align-items:center
+}
+
+.avatar{
+  width:82px;
+  height:82px;
+  border-radius:22px;
+  object-fit:cover;
+  background:#091a29;
+  border:2px solid #376987;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:35px
+}
+
+.profileName{
+  font-size:23px;
+  font-weight:1000
+}
+
+.reputation{
+  color:var(--gold);
+  font-weight:1000;
+  margin-top:4px
+}
+
+.walletBox{
+  padding:13px;
+  border-radius:13px;
+  background:#071522;
+  border:1px solid #1d3a51;
+  word-break:break-all;
+  font-size:11px;
+  color:#b9d0df
+}
+
+.profileGrid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:9px;
+  margin-top:12px
+}
+
+.mini{
+  padding:12px;
+  background:#081724;
+  border:1px solid #1c3b52;
+  border-radius:12px
+}
+
+.mini b{
+  display:block;
+  font-size:18px;
+  margin-top:4px
+}
+
+.featureGrid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:10px
+}
+
+.feature{
+  padding:16px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:linear-gradient(145deg,#10263a,#081522)
+}
+
+.feature .ico{font-size:28px}
+
+.feature h3{
+  margin:8px 0 5px
+}
+
+.feature p{
+  font-size:11px;
+  color:var(--muted);
+  line-height:1.45;
+  margin:0 0 10px
+}
+
+.collection{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(135px,1fr));
+  gap:10px
+}
+
+.owned{
+  border:1px solid var(--line);
+  border-radius:14px;
+  overflow:hidden;
+  background:#091725
+}
+
+.owned img{
+  width:100%;
+  aspect-ratio:1;
+  object-fit:cover
+}
+
+.owned div{
+  padding:8px;
+  font-size:11px
+}
+
+.modal{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:#000c;
+  z-index:100;
+  align-items:center;
+  justify-content:center;
+  padding:16px
+}
+
+.modal.show{display:flex}
+
+.modalBox{
+  width:min(450px,100%);
+  max-height:92vh;
+  overflow:auto;
+  background:#0b1b2b;
+  border:1px solid #315572;
+  border-radius:20px;
+  padding:16px
+}
+
+.close{
+  float:right;
+  border:0;
+  background:transparent;
+  color:#9fb4c4;
+  font-size:28px
+}
+
+.modalImg{
+  width:100%;
+  max-height:340px;
+  object-fit:contain;
+  background:#06101c;
+  border-radius:14px;
+  margin-top:5px
+}
+
+.footer{
+  text-align:center;
+  color:#5f7a8d;
+  font-size:10px;
+  padding:20px
+}
+
+.toast{
+  position:fixed;
+  left:50%;
+  bottom:20px;
+  transform:translateX(-50%);
+  background:#10283a;
+  border:1px solid #37617d;
+  color:#fff;
+  padding:11px 14px;
+  border-radius:12px;
+  z-index:200;
+  display:none;
+  font-size:12px;
+  max-width:90%
+}
+
+@media(max-width:700px){
+  .tools{grid-template-columns:1fr 1fr}
+  .tools .input{grid-column:1/-1}
+  .petGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .navUser{display:none}
+  .tabs{top:54px}
+  .profileGrid,.featureGrid{grid-template-columns:1fr 1fr}
+}
+
+.publicGrid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(155px,1fr));
+  gap:10px
+}
+
+.publicCard{
+  background:#081724;
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:10px
+}
+
+.publicCard img{
+  width:100%;
+  aspect-ratio:1;
+  object-fit:cover;
+  border-radius:10px
+}
+
+.status{
+  font-size:10px;
+  color:var(--green);
+  font-weight:900
+}
+
+.formGrid{
+  display:grid;
+  gap:8px
+}
+
+.formGrid input,.formGrid select{
+  width:100%;
+  padding:11px;
+  border-radius:10px;
+  border:1px solid var(--line);
+  background:#071522;
+  color:#fff
+}
+
+.small{
+  font-size:10px;
+  color:var(--muted)
+}
 </style>
 </head>
+
 <body>
 
 <section id="loginScreen">
@@ -75,14 +602,30 @@ button{cursor:pointer}
     <div class="logo">AMT <span>PET MARKET</span></div>
     <div class="logoMark">🐾</div>
     <div class="testnet">● PI TESTNET</div>
+
     <h1>Welcome, Pioneer</h1>
-    <p>Login with Pi first. After successful authentication, your Pioneer profile and Pi Wallet address will be synchronized before entering the AMT Pet Marketplace.</p>
-    <button id="loginBtn" class="loginBtn" onclick="loginPi()">🟣 LOGIN WITH PI</button>
-    <p class="login-note">🔐 Login authenticates your Pi account. It does not transfer AMT by itself. Secure AMT Testnet transactions will be connected through the verified payment/transfer flow.</p>
+
+    <p>
+      Login with Pi first. After successful authentication,
+      your Pioneer profile and Pi Wallet address will be synchronized
+      before entering the AMT Pet Marketplace.
+    </p>
+
+    <button id="loginBtn" class="loginBtn" onclick="loginPi()">
+      🟣 LOGIN WITH PI
+    </button>
+
+    <p class="login-note">
+      🔐 Login authenticates your Pi account. It does not transfer AMT by itself.
+      Secure AMT Testnet transactions will be connected through the verified
+      payment/transfer flow.
+    </p>
   </div>
 </section>
 
+
 <div id="app">
+
 <header class="top">
   <div class="nav">
     <div class="brand">AMT <span>PET MARKET</span></div>
@@ -91,446 +634,2756 @@ button{cursor:pointer}
   </div>
 </header>
 
+
 <main class="wrap">
-  <section class="hero">
-    <h1>🐾 AMT Pet Marketplace</h1>
-    <p>Collect, care, train, breed, battle, trade and sell your AMT pets.</p>
-    <div class="pills">
-      <span class="pill">🐾 Catalog: <b id="count">0</b></span>
-      <span class="pill">⭐ Common</span>
-      <span class="pill">⚡ 7 Elements</span>
-      <span class="pill">💰 AMT</span>
+
+<section class="hero">
+  <h1>🐾 AMT Pet Marketplace</h1>
+  <p>Collect, care, train, breed, battle, trade and sell your AMT pets.</p>
+
+  <div class="pills">
+    <span class="pill">🐾 Catalog: <b id="count">0</b></span>
+    <span class="pill">⭐ Common</span>
+    <span class="pill">⚡ 7 Elements</span>
+    <span class="pill">💰 AMT</span>
+  </div>
+</section>
+
+
+<nav class="tabs">
+
+  <button class="tab active"
+    data-panel="market"
+    onclick="showPanel('market',this)">
+    🛒 MARKET
+  </button>
+
+  <button class="tab"
+    data-panel="pets"
+    onclick="showPanel('pets',this)">
+    🐾 MY PETS
+  </button>
+
+  <button class="tab"
+    data-panel="profile"
+    onclick="showPanel('profile',this)">
+    👤 MY PROFILE
+  </button>
+
+  <button class="tab"
+    data-panel="care"
+    onclick="showPanel('care',this)">
+    ❤️ CARE
+  </button>
+
+  <button class="tab"
+    data-panel="battle"
+    onclick="showPanel('battle',this)">
+    ⚔️ BATTLE
+  </button>
+
+  <button class="tab"
+    data-panel="breeding"
+    onclick="showPanel('breeding',this)">
+    🧬 BREEDING
+  </button>
+
+  <button class="tab"
+    data-panel="trade"
+    onclick="showPanel('trade',this)">
+    🔄 TRADE
+  </button>
+
+  <button class="tab"
+    data-panel="sell"
+    onclick="showPanel('sell',this)">
+    💰 SELL
+  </button>
+
+</nav>
+
+
+<section id="market" class="panel active">
+
+  <div class="tools">
+
+    <input
+      id="q"
+      class="input"
+      placeholder="🔎 Search pet..."
+      oninput="renderMarket()"
+    >
+
+    <select
+      id="el"
+      class="select"
+      onchange="renderMarket()"
+    >
+      <option>All Elements</option>
+      <option>Earth</option>
+      <option>Water</option>
+      <option>Nature</option>
+      <option>Ice</option>
+      <option>Fire</option>
+      <option>Wind</option>
+      <option>Thunder</option>
+    </select>
+
+    <select
+      id="sort"
+      class="select"
+      onchange="renderMarket()"
+    >
+      <option value="name">Name</option>
+      <option value="hp">HP</option>
+      <option value="atk">ATK</option>
+      <option value="def">DEF</option>
+    </select>
+
+  </div>
+
+  <div id="grid" class="petGrid">
+    <div class="msg">Loading 70 pets...</div>
+  </div>
+
+</section>
+
+
+<section id="pets" class="panel">
+
+  <div class="card">
+    <div class="cardTitle">🐾 MY PET COLLECTION</div>
+    <div class="muted">
+      Pets purchased or received by this Pioneer will appear here.
     </div>
-  </section>
+  </div>
 
-  <nav class="tabs">
-    <button class="tab active" data-panel="market" onclick="showPanel('market',this)">🛒 MARKET</button>
-    <button class="tab" data-panel="pets" onclick="showPanel('pets',this)">🐾 MY PETS</button>
-    <button class="tab" data-panel="profile" onclick="showPanel('profile',this)">👤 MY PROFILE</button>
-    <button class="tab" data-panel="care" onclick="showPanel('care',this)">❤️ CARE</button>
-    <button class="tab" data-panel="battle" onclick="showPanel('battle',this)">⚔️ BATTLE</button>
-    <button class="tab" data-panel="breeding" onclick="showPanel('breeding',this)">🧬 BREEDING</button>
-    <button class="tab" data-panel="trade" onclick="showPanel('trade',this)">🔄 TRADE</button>
-    <button class="tab" data-panel="sell" onclick="showPanel('sell',this)">💰 SELL</button>
-  </nav>
+  <div id="myPets" class="collection">
+    <div class="msg">Login synced. No owned pets yet.</div>
+  </div>
 
-  <section id="market" class="panel active">
-    <div class="tools">
-      <input id="q" class="input" placeholder="🔎 Search pet..." oninput="renderMarket()">
-      <select id="el" class="select" onchange="renderMarket()">
-        <option>All Elements</option><option>Earth</option><option>Water</option><option>Nature</option><option>Ice</option><option>Fire</option><option>Wind</option><option>Thunder</option>
-      </select>
-      <select id="sort" class="select" onchange="renderMarket()">
-        <option value="name">Name</option><option value="hp">HP</option><option value="atk">ATK</option><option value="def">DEF</option>
-      </select>
-    </div>
-    <div id="grid" class="petGrid"><div class="msg">Loading 70 pets...</div></div>
-  </section>
+</section>
 
-  <section id="pets" class="panel">
-    <div class="card">
-      <div class="cardTitle">🐾 MY PET COLLECTION</div>
-      <div class="muted">Pets purchased or received by this Pioneer will appear here.</div>
-    </div>
-    <div id="myPets" class="collection"><div class="msg">Login synced. No owned pets yet.</div></div>
-  </section>
 
-  <section id="profile" class="panel">
-    <div class="card">
-      <div class="profileHead">
-        <div id="avatar" class="avatar">👤</div>
-        <div>
-          <div id="profileName" class="profileName">Pioneer</div>
-          <div id="profileUid" class="muted">Pi UID: —</div>
-          <div class="reputation">⭐ Owner Reputation: <span id="ownerRep">100</span></div>
+<section id="profile" class="panel">
+
+  <div class="card">
+
+    <div class="profileHead">
+
+      <div id="avatar" class="avatar">👤</div>
+
+      <div>
+        <div id="profileName" class="profileName">Pioneer</div>
+        <div id="profileUid" class="muted">Pi UID: —</div>
+
+        <div class="reputation">
+          ⭐ Owner Reputation:
+          <span id="ownerRep">100</span>
         </div>
       </div>
-      <div style="margin-top:14px">
-        <label class="muted">Profile picture</label>
-        <input id="profileImage" class="input" type="file" accept="image/*" onchange="previewProfile()">
-        <button class="action dark" style="margin-top:8px" onclick="saveProfilePicture()">SAVE PROFILE PICTURE</button>
-      </div>
-    </div>
-    <div class="card">
-      <div class="cardTitle">🔐 SYNCHRONIZED PI WALLET</div>
-      <div class="walletBox" id="walletAddress">Not synchronized</div>
-      <div class="row" style="margin-top:10px"><span class="muted">Wallet status</span><b id="walletSyncStatus">NOT SYNCHRONIZED</b></div>
-      <div class="row"><span class="muted">On-chain AMT</span><b id="onChainAMT">— AMT</b></div>
-      <div class="row"><span class="muted">AMT issuer</span><span id="amtIssuer">Not configured</span></div>
-      <button class="action" style="margin-top:10px" onclick="refreshWalletSync()">🔄 SYNC / REFRESH WALLET</button>
-      <div class="muted" style="margin-top:9px">The wallet is verified through the Pi session and the AMT balance is read from the configured Pi Testnet chain. Never enter a private key or secret key in this app.</div>
-    </div>
-    <div class="profileGrid">
-      <div class="mini"><span class="muted">Pets Owned</span><b id="ownedCount">0</b></div>
-      <div class="mini"><span class="muted">Pet Reputation</span><b id="petRep">100</b></div>
-      <div class="mini"><span class="muted">Battles</span><b id="battleCount">0</b></div>
-      <div class="mini"><span class="muted">Trades</span><b id="tradeCount">0</b></div>
-    </div>
-  </section>
 
-  <section id="care" class="panel">
-    <div class="featureGrid">
-      <div class="feature"><div class="ico">❤️</div><h3>Pet Care</h3><p>Restore HP and earn reputation.</p><button class="action" onclick="choosePetAction('care')">CARE PET</button></div>
-      <div class="feature"><div class="ico">📈</div><h3>Train & Level Up</h3><p>Train your owned pet and gain XP.</p><button class="action" onclick="choosePetAction('train')">TRAIN PET</button></div>
     </div>
-  </section>
 
-  <section id="battle" class="panel">
-    <div class="card">
-      <div class="cardTitle">⚔️ PET BATTLE ARENA</div>
-      <p class="muted">Choose one of your pets and challenge another Pioneer. Battle rewards and reputation will be connected to the backend after the battle rules are finalized.</p>
-      <button class="action" onclick="choosePetAction('battle')">ENTER BATTLE</button>
+
+    <div style="margin-top:14px">
+
+      <label class="muted">Profile picture</label>
+
+      <input
+        id="profileImage"
+        class="input"
+        type="file"
+        accept="image/*"
+        onchange="previewProfile()"
+      >
+
+      <button
+        class="action dark"
+        style="margin-top:8px"
+        onclick="saveProfilePicture()"
+      >
+        SAVE PROFILE PICTURE
+      </button>
+
     </div>
-  </section>
 
-  <section id="breeding" class="panel">
-    <div class="card">
-      <div class="cardTitle">🧬 PET BREEDING</div>
-      <p class="muted">Pair two eligible pets to create a new pet. Breeding rules, cooldowns, fees and rarity inheritance will be enforced server-side.</p>
-      <button class="action" onclick="breedPets()">CHOOSE PARENTS</button>
+  </div>
+
+
+  <div class="card">
+
+    <div class="cardTitle">🔐 SYNCHRONIZED PI WALLET</div>
+
+    <div class="walletBox" id="walletAddress">
+      Not synchronized
     </div>
-  </section>
 
-  <section id="trade" class="panel">
-    <div class="card">
-      <div class="cardTitle">🔄 PET TRADE</div>
-      <p class="muted">Trade a pet with another Pioneer. Ownership will only change after the backend confirms the trade.</p>
-      <button class="action" onclick="createTrade()">CREATE TRADE ESCROW</button>
+    <div class="row" style="margin-top:10px">
+      <span class="muted">Wallet status</span>
+      <b id="walletSyncStatus">NOT SYNCHRONIZED</b>
     </div>
-  </section>
 
-  <section id="sell" class="panel">
-    <div class="card">
-      <div class="cardTitle">💰 SELL YOUR PET</div>
-      <p class="muted">List an owned pet for AMT. The final AMT payment and ownership transfer will be verified server-side.</p>
-      <button class="action gold" onclick="sellPet()">LIST PET FOR SALE</button>
+    <div class="row">
+      <span class="muted">On-chain AMT</span>
+      <b id="onChainAMT">— AMT</b>
     </div>
-  </section>
 
-  <nav class="tabs" style="margin-top:8px"><button class="tab" onclick="showPanel('public',this);loadPublicListings()">🌐 PUBLIC SALES</button><button class="tab" onclick="showPanel('staking',this);loadStakes()">🔒 AMT STAKING</button></nav>
-  <section id="public" class="panel">
-    <div class="card"><div class="cardTitle">🌐 PUBLIC PET SALES</div><div class="muted">All active public listings are visible to every Pioneer.</div></div>
-    <div id="publicListings" class="publicGrid"><div class="msg">Loading public listings...</div></div>
-  </section>
-  <section id="staking" class="panel">
-    <div class="card"><div class="cardTitle">🔒 AMT STAKING</div><div class="muted">30D = 5% • 90D = 10% • 180D = 15%. Enter the real AMT on-chain transaction hash. The record stays pending until verification.</div>
-      <div class="formGrid" style="margin-top:10px"><input id="stakeAmount" type="number" min="0.01" step="0.01" placeholder="AMT amount"><select id="stakeDays"><option value="30">30 Days • 5%</option><option value="90">90 Days • 10%</option><option value="180">180 Days • 15%</option></select><input id="stakeTxid" placeholder="AMT on-chain transaction hash"><button class="action" onclick="stakeAMT()">🔒 STAKE AMT</button></div>
-    </div><div id="stakes" class="card"><div class="muted">No stakes loaded.</div></div>
-  </section>
-  <div class="footer">AMT Pet Marketplace • Pi Testnet • Login first • Secure server-side ownership and AMT verification</div>
+    <div class="row">
+      <span class="muted">AMT issuer</span>
+      <span id="amtIssuer">Not configured</span>
+    </div>
+
+    <button
+      class="action"
+      style="margin-top:10px"
+      onclick="refreshWalletSync()"
+    >
+      🔄 SYNC / REFRESH WALLET
+    </button>
+
+    <div class="muted" style="margin-top:9px">
+      The wallet is verified through the Pi session and the AMT balance is read
+      from the configured Pi Testnet chain. Never enter a private key or secret
+      key in this app.
+    </div>
+
+  </div>
+
+
+  <div class="profileGrid">
+
+    <div class="mini">
+      <span class="muted">Pets Owned</span>
+      <b id="ownedCount">0</b>
+    </div>
+
+    <div class="mini">
+      <span class="muted">Pet Reputation</span>
+      <b id="petRep">100</b>
+    </div>
+
+    <div class="mini">
+      <span class="muted">Battles</span>
+      <b id="battleCount">0</b>
+    </div>
+
+    <div class="mini">
+      <span class="muted">Trades</span>
+      <b id="tradeCount">0</b>
+    </div>
+
+  </div>
+
+</section>
+
+
+<section id="care" class="panel">
+
+  <div class="featureGrid">
+
+    <div class="feature">
+
+      <div class="ico">❤️</div>
+
+      <h3>Pet Care</h3>
+
+      <p>
+        Restore HP and earn reputation.
+      </p>
+
+      <button
+        class="action"
+        onclick="choosePetAction('care')"
+      >
+        CARE PET
+      </button>
+
+    </div>
+
+
+    <div class="feature">
+
+      <div class="ico">📈</div>
+
+      <h3>Train & Level Up</h3>
+
+      <p>
+        Train your owned pet and gain XP.
+      </p>
+
+      <button
+        class="action"
+        onclick="choosePetAction('train')"
+      >
+        TRAIN PET
+      </button>
+
+    </div>
+
+  </div>
+
+</section>
+
+
+<section id="battle" class="panel">
+
+  <div class="card">
+
+    <div class="cardTitle">⚔️ PET BATTLE ARENA</div>
+
+    <p class="muted">
+      Choose one of your pets and challenge another Pioneer.
+      Battle rewards and reputation will be connected to the backend
+      after the battle rules are finalized.
+    </p>
+
+    <button
+      class="action"
+      onclick="choosePetAction('battle')"
+    >
+      ENTER BATTLE
+    </button>
+
+  </div>
+
+</section>
+
+
+<section id="breeding" class="panel">
+
+  <div class="card">
+
+    <div class="cardTitle">🧬 PET BREEDING</div>
+
+    <p class="muted">
+      Pair two eligible pets to create a new pet.
+      Breeding rules, cooldowns, fees and rarity inheritance will be enforced
+      server-side.
+    </p>
+
+    <button
+      class="action"
+      onclick="breedPets()"
+    >
+      CHOOSE PARENTS
+    </button>
+
+  </div>
+
+</section>
+
+
+<section id="trade" class="panel">
+
+  <div class="card">
+
+    <div class="cardTitle">🔄 PET TRADE</div>
+
+    <p class="muted">
+      Trade a pet with another Pioneer.
+      Ownership will only change after the backend confirms the trade.
+    </p>
+
+    <button
+      class="action"
+      onclick="createTrade()"
+    >
+      CREATE TRADE ESCROW
+    </button>
+
+  </div>
+
+</section>
+
+
+<section id="sell" class="panel">
+
+  <div class="card">
+
+    <div class="cardTitle">💰 SELL YOUR PET</div>
+
+    <p class="muted">
+      List an owned pet for AMT.
+      The final AMT payment and ownership transfer will be verified server-side.
+    </p>
+
+    <button
+      class="action gold"
+      onclick="sellPet()"
+    >
+      LIST PET FOR SALE
+    </button>
+
+  </div>
+
+</section>
+
+
+<nav class="tabs" style="margin-top:8px">
+
+  <button
+    class="tab"
+    onclick="showPanel('public',this);loadPublicListings()"
+  >
+    🌐 PUBLIC SALES
+  </button>
+
+  <button
+    class="tab"
+    onclick="showPanel('staking',this);loadStakes()"
+  >
+    🔒 AMT STAKING
+  </button>
+
+</nav>
+
+
+<section id="public" class="panel">
+
+  <div class="card">
+
+    <div class="cardTitle">🌐 PUBLIC PET SALES</div>
+
+    <div class="muted">
+      All active public listings are visible to every Pioneer.
+    </div>
+
+  </div>
+
+  <div id="publicListings" class="publicGrid">
+    <div class="msg">Loading public listings...</div>
+  </div>
+
+</section>
+
+
+<section id="staking" class="panel">
+
+  <div class="card">
+
+    <div class="cardTitle">🔒 AMT STAKING</div>
+
+    <div class="muted">
+      30D = 5% • 90D = 10% • 180D = 15%.
+      Enter the real AMT on-chain transaction hash.
+      The record stays pending until verification.
+    </div>
+
+
+    <div class="formGrid" style="margin-top:10px">
+
+      <input
+        id="stakeAmount"
+        type="number"
+        min="0.01"
+        step="0.01"
+        placeholder="AMT amount"
+      >
+
+      <select id="stakeDays">
+        <option value="30">30 Days • 5%</option>
+        <option value="90">90 Days • 10%</option>
+        <option value="180">180 Days • 15%</option>
+      </select>
+
+      <input
+        id="stakeTxid"
+        placeholder="AMT on-chain transaction hash"
+      >
+
+      <button
+        class="action"
+        onclick="stakeAMT()"
+      >
+        🔒 STAKE AMT
+      </button>
+
+    </div>
+
+  </div>
+
+
+  <div id="stakes" class="card">
+    <div class="muted">No stakes loaded.</div>
+  </div>
+
+</section>
+
+
+<div class="footer">
+  AMT Pet Marketplace • Pi Testnet • Login first • Secure server-side ownership
+  and AMT verification
+</div>
+
 </main>
 </div>
 
-<div id="modal" class="modal" onclick="if(event.target===this)closeModal()">
+
+<div
+  id="modal"
+  class="modal"
+  onclick="if(event.target===this)closeModal()"
+>
+
   <div class="modalBox">
-    <button class="close" onclick="closeModal()">×</button>
+
+    <button
+      class="close"
+      onclick="closeModal()"
+    >
+      ×
+    </button>
+
     <h2 id="modalName">Pet</h2>
-    <img id="modalImg" class="modalImg">
+
+    <img
+      id="modalImg"
+      class="modalImg"
+    >
+
     <div id="modalDetails"></div>
-    <button class="action gold" style="margin-top:10px" onclick="buyPetPrepared()">🟣 BUY PET — PI TESTNET</button>
-    <button class="action" style="margin-top:10px" onclick="buyWithAMT()">🟡 BUY PET — AMT ON-CHAIN</button>
-    <div id="amtBuyStatus" class="muted" style="margin-top:8px">AMT purchase: send the exact AMT amount from your synchronized wallet, then submit the transaction hash for server-side verification.</div>
-    <div class="muted" style="margin-top:8px">Pi Testnet payment uses the Pi SDK. AMT payment uses a real AMT Testnet transfer and is not granted from a local/app balance.</div>
+
+    <button
+      class="action gold"
+      style="margin-top:10px"
+      onclick="buyPetPrepared()"
+    >
+      🟣 BUY PET — PI TESTNET
+    </button>
+
+    <button
+      class="action"
+      style="margin-top:10px"
+      onclick="buyWithAMT()"
+    >
+      🟡 BUY PET — AMT ON-CHAIN
+    </button>
+
+    <div
+      id="amtBuyStatus"
+      class="muted"
+      style="margin-top:8px"
+    >
+      AMT purchase: send the exact AMT amount from your synchronized wallet,
+      then submit the transaction hash for server-side verification.
+    </div>
+
+    <div class="muted" style="margin-top:8px">
+      Pi Testnet payment uses the Pi SDK.
+      AMT payment uses a real AMT Testnet transfer and is not granted from a
+      local/app balance.
+    </div>
+
   </div>
+
 </div>
+
+
 <div id="toast" class="toast"></div>
 
+
 <script>
+
 const API='https://amtpet09-github-io.onrender.com';
-let pets=[],selectedPet=null,currentUser=null;
+
+let pets=[];
+let selectedPet=null;
+let currentUser=null;
+
+
+/* =========================
+   BASIC HELPERS
+========================= */
 
 const $=id=>document.getElementById(id);
-function esc(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function img(x){return './'+String(x||'').replace(/[^\w.-]/g,'')}
-function toast(msg){$('toast').textContent=msg;$('toast').style.display='block';clearTimeout(window.__toast);window.__toast=setTimeout(()=>$('toast').style.display='none',2600)}
-function showPanel(id,btn){
-  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
-  $(id).classList.add('active');
-  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-  btn.classList.add('active');
-  if(id==='pets')loadMyPets();
+
+function esc(x){
+  return String(x??'').replace(
+    /[&<>"']/g,
+    c=>({
+      '&':'&amp;',
+      '<':'&lt;',
+      '>':'&gt;',
+      '"':'&quot;',
+      "'":'&#39;'
+    }[c])
+  );
 }
-function authHeaders(){return {'Content-Type':'application/json','Authorization':'Bearer '+(currentUser?.accessToken||'')}}
-async function apiPost(path,body){const r=await fetch(API+path,{method:'POST',headers:authHeaders(),body:JSON.stringify(body)});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'Request failed.');return d}
-async function chooseOwnedPet(title){await loadMyPets();const list=window.__ownedPets||[];if(!list.length){toast('Buy a pet first.');return null}const labels=list.map((p,i)=>`${i+1}. ${p.name} (ID ${p.id})`).join('\n');const n=Number(prompt(title+'\n\n'+labels+'\n\nEnter number:'));if(!Number.isInteger(n)||n<1||n>list.length)return null;return list[n-1]}
-async function choosePetAction(action){try{const p=await chooseOwnedPet(action==='care'?'Choose pet to care for':action==='train'?'Choose pet to train':'Choose pet for battle');if(!p)return;if(action==='care')toast((await apiPost('/api/pets/care',{pet_id:p.id})).message);if(action==='train')toast((await apiPost('/api/pets/train',{pet_id:p.id})).message);if(action==='battle'){const d=await apiPost('/api/pets/battle',{pet_id:p.id});toast(d.message+' +'+d.xpEarned+' XP');}await loadMyPets();}catch(e){toast(e.message)}}
-async function breedPets(){try{await loadMyPets();const list=window.__ownedPets||[];if(list.length<2){toast('Need at least 2 owned pets.');return}const a=Number(prompt(list.map((p,i)=>`${i+1}. ${p.name} ID:${p.id}`).join('\n')+'\n\nParent 1 number:'));const b=Number(prompt(list.map((p,i)=>`${i+1}. ${p.name} ID:${p.id}`).join('\n')+'\n\nParent 2 number:'));if(!list[a-1]||!list[b-1]||a===b)return;const d=await apiPost('/api/pets/breed',{parent1_id:list[a-1].id,parent2_id:list[b-1].id});toast(d.message+' '+d.pet.name);await loadMyPets();}catch(e){toast(e.message)}}
-async function createTrade(){try{const p=await chooseOwnedPet('Choose pet to place in trade escrow');if(!p)return;const u=prompt('Enter target Pioneer username:');if(!u)return;const d=await apiPost('/api/trade/create',{pet_id:p.id,target_username:u});toast(d.message);await loadMyPets();}catch(e){toast(e.message)}}
-async function sellPet(){try{const p=await chooseOwnedPet('Choose pet to list publicly');if(!p)return;const price=Number(prompt('AMT sale price:','100'));if(!price||price<=0)return;const d=await apiPost('/api/sell/list',{pet_id:p.id,price_amt:price});toast(d.message);await loadPublicListings();}catch(e){toast(e.message)}}
-async function loadPublicListings(){try{const r=await fetch(API+'/api/market/listings',{cache:'no-store'}),d=await r.json();const a=d.listings||[];$('publicListings').innerHTML=a.length?a.map(x=>`<div class="publicCard"><img src="${img(x.image)}"><b>${esc(x.name)}</b><div class="small">Seller: @${esc(x.username||'Pioneer')}</div><div class="small">⭐ Reputation ${x.seller_reputation}</div><div class="price">${x.price_amt} AMT</div><div class="status">🔒 ESCROW-READY LISTING</div></div>`).join(''):'<div class="msg">No public listings yet.</div>'}catch(e){$('publicListings').innerHTML='<div class="msg">Unable to load public listings.</div>'}}
-async function loadStakes(){try{const r=await fetch(API+'/api/staking',{headers:authHeaders()}),d=await r.json();const a=d.stakes||[];$('stakes').innerHTML=a.length?a.map(x=>`<div class="row"><span>${x.amount_amt} AMT • ${x.lock_days}D • ${x.reward_percent}%</span><span class="status">${esc(x.status)}</span></div><div class="small">TX: ${esc(x.txid||'—')} • Unlock: ${esc(x.unlock_at)}</div>`).join(''):'<div class="muted">No active stakes yet. Choose a staking pool above and stake AMT to begin.</div>'}catch(e){$('stakes').innerHTML='<div class="muted">Unable to load stakes.</div>'}}
-async function stakeAMT(){try{const amount=Number($('stakeAmount').value),days=Number($('stakeDays').value),txid=$('stakeTxid').value.trim();if(!amount||amount<0.01)throw Error('Minimum stake is 0.01 AMT.');if(!txid)throw Error('Enter the real AMT on-chain transaction hash.');const d=await apiPost('/api/staking/create',{amount_amt:amount,lock_days:days,txid});toast(d.message||'AMT stake verified and activated.');$('stakeAmount').value='';$('stakeTxid').value='';await loadStakes();await refreshWalletSync();}catch(e){toast(e.message)}}
-async function refreshWalletSync(){
-  if(!currentUser?.accessToken){toast('Login with Pi first.');return}
-  try{
-    $('walletSyncStatus').textContent='SYNCING...';
-    const verify=await fetch(API+'/api/auth/verify',{method:'POST',headers:authHeaders()});
-    const vd=await verify.json().catch(()=>({}));
-    if(!verify.ok)throw Error(vd.error||'Wallet verification failed.');
-    currentUser.wallet_address=vd.walletAddress||vd.wallet_address||currentUser.wallet_address||'';
-    localStorage.setItem('amtPetPiWallet',currentUser.wallet_address);
-    $('walletAddress').textContent=currentUser.wallet_address||'Wallet address unavailable';
-    const r=await fetch(API+'/api/wallet/onchain',{headers:authHeaders()});
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok)throw Error(d.error||'Unable to read on-chain AMT balance.');
-    $('walletSyncStatus').textContent='SYNCHRONIZED';
-    $('walletSyncStatus').style.color='#79ffad';
-    $('onChainAMT').textContent=Number(d.balance||0).toFixed(8)+' AMT';
-    $('amtIssuer').textContent=d.issuer||'Not configured';
-    window.__amtWalletConfig=d;
-  }catch(e){
-    $('walletSyncStatus').textContent='SYNC FAILED';
-    $('walletSyncStatus').style.color='#ff8090';
-    $('onChainAMT').textContent='— AMT';
-    toast(e.message||'Wallet synchronization failed.');
+
+function img(x){
+  return './'+String(x||'').replace(/[^\w.-]/g,'');
+}
+
+function toast(msg){
+  $('toast').textContent=msg;
+  $('toast').style.display='block';
+
+  clearTimeout(window.__toast);
+
+  window.__toast=setTimeout(()=>{
+    $('toast').style.display='none';
+  },2600);
+}
+
+function authHeaders(){
+  return {
+    'Content-Type':'application/json',
+    'Authorization':'Bearer '+(currentUser?.accessToken||'')
+  };
+}
+
+async function apiPost(path,body){
+  const r=await fetch(
+    API+path,
+    {
+      method:'POST',
+      headers:authHeaders(),
+      body:JSON.stringify(body)
+    }
+  );
+
+  const d=await r.json().catch(()=>({}));
+
+  if(!r.ok){
+    throw Error(d.error||'Request failed.');
+  }
+
+  return d;
+}
+
+
+/* =========================
+   PANEL NAVIGATION
+========================= */
+
+function showPanel(id,btn){
+
+  document.querySelectorAll('.panel')
+    .forEach(x=>x.classList.remove('active'));
+
+  const target=$(id);
+
+  if(target){
+    target.classList.add('active');
+  }
+
+  document.querySelectorAll('.tab')
+    .forEach(x=>x.classList.remove('active'));
+
+  if(btn){
+    btn.classList.add('active');
+  }
+
+  if(id==='pets'){
+    loadMyPets();
+  }
+
+  if(id==='profile'){
+    refreshWalletSync();
   }
 }
+
+
+/* =========================
+   OWNED PET SELECTION
+========================= */
+
+async function chooseOwnedPet(title){
+
+  await loadMyPets();
+
+  const list=window.__ownedPets||[];
+
+  if(!list.length){
+    toast('No owned pets found. Buy a pet first.');
+    return null;
+  }
+
+  const labels=list.map(
+    (p,i)=>{
+      const level=p.level||1;
+      return `${i+1}. ${p.name} (ID ${p.id}) Lv.${level}`;
+    }
+  ).join('\n');
+
+  const n=Number(
+    prompt(
+      title+
+      '\n\n'+
+      labels+
+      '\n\nEnter number:'
+    )
+  );
+
+  if(
+    !Number.isInteger(n)||
+    n<1||
+    n>list.length
+  ){
+    return null;
+  }
+
+  return list[n-1];
+}
+
+
+/* =========================
+   CARE / TRAIN / BATTLE
+========================= */
+
+async function choosePetAction(action){
+
+  try{
+
+    const title=
+      action==='care'
+        ?'Choose pet to care for'
+        :action==='train'
+        ?'Choose pet to train'
+        :'Choose pet for battle';
+
+    const p=await chooseOwnedPet(title);
+
+    if(!p){
+      return;
+    }
+
+    if(action==='care'){
+
+      const d=await apiPost(
+        '/api/pets/care',
+        {
+          pet_id:p.id,
+          petId:p.id
+        }
+      );
+
+      toast(
+        d.message||
+        'Pet care completed successfully.'
+      );
+    }
+
+
+    if(action==='train'){
+
+      const d=await apiPost(
+        '/api/pets/train',
+        {
+          pet_id:p.id,
+          petId:p.id
+        }
+      );
+
+      toast(
+        d.message||
+        'Pet training completed successfully.'
+      );
+    }
+
+
+    if(action==='battle'){
+
+      const d=await apiPost(
+        '/api/pets/battle',
+        {
+          pet_id:p.id,
+          petId:p.id
+        }
+      );
+
+      toast(
+        (d.message||'Battle completed.')+
+        (d.xpEarned!=null
+          ?' +'+d.xpEarned+' XP'
+          :'')
+      );
+    }
+
+    await loadMyPets();
+
+  }catch(e){
+
+    console.error('PET ACTION:',e);
+
+    toast(
+      e.message||
+      'Pet action failed.'
+    );
+  }
+}
+
+
+/* =========================
+   BREEDING
+========================= */
+
+async function breedPets(){
+
+  try{
+
+    await loadMyPets();
+
+    const list=window.__ownedPets||[];
+
+    if(list.length<2){
+      toast('Need at least 2 owned pets.');
+      return;
+    }
+
+    const labels=list.map(
+      (p,i)=>`${i+1}. ${p.name} ID:${p.id}`
+    ).join('\n');
+
+    const a=Number(
+      prompt(
+        labels+
+        '\n\nParent 1 number:'
+      )
+    );
+
+    const b=Number(
+      prompt(
+        labels+
+        '\n\nParent 2 number:'
+      )
+    );
+
+    if(
+      !list[a-1]||
+      !list[b-1]||
+      a===b
+    ){
+      return;
+    }
+
+    const d=await apiPost(
+      '/api/pets/breed',
+      {
+        parent1_id:list[a-1].id,
+        parent2_id:list[b-1].id
+      }
+    );
+
+    toast(
+      d.message+
+      (d.pet?.name
+        ?' '+d.pet.name
+        :'')
+    );
+
+    await loadMyPets();
+
+  }catch(e){
+
+    console.error('BREED:',e);
+    toast(e.message||'Breeding failed.');
+  }
+}
+
+
+/* =========================
+   TRADE
+========================= */
+
+async function createTrade(){
+
+  try{
+
+    const p=await chooseOwnedPet(
+      'Choose pet to place in trade escrow'
+    );
+
+    if(!p)return;
+
+    const u=prompt(
+      'Enter target Pioneer username:'
+    );
+
+    if(!u)return;
+
+    const d=await apiPost(
+      '/api/trade/create',
+      {
+        pet_id:p.id,
+        target_username:u
+      }
+    );
+
+    toast(
+      d.message||
+      'Trade escrow created.'
+    );
+
+    await loadMyPets();
+
+  }catch(e){
+
+    console.error('TRADE:',e);
+    toast(e.message||'Trade failed.');
+  }
+}
+
+
+/* =========================
+   SELL
+========================= */
+
+async function sellPet(){
+
+  try{
+
+    const p=await chooseOwnedPet(
+      'Choose pet to list publicly'
+    );
+
+    if(!p)return;
+
+    const price=Number(
+      prompt(
+        'AMT sale price:',
+        '100'
+      )
+    );
+
+    if(!price||price<=0)return;
+
+    const d=await apiPost(
+      '/api/sell/list',
+      {
+        pet_id:p.id,
+        price_amt:price
+      }
+    );
+
+    toast(
+      d.message||
+      'Pet listed successfully.'
+    );
+
+    await loadPublicListings();
+
+  }catch(e){
+
+    console.error('SELL:',e);
+    toast(e.message||'Listing failed.');
+  }
+}
+
+
+/* =========================
+   PUBLIC LISTINGS
+========================= */
+
+async function loadPublicListings(){
+
+  try{
+
+    const r=await fetch(
+      API+'/api/market/listings',
+      {cache:'no-store'}
+    );
+
+    const d=await r.json();
+
+    const a=d.listings||[];
+
+    $('publicListings').innerHTML=
+      a.length
+      ?
+      a.map(x=>`
+        <div class="publicCard">
+
+          <img src="${img(x.image)}">
+
+          <b>${esc(x.name)}</b>
+
+          <div class="small">
+            Seller: @${esc(x.username||'Pioneer')}
+          </div>
+
+          <div class="small">
+            ⭐ Reputation ${x.seller_reputation}
+          </div>
+
+          <div class="price">
+            ${x.price_amt} AMT
+          </div>
+
+          <div class="status">
+            🔒 ESCROW-READY LISTING
+          </div>
+
+        </div>
+      `).join('')
+      :
+      '<div class="msg">No public listings yet.</div>';
+
+  }catch(e){
+
+    console.error('PUBLIC LISTINGS:',e);
+
+    $('publicListings').innerHTML=
+      '<div class="msg">Unable to load public listings.</div>';
+  }
+}
+
+
+/* =========================
+   STAKING
+========================= */
+
+async function loadStakes(){
+
+  try{
+
+    const r=await fetch(
+      API+'/api/staking',
+      {
+        headers:authHeaders()
+      }
+    );
+
+    const d=await r.json();
+
+    const a=d.stakes||[];
+
+    $('stakes').innerHTML=
+      a.length
+      ?
+      a.map(x=>`
+        <div class="row">
+          <span>
+            ${x.amount_amt} AMT •
+            ${x.lock_days}D •
+            ${x.reward_percent}%
+          </span>
+
+          <span class="status">
+            ${esc(x.status)}
+          </span>
+        </div>
+
+        <div class="small">
+          TX: ${esc(x.txid||'—')}
+          • Unlock: ${esc(x.unlock_at)}
+        </div>
+      `).join('')
+      :
+      '<div class="muted">No active stakes yet. Choose a staking pool above and stake AMT to begin.</div>';
+
+  }catch(e){
+
+    console.error('STAKES:',e);
+
+    $('stakes').innerHTML=
+      '<div class="muted">Unable to load stakes.</div>';
+  }
+}
+
+
+async function stakeAMT(){
+
+  try{
+
+    const amount=Number(
+      $('stakeAmount').value
+    );
+
+    const days=Number(
+      $('stakeDays').value
+    );
+
+    const txid=$('stakeTxid')
+      .value
+      .trim();
+
+    if(!amount||amount<0.01){
+      throw Error(
+        'Minimum stake is 0.01 AMT.'
+      );
+    }
+
+    if(!txid){
+      throw Error(
+        'Enter the real AMT on-chain transaction hash.'
+      );
+    }
+
+    const d=await apiPost(
+      '/api/staking/create',
+      {
+        amount_amt:amount,
+        lock_days:days,
+        txid
+      }
+    );
+
+    toast(
+      d.message||
+      'AMT stake verified and activated.'
+    );
+
+    $('stakeAmount').value='';
+    $('stakeTxid').value='';
+
+    await loadStakes();
+    await refreshWalletSync();
+
+  }catch(e){
+
+    console.error('STAKE:',e);
+    toast(e.message);
+  }
+}
+
+
+/* =========================
+   WALLET SYNC
+========================= */
+
+async function refreshWalletSync(){
+
+  if(!currentUser?.accessToken){
+
+    $('walletSyncStatus').textContent=
+      'NOT SYNCHRONIZED';
+
+    $('walletAddress').textContent=
+      'Login with Pi first';
+
+    $('onChainAMT').textContent=
+      '— AMT';
+
+    return;
+  }
+
+
+  try{
+
+    $('walletSyncStatus').textContent=
+      'SYNCING...';
+
+    $('walletSyncStatus').style.color=
+      '#ffd66b';
+
+
+    /*
+      STEP 1
+      Use the new backend wallet sync endpoint.
+
+      The backend gets the verified Pi session
+      from the Authorization Bearer token.
+    */
+
+    let syncData=null;
+
+    const syncResponse=await fetch(
+      API+'/api/wallet/sync',
+      {
+        method:'POST',
+        headers:authHeaders(),
+        body:JSON.stringify({
+          uid:currentUser.uid||'',
+          username:currentUser.username||'',
+          wallet_address:currentUser.wallet_address||'',
+          walletAddress:currentUser.wallet_address||''
+        }),
+        cache:'no-store'
+      }
+    );
+
+    syncData=await syncResponse
+      .json()
+      .catch(()=>({}));
+
+
+    /*
+      If wallet sync succeeds, use the wallet returned
+      by the server.
+    */
+
+    if(syncResponse.ok){
+
+      const syncedWallet=
+        syncData.walletAddress||
+        syncData.wallet_address||
+        syncData.address||
+        syncData.wallet||
+        '';
+
+      if(syncedWallet){
+
+        currentUser.wallet_address=
+          syncedWallet;
+
+        localStorage.setItem(
+          'amtPetPiWallet',
+          syncedWallet
+        );
+
+        $('walletAddress').textContent=
+          syncedWallet;
+      }
+    }
+
+
+    /*
+      STEP 2
+      Verify Pi session as an additional source.
+    */
+
+    const verify=await fetch(
+      API+'/api/auth/verify',
+      {
+        method:'POST',
+        headers:authHeaders(),
+        cache:'no-store'
+      }
+    );
+
+    const vd=await verify
+      .json()
+      .catch(()=>({}));
+
+
+    if(verify.ok){
+
+      const verifiedWallet=
+        vd.walletAddress||
+        vd.wallet_address||
+        vd.address||
+        '';
+
+      if(verifiedWallet){
+
+        currentUser.wallet_address=
+          verifiedWallet;
+
+        localStorage.setItem(
+          'amtPetPiWallet',
+          verifiedWallet
+        );
+
+        $('walletAddress').textContent=
+          verifiedWallet;
+      }
+
+      if(vd.username){
+        currentUser.username=
+          vd.username;
+      }
+
+      if(vd.uid){
+        currentUser.uid=
+          vd.uid;
+      }
+    }
+
+
+    /*
+      If both wallet sync and verify returned no wallet,
+      show the real reason instead of pretending it synced.
+    */
+
+    if(!currentUser.wallet_address){
+
+      $('walletSyncStatus').textContent=
+        'SYNC FAILED';
+
+      $('walletSyncStatus').style.color=
+        '#ff8090';
+
+      $('walletAddress').textContent=
+        'Pi wallet address was not returned by the verified session.';
+
+      $('onChainAMT').textContent=
+        '— AMT';
+
+      throw Error(
+        syncData.error||
+        vd.error||
+        'Pi wallet address was not returned. Open this marketplace in Pi Browser and login again.'
+      );
+    }
+
+
+    /*
+      STEP 3
+      Read the actual on-chain AMT balance.
+    */
+
+    const r=await fetch(
+      API+'/api/wallet/onchain',
+      {
+        headers:authHeaders(),
+        cache:'no-store'
+      }
+    );
+
+    const d=await r
+      .json()
+      .catch(()=>({}));
+
+    if(!r.ok){
+
+      throw Error(
+        d.error||
+        'Unable to read on-chain AMT balance.'
+      );
+    }
+
+
+    $('walletSyncStatus').textContent=
+      'SYNCHRONIZED';
+
+    $('walletSyncStatus').style.color=
+      '#79ffad';
+
+    $('walletAddress').textContent=
+      currentUser.wallet_address;
+
+    $('onChainAMT').textContent=
+      Number(d.balance||0).toFixed(8)+
+      ' AMT';
+
+    $('amtIssuer').textContent=
+      d.issuer||
+      'Not configured';
+
+    window.__amtWalletConfig=d;
+
+    localStorage.setItem(
+      'amtPetPiWallet',
+      currentUser.wallet_address
+    );
+
+  }catch(e){
+
+    console.error(
+      'WALLET SYNC ERROR:',
+      e
+    );
+
+    $('walletSyncStatus').textContent=
+      'SYNC FAILED';
+
+    $('walletSyncStatus').style.color=
+      '#ff8090';
+
+    $('onChainAMT').textContent=
+      '— AMT';
+
+    toast(
+      e.message||
+      'Wallet synchronization failed.'
+    );
+  }
+}
+
+
+/* =========================
+   AMT BUY
+========================= */
+
 async function buyWithAMT(){
-  if(!selectedPet||!currentUser?.accessToken){toast('Login with Pi first and select a pet.');return}
+
+  if(
+    !selectedPet||
+    !currentUser?.accessToken
+  ){
+    toast(
+      'Login with Pi first and select a pet.'
+    );
+    return;
+  }
+
   try{
-    const prep=await apiPost('/api/payments/amt/prepare',{pet_code:selectedPet.pet_code});
-    const payment=prep.payment||prep;
-    const amount=Number(payment.amount||100),receiver=payment.receiver||'';
-    $('amtBuyStatus').innerHTML='Send <b>'+amount+' '+esc(payment.asset_code||'AMT')+'</b> from your synchronized wallet to:<br><span class="walletBox" style="display:block;margin-top:6px">'+esc(receiver)+'</span><br>After the blockchain confirms, paste the transaction hash below.';
-    const txid=prompt('AMT ON-CHAIN PAYMENT\n\nSend exactly '+amount+' AMT to:\n'+receiver+'\n\nPaste the confirmed AMT transaction hash:');
+
+    const prep=await apiPost(
+      '/api/payments/amt/prepare',
+      {
+        pet_code:selectedPet.pet_code
+      }
+    );
+
+    const payment=
+      prep.payment||
+      prep;
+
+    const amount=
+      Number(payment.amount||100);
+
+    const receiver=
+      payment.receiver||'';
+
+    $('amtBuyStatus').innerHTML=
+      'Send <b>'+
+      amount+
+      ' '+
+      esc(payment.asset_code||'AMT')+
+      '</b> from your synchronized wallet to:<br>'+
+      '<span class="walletBox" style="display:block;margin-top:6px">'+
+      esc(receiver)+
+      '</span><br>'+
+      'After the blockchain confirms, paste the transaction hash below.';
+
+    const txid=prompt(
+      'AMT ON-CHAIN PAYMENT\n\n'+
+      'Send exactly '+
+      amount+
+      ' AMT to:\n'+
+      receiver+
+      '\n\nPaste the confirmed AMT transaction hash:'
+    );
+
     if(!txid)return;
-    $('amtBuyStatus').textContent='Verifying AMT transaction on-chain...';
-    const done=await apiPost('/api/payments/amt/complete',{payment_id:payment.id,txid:txid.trim()});
-    if(done.status!=='COMPLETED')throw Error(done.error||'AMT purchase was not completed.');
-    $('amtBuyStatus').textContent='✅ AMT purchase verified on-chain.';
-    closeModal();toast(selectedPet.name+' purchased successfully with verified AMT.');await loadMyPets();await refreshWalletSync();
-  }catch(e){$('amtBuyStatus').textContent='❌ '+e.message;toast(e.message)}
+
+    $('amtBuyStatus').textContent=
+      'Verifying AMT transaction on-chain...';
+
+    const done=await apiPost(
+      '/api/payments/amt/complete',
+      {
+        payment_id:payment.id,
+        txid:txid.trim()
+      }
+    );
+
+    if(done.status!=='COMPLETED'){
+
+      throw Error(
+        done.error||
+        'AMT purchase was not completed.'
+      );
+    }
+
+    $('amtBuyStatus').textContent=
+      '✅ AMT purchase verified on-chain.';
+
+    const purchasedName=
+      selectedPet.name;
+
+    closeModal();
+
+    toast(
+      purchasedName+
+      ' purchased successfully with verified AMT.'
+    );
+
+    await loadMyPets();
+    await refreshWalletSync();
+
+  }catch(e){
+
+    console.error(
+      'AMT BUY:',
+      e
+    );
+
+    $('amtBuyStatus').textContent=
+      '❌ '+e.message;
+
+    toast(e.message);
+  }
 }
-function logoutPi(){localStorage.removeItem('amtPetPiUid');localStorage.removeItem('amtPetPiUsername');localStorage.removeItem('amtPetPiWallet');localStorage.removeItem('amtPetPiAccessToken');localStorage.removeItem('amtPetProfileImage');currentUser=null;$('app').style.display='none';$('loginScreen').style.display='flex';$('loginBtn').disabled=false;$('loginBtn').textContent='🟣 LOGIN WITH PI'}
+
+
+/* =========================
+   LOGOUT
+========================= */
+
+function logoutPi(){
+
+  localStorage.removeItem('amtPetPiUid');
+  localStorage.removeItem('amtPetPiUsername');
+  localStorage.removeItem('amtPetPiWallet');
+  localStorage.removeItem('amtPetPiAccessToken');
+  localStorage.removeItem('amtPetProfileImage');
+
+  currentUser=null;
+
+  $('app').style.display='none';
+  $('loginScreen').style.display='flex';
+
+  $('loginBtn').disabled=false;
+  $('loginBtn').textContent=
+    '🟣 LOGIN WITH PI';
+}
+
+
+/* =========================
+   PI LOGIN
+========================= */
+
 function loginPi(){
-  if(!window.Pi){toast('Open AMT Pet Marketplace in Pi Browser.');return}
-  $('loginBtn').disabled=true;$('loginBtn').textContent='Connecting to Pi...';
+
+  if(!window.Pi){
+
+    toast(
+      'Open AMT Pet Marketplace in Pi Browser.'
+    );
+
+    return;
+  }
+
+
+  $('loginBtn').disabled=true;
+
+  $('loginBtn').textContent=
+    'Connecting to Pi...';
+
+
   try{
-    Pi.init({version:'2.0',sandbox:true});
-    Pi.authenticate(['username','payments'],p=>{
-      console.log('Incomplete payment:',p);
-      window.__amtIncompletePayment=p;
-      window.__amtIncompletePaymentAt=Date.now();
+
+    Pi.init({
+      version:'2.0',
+      sandbox:true
+    });
+
+
+    Pi.authenticate(
+      ['username','payments'],
+
+      p=>{
+
+        console.log(
+          'Incomplete payment:',
+          p
+        );
+
+        window.__amtIncompletePayment=p;
+        window.__amtIncompletePaymentAt=
+          Date.now();
+      }
+
+    )
+
+    .then(async auth=>{
+
+      const u=auth.user||{};
+
+
+      currentUser={
+        uid:u.uid||'',
+        username:u.username||'Pioneer',
+        wallet_address:
+          u.wallet_address||
+          u.walletAddress||
+          '',
+        accessToken:
+          auth.accessToken||
+          ''
+      };
+
+
+      localStorage.setItem(
+        'amtPetPiUid',
+        currentUser.uid
+      );
+
+      localStorage.setItem(
+        'amtPetPiUsername',
+        currentUser.username
+      );
+
+      localStorage.setItem(
+        'amtPetPiWallet',
+        currentUser.wallet_address
+      );
+
+      localStorage.setItem(
+        'amtPetPiAccessToken',
+        currentUser.accessToken
+      );
+
+
+      /*
+        First synchronize Pioneer and wallet
+        through the backend.
+      */
+
+      await syncPioneer();
+
+
+      /*
+        Explicit wallet synchronization.
+      */
+
+      await refreshWalletSync();
+
+
+      await recoverIncompletePayment();
+
+
+      enterApp();
+
+
+      /*
+        Do not claim wallet synchronization if
+        backend did not actually return an address.
+      */
+
+      if(currentUser.wallet_address){
+
+        toast(
+          'Welcome, @'+
+          currentUser.username+
+          '! Wallet synchronized.'
+        );
+
+      }else{
+
+        toast(
+          'Welcome, @'+
+          currentUser.username+
+          '! Wallet sync needs attention.'
+        );
+      }
+
     })
-      .then(async auth=>{
-        const u=auth.user||{};
-        currentUser={uid:u.uid||'',username:u.username||'Pioneer',wallet_address:u.wallet_address||'',accessToken:auth.accessToken||''};
-        localStorage.setItem('amtPetPiUid',currentUser.uid);
-        localStorage.setItem('amtPetPiUsername',currentUser.username);
-        localStorage.setItem('amtPetPiWallet',currentUser.wallet_address);
-         localStorage.setItem('amtPetPiAccessToken',currentUser.accessToken);
-        await syncPioneer();
-        await recoverIncompletePayment();
-        enterApp();
-        toast('Welcome, @'+currentUser.username+'! Wallet synchronized.');
-      })
-      .catch(e=>{console.error(e);$('loginBtn').disabled=false;$('loginBtn').textContent='🟣 LOGIN WITH PI';toast('Pi Login failed. Please try again in Pi Browser.')});
-  }catch(e){console.error(e);$('loginBtn').disabled=false;$('loginBtn').textContent='🟣 LOGIN WITH PI';toast('Unable to start Pi Login.')}
+
+
+    .catch(e=>{
+
+      console.error(
+        'PI LOGIN:',
+        e
+      );
+
+      $('loginBtn').disabled=false;
+
+      $('loginBtn').textContent=
+        '🟣 LOGIN WITH PI';
+
+      toast(
+        e.message||
+        'Pi Login failed. Please try again in Pi Browser.'
+      );
+    });
+
+
+  }catch(e){
+
+    console.error(
+      'PI INIT:',
+      e
+    );
+
+    $('loginBtn').disabled=false;
+
+    $('loginBtn').textContent=
+      '🟣 LOGIN WITH PI';
+
+    toast(
+      'Unable to start Pi Login.'
+    );
+  }
 }
+
+
+/* =========================
+   RECOVER PAYMENT
+========================= */
+
 async function recoverIncompletePayment(){
-  const pending=window.__amtIncompletePayment;
-  const paymentId=pending?.identifier||pending?.paymentId||pending?.payment_id||pending?.id||'';
-  if(!paymentId || !currentUser?.accessToken) return;
+
+  const pending=
+    window.__amtIncompletePayment;
+
+  const paymentId=
+    pending?.identifier||
+    pending?.paymentId||
+    pending?.payment_id||
+    pending?.id||
+    '';
+
+  if(
+    !paymentId||
+    !currentUser?.accessToken
+  ){
+    return;
+  }
+
+
   try{
-    toast('Checking pending Pi payment...');
-    const r=await fetch(API+'/api/payments/pi/recover',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+currentUser.accessToken},body:JSON.stringify({payment_id:paymentId})});
-    const d=await r.json().catch(()=>({}));
-    console.log('Pending payment recovery:',d);
-    if(d.status==='COMPLETED'){ toast('Pending payment completed successfully.'); await loadMyPets(); }
-    else if(d.status==='PENDING'){ toast('Pending Pi payment is still waiting for blockchain confirmation.'); }
-    else if(d.status==='CANCELLED'){ toast('The pending Pi payment was cancelled.'); }
-    else if(!r.ok){ console.warn('Pending recovery:',d.error||'Not recoverable yet.'); }
-  }catch(e){ console.error('Pending recovery:',e); }
+
+    toast(
+      'Checking pending Pi payment...'
+    );
+
+
+    const r=await fetch(
+      API+'/api/payments/pi/recover',
+      {
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'Authorization':
+            'Bearer '+
+            currentUser.accessToken
+        },
+        body:JSON.stringify({
+          payment_id:paymentId
+        })
+      }
+    );
+
+
+    const d=await r
+      .json()
+      .catch(()=>({}));
+
+
+    console.log(
+      'Pending payment recovery:',
+      d
+    );
+
+
+    if(d.status==='COMPLETED'){
+
+      toast(
+        'Pending payment completed successfully.'
+      );
+
+      await loadMyPets();
+
+    }else if(d.status==='PENDING'){
+
+      toast(
+        'Pending Pi payment is still waiting for blockchain confirmation.'
+      );
+
+    }else if(d.status==='CANCELLED'){
+
+      toast(
+        'The pending Pi payment was cancelled.'
+      );
+
+    }else if(!r.ok){
+
+      console.warn(
+        'Pending recovery:',
+        d.error||
+        'Not recoverable yet.'
+      );
+    }
+
+  }catch(e){
+
+    console.error(
+      'Pending recovery:',
+      e
+    );
+  }
+
+
   window.__amtIncompletePayment=null;
 }
+
+
+/* =========================
+   PIONEER SYNC
+========================= */
+
 async function syncPioneer(){
+
   try{
-    const r=await fetch(API+'/api/auth/verify',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+(currentUser?.accessToken||'')}});
+
+    const r=await fetch(
+      API+'/api/auth/verify',
+      {
+        method:'POST',
+        headers:authHeaders(),
+        cache:'no-store'
+      }
+    );
+
+
     if(r.ok){
-      const d=await r.json();
-      if(d.walletAddress)currentUser.wallet_address=d.walletAddress;
-      if(d.wallet_address)currentUser.wallet_address=d.wallet_address;
-      if(d.username)currentUser.username=d.username;
-      if(d.uid)currentUser.uid=d.uid;
+
+      const d=await r
+        .json()
+        .catch(()=>({}));
+
+
+      const wallet=
+        d.walletAddress||
+        d.wallet_address||
+        d.address||
+        '';
+
+
+      if(wallet){
+
+        currentUser.wallet_address=
+          wallet;
+
+        localStorage.setItem(
+          'amtPetPiWallet',
+          wallet
+        );
+      }
+
+
+      if(d.username){
+
+        currentUser.username=
+          d.username;
+      }
+
+
+      if(d.uid){
+
+        currentUser.uid=
+          d.uid;
+      }
     }
-  }catch(e){console.log('Optional backend sync:',e)}
-  localStorage.setItem('amtPetPiWallet',currentUser.wallet_address||'');
+
+  }catch(e){
+
+    console.log(
+      'Optional backend sync:',
+      e
+    );
+  }
+
+
+  localStorage.setItem(
+    'amtPetPiWallet',
+    currentUser?.wallet_address||
+    ''
+  );
 }
+
+
+/* =========================
+   ENTER APP
+========================= */
+
 function enterApp(){
-  $('loginScreen').style.display='none';$('app').style.display='block';
-  $('navUser').textContent='@'+currentUser.username;
-  $('profileName').textContent='@'+currentUser.username;
-  $('profileUid').textContent='Pi UID: '+(currentUser.uid||'—');
-  $('walletAddress').textContent=currentUser.wallet_address||'Wallet address not returned by Pi session';
-  const saved=localStorage.getItem('amtPetProfileImage');if(saved)$('avatar').innerHTML='<img class="avatar" src="'+esc(saved)+'" alt="Profile">';
-  loadMyPets();renderMarket();refreshWalletSync();
+
+  $('loginScreen').style.display='none';
+  $('app').style.display='block';
+
+
+  $('navUser').textContent=
+    '@'+
+    (currentUser?.username||'Pioneer');
+
+
+  $('profileName').textContent=
+    '@'+
+    (currentUser?.username||'Pioneer');
+
+
+  $('profileUid').textContent=
+    'Pi UID: '+
+    (currentUser?.uid||'—');
+
+
+  $('walletAddress').textContent=
+    currentUser?.wallet_address||
+    'Wallet address syncing...';
+
+
+  const saved=
+    localStorage.getItem(
+      'amtPetProfileImage'
+    );
+
+
+  if(saved){
+
+    $('avatar').innerHTML=
+      '<img class="avatar" src="'+
+      esc(saved)+
+      '" alt="Profile">';
+  }
+
+
+  loadMyPets();
+  renderMarket();
+
+  /*
+    Refresh again after the app is visible.
+  */
+
+  refreshWalletSync();
 }
+
+
+/* =========================
+   PROFILE PICTURE
+========================= */
+
 function previewProfile(){
-  const f=$('profileImage').files[0];if(!f)return;
-  if(f.size>5*1024*1024){toast('Maximum profile image size is 5 MB.');$('profileImage').value='';return}
-  const r=new FileReader();r.onload=()=>{$('avatar').innerHTML='<img class="avatar" src="'+esc(r.result)+'" alt="Profile preview">';window.__profileData=r.result};r.readAsDataURL(f);
+
+  const f=
+    $('profileImage').files[0];
+
+  if(!f)return;
+
+
+  if(f.size>5*1024*1024){
+
+    toast(
+      'Maximum profile image size is 5 MB.'
+    );
+
+    $('profileImage').value='';
+
+    return;
+  }
+
+
+  const r=new FileReader();
+
+
+  r.onload=()=>{
+
+    $('avatar').innerHTML=
+      '<img class="avatar" src="'+
+      esc(r.result)+
+      '" alt="Profile preview">';
+
+    window.__profileData=
+      r.result;
+  };
+
+
+  r.readAsDataURL(f);
 }
+
+
 function saveProfilePicture(){
-  if(!window.__profileData){toast('Choose a profile picture first.');return}
-  localStorage.setItem('amtPetProfileImage',window.__profileData);toast('Profile picture saved on this device.');
-  /* When /api/profile/image is enabled, this same action can be sent server-side. */
+
+  if(!window.__profileData){
+
+    toast(
+      'Choose a profile picture first.'
+    );
+
+    return;
+  }
+
+
+  localStorage.setItem(
+    'amtPetProfileImage',
+    window.__profileData
+  );
+
+
+  toast(
+    'Profile picture saved on this device.'
+  );
 }
+
+
+/* =========================
+   PET CATALOG
+========================= */
+
 async function load(){
+
   try{
-    const r=await fetch(API+'/api/pets',{cache:'no-store'});
-    if(!r.ok)throw Error('HTTP '+r.status);
-    const d=await r.json();pets=d.pets||[];$('count').textContent=pets.length;renderMarket();
-  }catch(e){console.error(e);$('grid').innerHTML='<div class="msg">❌ Cannot load pet catalog. Check the Render service.</div>'}
+
+    const r=await fetch(
+      API+'/api/pets',
+      {
+        cache:'no-store'
+      }
+    );
+
+
+    if(!r.ok){
+
+      throw Error(
+        'HTTP '+r.status
+      );
+    }
+
+
+    const d=await r.json();
+
+    pets=d.pets||[];
+
+    $('count').textContent=
+      pets.length;
+
+    renderMarket();
+
+  }catch(e){
+
+    console.error(
+      'PET CATALOG:',
+      e
+    );
+
+    $('grid').innerHTML=
+      '<div class="msg">❌ Cannot load pet catalog. Check the Render service.</div>';
+  }
 }
+
+
 function renderMarket(){
-  const s=($('q')?.value||'').toLowerCase().trim(),e=$('el')?.value||'All Elements',z=$('sort')?.value||'name';
-  let a=pets.filter(p=>(!s||String(p.name).toLowerCase().includes(s)||String(p.pet_code).toLowerCase().includes(s))&&(e==='All Elements'||p.element===e));
-  a.sort((x,y)=>z==='name'?String(x.name).localeCompare(String(y.name)):Number(y['base_'+z]||0)-Number(x['base_'+z]||0));
-  $('grid').innerHTML=a.length?a.map(p=>`<article class="petCard"><span class="petBadge">${esc(p.element)} • ${esc(p.rarity)}</span><img class="petPic" src="${img(p.image)}" alt="${esc(p.name)}" loading="lazy"><div class="petBody"><div class="petName">${esc(p.name)}</div><div class="meta"><span>${esc(p.pet_code)}</span><span>Lv.1</span></div><div class="stats"><span class="stat">❤️ ${p.base_hp}</span><span class="stat">⚔️ ${p.base_atk}</span><span class="stat">🛡️ ${p.base_def}</span></div><div class="price">🟣 Price: ${Number(p.pi_price||p.price_pi||10)} Pi Testnet</div><button class="action" onclick='openPet(${JSON.stringify(p)})'>VIEW PET</button><button class="action gold" style="margin-top:8px" onclick='quickBuyPet(${JSON.stringify(p)})'>🟣 BUY WITH PI</button><button class="action" style="margin-top:8px;border-color:rgba(255,210,70,.45);background:rgba(255,190,40,.12)" onclick='quickBuyAMT(${JSON.stringify(p)})'>🟡 BUY WITH AMT</button></div></article>`).join(''):'<div class="msg">No pets found.</div>';
+
+  const s=
+    ($('q')?.value||'')
+      .toLowerCase()
+      .trim();
+
+  const e=
+    $('el')?.value||
+    'All Elements';
+
+  const z=
+    $('sort')?.value||
+    'name';
+
+
+  let a=pets.filter(
+    p=>
+      (
+        !s||
+        String(p.name)
+          .toLowerCase()
+          .includes(s)||
+        String(p.pet_code)
+          .toLowerCase()
+          .includes(s)
+      )&&
+      (
+        e==='All Elements'||
+        p.element===e
+      )
+  );
+
+
+  a.sort(
+    (x,y)=>
+      z==='name'
+      ?
+      String(x.name)
+        .localeCompare(
+          String(y.name)
+        )
+      :
+      Number(y['base_'+z]||0)-
+      Number(x['base_'+z]||0)
+  );
+
+
+  $('grid').innerHTML=
+    a.length
+    ?
+    a.map(
+      p=>`
+        <article class="petCard">
+
+          <span class="petBadge">
+            ${esc(p.element)}
+            •
+            ${esc(p.rarity)}
+          </span>
+
+          <img
+            class="petPic"
+            src="${img(p.image)}"
+            alt="${esc(p.name)}"
+            loading="lazy"
+          >
+
+          <div class="petBody">
+
+            <div class="petName">
+              ${esc(p.name)}
+            </div>
+
+            <div class="meta">
+              <span>${esc(p.pet_code)}</span>
+              <span>Lv.1</span>
+            </div>
+
+            <div class="stats">
+              <span class="stat">
+                ❤️ ${p.base_hp}
+              </span>
+
+              <span class="stat">
+                ⚔️ ${p.base_atk}
+              </span>
+
+              <span class="stat">
+                🛡️ ${p.base_def}
+              </span>
+            </div>
+
+            <div class="price">
+              🟣 Price:
+              ${Number(p.pi_price||p.price_pi||10)}
+              Pi Testnet
+            </div>
+
+            <button
+              class="action"
+              onclick='openPet(${JSON.stringify(p)})'
+            >
+              VIEW PET
+            </button>
+
+            <button
+              class="action gold"
+              style="margin-top:8px"
+              onclick='quickBuyPet(${JSON.stringify(p)})'
+            >
+              🟣 BUY WITH PI
+            </button>
+
+            <button
+              class="action"
+              style="margin-top:8px;border-color:rgba(255,210,70,.45);background:rgba(255,190,40,.12)"
+              onclick='quickBuyAMT(${JSON.stringify(p)})'
+            >
+              🟡 BUY WITH AMT
+            </button>
+
+          </div>
+
+        </article>
+      `
+    ).join('')
+    :
+    '<div class="msg">No pets found.</div>';
 }
-function quickBuyPet(p){selectedPet=p;buyPetPrepared();}
-async function quickBuyAMT(p){selectedPet=p;await buyWithAMT();}
+
+
+/* =========================
+   QUICK BUY
+========================= */
+
+function quickBuyPet(p){
+
+  selectedPet=p;
+
+  buyPetPrepared();
+}
+
+
+async function quickBuyAMT(p){
+
+  selectedPet=p;
+
+  await buyWithAMT();
+}
+
+
+/* =========================
+   PET MODAL
+========================= */
+
 function openPet(p){
-  selectedPet=p;$('modalName').textContent=p.name;$('modalImg').src=img(p.image);
-  $('modalDetails').innerHTML=`<div class="stats"><span class="stat">🌍 ${esc(p.element)}</span><span class="stat">⭐ ${esc(p.rarity)}</span><span class="stat">❤️ HP ${p.base_hp}</span><span class="stat">⚔️ ATK ${p.base_atk}</span><span class="stat">🛡️ DEF ${p.base_def}</span></div><div class="muted">${esc(p.pet_code)} • Level 1 • XP 0</div><hr style="border:0;border-top:1px solid #1c3b52;margin:12px 0"><div class="row"><span class="muted">Evolution</span><b>Common → Uncommon → Rare → Epic → Legend → Mythic</b></div>`;
+
+  selectedPet=p;
+
+  $('modalName').textContent=
+    p.name;
+
+  $('modalImg').src=
+    img(p.image);
+
+
+  $('modalDetails').innerHTML=`
+
+    <div class="stats">
+
+      <span class="stat">
+        🌍 ${esc(p.element)}
+      </span>
+
+      <span class="stat">
+        ⭐ ${esc(p.rarity)}
+      </span>
+
+      <span class="stat">
+        ❤️ HP ${p.base_hp}
+      </span>
+
+      <span class="stat">
+        ⚔️ ATK ${p.base_atk}
+      </span>
+
+      <span class="stat">
+        🛡️ DEF ${p.base_def}
+      </span>
+
+    </div>
+
+    <div class="muted">
+      ${esc(p.pet_code)}
+      • Level 1
+      • XP 0
+    </div>
+
+    <hr
+      style="border:0;border-top:1px solid #1c3b52;margin:12px 0"
+    >
+
+    <div class="row">
+
+      <span class="muted">
+        Evolution
+      </span>
+
+      <b>
+        Common → Uncommon → Rare →
+        Epic → Legend → Mythic
+      </b>
+
+    </div>
+  `;
+
+
   $('modal').classList.add('show');
 }
-function closeModal(){$('modal').classList.remove('show')}
-async function buyPetPrepared(){
-  if(!selectedPet){toast('Select a pet first.');return}
-  if(!currentUser){toast('Login with Pi first.');return}
-  if(!window.Pi){toast('Open AMT Pet Marketplace in Pi Browser.');return}
-  if(!currentUser.accessToken){toast('Please log in with Pi again.');return}
 
-  const amount=Number(selectedPet.pi_price||selectedPet.price_pi||10);
-  const petCode=selectedPet.pet_code;
-  const memo='AMT Pet Marketplace - '+petCode;
+
+function closeModal(){
+
+  $('modal').classList.remove(
+    'show'
+  );
+}
+
+
+/* =========================
+   PI PET PURCHASE
+========================= */
+
+async function buyPetPrepared(){
+
+  if(!selectedPet){
+
+    toast(
+      'Select a pet first.'
+    );
+
+    return;
+  }
+
+
+  if(!currentUser){
+
+    toast(
+      'Login with Pi first.'
+    );
+
+    return;
+  }
+
+
+  if(!window.Pi){
+
+    toast(
+      'Open AMT Pet Marketplace in Pi Browser.'
+    );
+
+    return;
+  }
+
+
+  if(!currentUser.accessToken){
+
+    toast(
+      'Please log in with Pi again.'
+    );
+
+    return;
+  }
+
+
+  const amount=
+    Number(
+      selectedPet.pi_price||
+      selectedPet.price_pi||
+      10
+    );
+
+
+  const petCode=
+    selectedPet.pet_code;
+
+
+  const memo=
+    'AMT Pet Marketplace - '+
+    petCode;
+
+
   const metadata={
     type:'pet_purchase',
     pet_code:petCode,
     pet_name:selectedPet.name
   };
 
+
   try{
-    toast('Opening Pi payment...');
-    await new Promise((resolve,reject)=>{
-      let settled=false;
-      const fail=e=>{
-        if(settled)return;
-        settled=true;
-        reject(e instanceof Error?e:Error(String(e||'Pi payment failed.')));
-      };
-      const done=v=>{
-        if(settled)return;
-        settled=true;
-        resolve(v);
-      };
 
-      Pi.createPayment(
-        {amount,currency:'Pi',memo,metadata},
-        {
-          onReadyForServerApproval:async paymentId=>{
-            try{
-              /* IMPORTANT: prepare must happen before approval.
-                 The Render backend requires payment_id + pet_code. */
-              const prep=await fetch(API+'/api/payments/pi/prepare',{
-                method:'POST',
-                headers:{
-                  'Content-Type':'application/json',
-                  'Authorization':'Bearer '+currentUser.accessToken
-                },
-                body:JSON.stringify({
-                  payment_id:paymentId,
-                  pet_code:petCode
-                })
-              });
-              const prepData=await prep.json().catch(()=>({}));
-              if(!prep.ok){
-                throw Error(prepData.error||'Payment preparation failed.');
-              }
+    toast(
+      'Opening Pi payment...'
+    );
 
-              const approval=await fetch(API+'/api/payments/pi/approve',{
-                method:'POST',
-                headers:{
-                  'Content-Type':'application/json',
-                  'Authorization':'Bearer '+currentUser.accessToken
-                },
-                body:JSON.stringify({
-                  payment_id:paymentId,
-                  pet_code:petCode
-                })
-              });
-              const approvalData=await approval.json().catch(()=>({}));
-              if(!approval.ok){
-                throw Error(approvalData.error||'Server approval failed.');
-              }
-              console.log('Pi payment approved:',approvalData);
-            }catch(e){
-              console.error('Pi approval:',e);
-              fail(e);
-            }
+
+    await new Promise(
+      (resolve,reject)=>{
+
+        let settled=false;
+
+
+        const fail=e=>{
+
+          if(settled)return;
+
+          settled=true;
+
+          reject(
+            e instanceof Error
+            ?e
+            :Error(
+              String(
+                e||
+                'Pi payment failed.'
+              )
+            )
+          );
+        };
+
+
+        const done=v=>{
+
+          if(settled)return;
+
+          settled=true;
+
+          resolve(v);
+        };
+
+
+        Pi.createPayment(
+
+          {
+            amount,
+            currency:'Pi',
+            memo,
+            metadata
           },
 
-          onReadyForServerCompletion:async paymentId=>{
-            try{
-              const complete=await fetch(API+'/api/payments/pi/complete',{
-                method:'POST',
-                headers:{
-                  'Content-Type':'application/json',
-                  'Authorization':'Bearer '+currentUser.accessToken
-                },
-                body:JSON.stringify({
-                  payment_id:paymentId,
-                  pet_code:petCode
-                })
-              });
-              const completeData=await complete.json().catch(()=>({}));
-              if(!complete.ok){
-                throw Error(completeData.error||'Payment completion failed.');
-              }
-              console.log('Pi payment completed:',completeData);
-              done(completeData);
-            }catch(e){
-              console.error('Pi completion:',e);
-              fail(e);
-            }
-          },
+          {
 
-          onCancel:()=>fail(Error('Payment cancelled.')),
-          onError:error=>fail(Error(error?.message||'Pi payment failed.'))
-        }
-      );
-    });
+            onReadyForServerApproval:
+            async paymentId=>{
+
+              try{
+
+                const prep=
+                  await fetch(
+                    API+'/api/payments/pi/prepare',
+                    {
+                      method:'POST',
+                      headers:authHeaders(),
+                      body:JSON.stringify({
+                        payment_id:paymentId,
+                        pet_code:petCode
+                      })
+                    }
+                  );
+
+
+                const prepData=
+                  await prep
+                    .json()
+                    .catch(()=>({}));
+
+
+                if(!prep.ok){
+
+                  throw Error(
+                    prepData.error||
+                    'Payment preparation failed.'
+                  );
+                }
+
+
+                const approval=
+                  await fetch(
+                    API+'/api/payments/pi/approve',
+                    {
+                      method:'POST',
+                      headers:authHeaders(),
+                      body:JSON.stringify({
+                        payment_id:paymentId,
+                        pet_code:petCode
+                      })
+                    }
+                  );
+
+
+                const approvalData=
+                  await approval
+                    .json()
+                    .catch(()=>({}));
+
+
+                if(!approval.ok){
+
+                  throw Error(
+                    approvalData.error||
+                    'Server approval failed.'
+                  );
+                }
+
+
+                console.log(
+                  'Pi payment approved:',
+                  approvalData
+                );
+
+              }catch(e){
+
+                console.error(
+                  'Pi approval:',
+                  e
+                );
+
+                fail(e);
+              }
+            },
+
+
+            onReadyForServerCompletion:
+            async paymentId=>{
+
+              try{
+
+                const complete=
+                  await fetch(
+                    API+'/api/payments/pi/complete',
+                    {
+                      method:'POST',
+                      headers:authHeaders(),
+                      body:JSON.stringify({
+                        payment_id:paymentId,
+                        pet_code:petCode
+                      })
+                    }
+                  );
+
+
+                const completeData=
+                  await complete
+                    .json()
+                    .catch(()=>({}));
+
+
+                if(!complete.ok){
+
+                  throw Error(
+                    completeData.error||
+                    'Payment completion failed.'
+                  );
+                }
+
+
+                console.log(
+                  'Pi payment completed:',
+                  completeData
+                );
+
+
+                done(completeData);
+
+              }catch(e){
+
+                console.error(
+                  'Pi completion:',
+                  e
+                );
+
+                fail(e);
+              }
+            },
+
+
+            onCancel:()=>{
+
+              fail(
+                Error(
+                  'Payment cancelled.'
+                )
+              );
+            },
+
+
+            onError:error=>{
+
+              fail(
+                Error(
+                  error?.message||
+                  'Pi payment failed.'
+                )
+              );
+            }
+
+          }
+        );
+
+      }
+    );
+
+
+    const purchasedName=
+      selectedPet.name;
 
     closeModal();
-    toast(selectedPet.name+' purchased successfully with Pi Testnet.');
+
+    toast(
+      purchasedName+
+      ' purchased successfully with Pi Testnet.'
+    );
+
     await loadMyPets();
+
   }catch(e){
-    console.error('BUY PET:',e);
-    toast(e.message||'Pi payment was not completed.');
+
+    console.error(
+      'BUY PET:',
+      e
+    );
+
+    toast(
+      e.message||
+      'Pi payment was not completed.'
+    );
   }
 }
+
+
+/* =========================
+   MY PETS
+========================= */
+
 async function loadMyPets(){
-  $('myPets').innerHTML='<div class="msg">Loading your pets...</div>';
+
+  $('myPets').innerHTML=
+    '<div class="msg">Loading your pets...</div>';
+
+
   try{
-    const uid=currentUser?.uid||localStorage.getItem('amtPetPiUid');
-    const r=await fetch(API+'/api/my-pets/'+encodeURIComponent(uid||''),{cache:'no-store'});
-    if(!r.ok)throw Error('not available');
-    const d=await r.json(),list=d.pets||d.ownedPets||[];
+
+    const uid=
+      currentUser?.uid||
+      localStorage.getItem(
+        'amtPetPiUid'
+      );
+
+
+    if(!uid){
+
+      renderMyPets([]);
+
+      return;
+    }
+
+
+    /*
+      IMPORTANT:
+      Send the authenticated Pi token too.
+      This prevents the frontend from relying
+      only on the UID when loading owned pets.
+    */
+
+    const r=await fetch(
+      API+
+      '/api/my-pets/'+
+      encodeURIComponent(uid),
+      {
+        method:'GET',
+        headers:{
+          'Authorization':
+            'Bearer '+
+            (currentUser?.accessToken||'')
+        },
+        cache:'no-store'
+      }
+    );
+
+
+    const d=await r
+      .json()
+      .catch(()=>({}));
+
+
+    if(!r.ok){
+
+      throw Error(
+        d.error||
+        'Unable to load owned pets.'
+      );
+    }
+
+
+    const list=
+      d.pets||
+      d.ownedPets||
+      d.userPets||
+      [];
+
+
     renderMyPets(list);
-  }catch(e){renderMyPets([])}
+
+
+  }catch(e){
+
+    console.error(
+      'MY PETS:',
+      e
+    );
+
+    renderMyPets([]);
+
+    toast(
+      e.message||
+      'Unable to load your pets.'
+    );
+  }
 }
+
+
+/* =========================
+   RENDER MY PETS
+========================= */
+
 function renderMyPets(list){
-  window.__ownedPets=list||[];
-  $('ownedCount').textContent=list.length;
-  if(!list.length){$('myPets').innerHTML='<div class="msg">🐾 No owned pets yet.<br>Buy a pet from the Marketplace to start your collection.</div>';return}
-  $('myPets').innerHTML=list.map(p=>`<div class="owned"><img src="${img(p.image)}" alt="${esc(p.name)}"><div><b>${esc(p.name)}</b><br><span class="muted">${esc(p.element||'—')} • ${esc(p.rarity||'Common')} • Lv.${esc(p.level||1)}</span></div></div>`).join('');
+
+  window.__ownedPets=
+    Array.isArray(list)
+    ?list
+    :[];
+
+
+  $('ownedCount').textContent=
+    window.__ownedPets.length;
+
+
+  if(!window.__ownedPets.length){
+
+    $('myPets').innerHTML=
+      '<div class="msg">'+
+      '🐾 No owned pets yet.<br>'+
+      'Buy a pet from the Marketplace to start your collection.'+
+      '</div>';
+
+    return;
+  }
+
+
+  $('myPets').innerHTML=
+    window.__ownedPets.map(
+      p=>`
+
+        <div class="owned">
+
+          <img
+            src="${img(p.image)}"
+            alt="${esc(p.name)}"
+          >
+
+          <div>
+
+            <b>
+              ${esc(p.name)}
+            </b>
+
+            <br>
+
+            <span class="muted">
+              ${esc(p.element||'—')}
+              •
+              ${esc(p.rarity||'Common')}
+              •
+              Lv.${esc(p.level||1)}
+            </span>
+
+            ${
+              p.xp!=null
+              ?
+              `<br><span class="small">XP: ${esc(p.xp)}</span>`
+              :
+              ''
+            }
+
+          </div>
+
+        </div>
+      `
+    ).join('');
 }
-document.addEventListener('DOMContentLoaded',()=>{
-  const uid=localStorage.getItem('amtPetPiUid'),name=localStorage.getItem('amtPetPiUsername'),wallet=localStorage.getItem('amtPetPiWallet'),accessToken=localStorage.getItem('amtPetPiAccessToken');
-  if(uid&&name&&accessToken){currentUser={uid,username:name,wallet_address:wallet||'',accessToken};enterApp()}
-  load();
-});
+
+
+/* =========================
+   STARTUP
+========================= */
+
+document.addEventListener(
+  'DOMContentLoaded',
+  ()=>{
+
+    const uid=
+      localStorage.getItem(
+        'amtPetPiUid'
+      );
+
+    const name=
+      localStorage.getItem(
+        'amtPetPiUsername'
+      );
+
+    const wallet=
+      localStorage.getItem(
+        'amtPetPiWallet'
+      );
+
+    const accessToken=
+      localStorage.getItem(
+        'amtPetPiAccessToken'
+      );
+
+
+    if(
+      uid&&
+      name&&
+      accessToken
+    ){
+
+      currentUser={
+        uid,
+        username:name,
+        wallet_address:
+          wallet||'',
+        accessToken
+      };
+
+
+      enterApp();
+    }
+
+
+    load();
+  }
+);
+
 </script>
+
 </body>
 </html>
