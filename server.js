@@ -13,6 +13,10 @@ const PI_PAYMENT_CURRENCY = "Pi";
 const PET_PI_PRICE = "10";
 const PET_AMT_PRICE = "100";
 const AMT_ASSET_CODE = process.env.AMT_ASSET_CODE || "AMT";
+const AMT_ISSUER = process.env.AMT_ISSUER || "";
+const AMT_HORIZON_URL = (process.env.AMT_HORIZON_URL || "https://api.testnet.minepi.com").replace(/\/$/,"");
+const AMT_RECEIVER_ADDRESS = process.env.AMT_RECEIVER_ADDRESS || "";
+const AMT_STAKING_RECEIVER_ADDRESS = process.env.AMT_STAKING_RECEIVER_ADDRESS || AMT_RECEIVER_ADDRESS;
 
 app.use(cors({origin:"*",methods:["GET","POST","OPTIONS"],allowedHeaders:["Content-Type","Authorization"]}));
 app.use(express.json({limit:"1mb"}));
@@ -69,6 +73,40 @@ async function initializeDatabase() {
   );`);
   await dbQuery(`CREATE INDEX IF NOT EXISTS idx_pets_catalog_element ON pets_catalog(element);`);
   await dbQuery(`CREATE INDEX IF NOT EXISTS idx_user_pets_pioneer ON user_pets(pioneer_id);`);
+
+
+  await dbQuery(`CREATE TABLE IF NOT EXISTS amt_payments(
+    id BIGSERIAL PRIMARY KEY,
+    payment_id TEXT UNIQUE NOT NULL,
+    pi_uid TEXT NOT NULL,
+    username TEXT,
+    pet_code TEXT NOT NULL REFERENCES pets_catalog(pet_code),
+    asset_code TEXT NOT NULL,
+    amount NUMERIC(30,8) NOT NULL,
+    receiver TEXT NOT NULL,
+    txid TEXT,
+    status TEXT NOT NULL DEFAULT 'CREATED',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+  );`);
+  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_amt_payments_uid ON amt_payments(pi_uid);`);
+  await dbQuery(`CREATE UNIQUE INDEX IF NOT EXISTS idx_amt_payments_txid ON amt_payments(txid) WHERE txid IS NOT NULL;`);
+
+  await dbQuery(`CREATE TABLE IF NOT EXISTS amt_stakes(
+    id BIGSERIAL PRIMARY KEY,
+    pioneer_id BIGINT NOT NULL REFERENCES pioneers(id) ON DELETE CASCADE,
+    amount_amt NUMERIC(30,8) NOT NULL,
+    lock_days INTEGER NOT NULL,
+    reward_percent NUMERIC(10,4) NOT NULL,
+    txid TEXT UNIQUE NOT NULL,
+    receiver TEXT,
+    status TEXT NOT NULL DEFAULT 'PENDING',
+    unlock_at TIMESTAMPTZ NOT NULL,
+    verified_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );`);
+  await dbQuery(`ALTER TABLE amt_stakes ADD COLUMN IF NOT EXISTS receiver TEXT;`);
+  await dbQuery(`ALTER TABLE amt_stakes ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;`);
   await dbQuery(`CREATE INDEX IF NOT EXISTS idx_pet_payments_uid ON pet_payments(pi_uid);`);
   console.log("Database tables ready.");
 }
@@ -144,6 +182,40 @@ async function requirePiAuth(req,res,next) {
   }
 }
 
+async function fetchChainJson(path) {
+  const r = await fetch(AMT_HORIZON_URL + path, {headers:{Accept:'application/json'}});
+  const text = await r.text();
+  let data={}; try { data=text?JSON.parse(text):{}; } catch { data={}; }
+  if(!r.ok){ const e=new Error(data?.title||data?.detail||data?.error||`AMT chain HTTP ${r.status}`); e.status=r.status; throw e; }
+  return data;
+}
+function requireAMTChainConfig(){
+  if(!AMT_ISSUER) throw new Error('AMT_ISSUER is not configured on Render.');
+  if(!AMT_RECEIVER_ADDRESS) throw new Error('AMT_RECEIVER_ADDRESS is not configured on Render.');
+  if(!AMT_HORIZON_URL) throw new Error('AMT_HORIZON_URL is not configured on Render.');
+}
+async function getOnChainAMTBalance(wallet){
+  if(!wallet) throw new Error('Pioneer wallet address is not available.');
+  requireAMTChainConfig();
+  const data=await fetchChainJson('/accounts/'+encodeURIComponent(wallet));
+  const b=(data.balances||[]).find(x=>x.asset_type==='credit_alphanum4' && x.asset_code===AMT_ASSET_CODE && x.asset_issuer===AMT_ISSUER);
+  return {wallet,asset_code:AMT_ASSET_CODE,issuer:AMT_ISSUER,balance:b?String(b.balance):'0'};
+}
+async function verifyAMTTransfer(txid,{from,to,amount,receiver}){
+  requireAMTChainConfig();
+  if(!txid) throw new Error('AMT transaction hash is required.');
+  const ops=await fetchChainJson('/operations?transaction_hash='+encodeURIComponent(txid)+'&limit=100');
+  const matches=(ops._embedded?.records||[]).filter(op=>
+    op.type==='payment' && op.asset_code===AMT_ASSET_CODE && op.asset_issuer===AMT_ISSUER &&
+    String(op.source_account||'')===String(from||'') && String(op.to||'')===String(to||receiver||'') &&
+    Number(op.amount)===Number(amount)
+  );
+  if(!matches.length) throw new Error('AMT transfer not found or does not match sender, receiver, issuer, asset, and amount.');
+  const tx=await fetchChainJson('/transactions/'+encodeURIComponent(txid));
+  if(tx.successful===false) throw new Error('AMT transaction was not successful.');
+  return {txid,operation:matches[0],transaction:tx};
+}
+
 async function grantPet(pi_uid,pet_code) {
   const p=await dbQuery(`SELECT pet_code,name,element,rarity,image,base_hp,base_atk,base_def
     FROM pets_catalog WHERE pet_code=$1 LIMIT 1`,[pet_code]);
@@ -195,6 +267,18 @@ app.get("/api/pets/:petCode",async(req,res)=>{
     if(!r.rows.length) return res.status(404).json({ok:false,error:"Pet not found."});
     res.json({ok:true,pet:r.rows[0]});
   } catch(e) { res.status(500).json({ok:false,error:"Unable to load pet."}); }
+});
+
+app.get('/api/wallet/config',async(req,res)=>{
+  res.json({ok:true,asset_code:AMT_ASSET_CODE,issuer:AMT_ISSUER||null,receiver:AMT_RECEIVER_ADDRESS||null,staking_receiver:AMT_STAKING_RECEIVER_ADDRESS||null,horizon:AMT_HORIZON_URL});
+});
+app.get('/api/wallet/onchain',requirePiAuth,async(req,res)=>{
+  try{
+    const wallet=req.pioneer.wallet_address||req.piUser.wallet_address||'';
+    if(!wallet) return res.status(400).json({ok:false,error:'No synced Pi Testnet wallet address found for this Pioneer.'});
+    const amt=await getOnChainAMTBalance(wallet);
+    res.json({ok:true,pi_uid:req.piUser.uid,username:req.piUser.username,wallet_address:wallet,amt});
+  }catch(e){res.status(400).json({ok:false,error:e.message});}
 });
 
 app.post("/api/auth/verify",requirePiAuth,async(req,res)=>{
@@ -334,15 +418,62 @@ app.post("/api/payments/pi/callback",async(req,res)=>{
 /* AMT button is intentionally not a fake balance deduction. A real AMT Testnet
    transfer must be verified against the actual AMT asset/transaction mechanism
    before ownership is granted. */
-app.post("/api/payments/amt/prepare",requirePiAuth,async(req,res)=>{
-  try {
+app.post('/api/payments/amt/prepare',requirePiAuth,async(req,res)=>{
+  try{
     const {pet_code}=req.body||{};
-    const pet=await dbQuery("SELECT pet_code,name FROM pets_catalog WHERE pet_code=$1 LIMIT 1",[pet_code]);
-    if(!pet.rows.length) return res.status(404).json({ok:false,error:"Pet not found."});
-    res.json({ok:true,pet_code,amount:PET_AMT_PRICE,currency:AMT_ASSET_CODE,
-      status:"READY_FOR_VERIFIED_AMT_TRANSFER",
-      message:"AMT Test payment is prepared. No ownership is granted until a real AMT Testnet transfer is verified server-side."});
-  } catch(e) { res.status(400).json({ok:false,error:e.message}); }
+    const pet=await dbQuery('SELECT pet_code,name FROM pets_catalog WHERE pet_code=$1 LIMIT 1',[pet_code]);
+    if(!pet.rows.length) return res.status(404).json({ok:false,error:'Pet not found.'});
+    requireAMTChainConfig();
+    const paymentId='AMT-'+Date.now()+'-'+Math.random().toString(36).slice(2,10);
+    await dbQuery(`INSERT INTO amt_payments(payment_id,pi_uid,username,pet_code,asset_code,amount,receiver,status) VALUES($1,$2,$3,$4,$5,$6,$7,'CREATED')`,[paymentId,req.piUser.uid,req.piUser.username||null,pet_code,AMT_ASSET_CODE,PET_AMT_PRICE,AMT_RECEIVER_ADDRESS]);
+    res.json({ok:true,payment_id:paymentId,pet_code,amount:PET_AMT_PRICE,currency:AMT_ASSET_CODE,receiver:AMT_RECEIVER_ADDRESS,status:'READY_FOR_VERIFIED_AMT_TRANSFER'});
+  }catch(e){res.status(400).json({ok:false,error:e.message});}
+});
+
+app.post('/api/payments/amt/complete',requirePiAuth,async(req,res)=>{
+  try{
+    const {payment_id,txid}=req.body||{};
+    if(!payment_id||!txid) return res.status(400).json({ok:false,error:'payment_id and txid are required.'});
+    const row=await dbQuery(`SELECT * FROM amt_payments WHERE payment_id=$1 AND pi_uid=$2 LIMIT 1`,[payment_id,req.piUser.uid]);
+    if(!row.rows.length) return res.status(404).json({ok:false,error:'AMT payment intent not found.'});
+    const pay=row.rows[0];
+    if(pay.status==='COMPLETED') return res.json({ok:true,status:'COMPLETED',message:'AMT payment already completed.'});
+    const reused=await dbQuery(`SELECT payment_id FROM amt_payments WHERE txid=$1 LIMIT 1`,[txid]);
+    if(reused.rows.length) return res.status(409).json({ok:false,error:'This AMT transaction has already been used.'});
+    const from=req.pioneer.wallet_address||req.piUser.wallet_address||'';
+    if(!from) return res.status(400).json({ok:false,error:'Your Pi Testnet wallet is not synced to this Pioneer.'});
+    await verifyAMTTransfer(txid,{from,to:pay.receiver,amount:pay.amount,receiver:pay.receiver});
+    const pet=await grantPet(req.piUser.uid,pay.pet_code);
+    await dbQuery(`UPDATE amt_payments SET status='COMPLETED',txid=$1,completed_at=NOW() WHERE payment_id=$2`,[txid,payment_id]);
+    res.json({ok:true,status:'COMPLETED',payment_id,txid,pet});
+  }catch(e){console.error('complete amt:',e);res.status(400).json({ok:false,error:e.message||'AMT verification failed.'});}
+});
+
+app.get('/api/staking',requirePiAuth,async(req,res)=>{
+  try{
+    const r=await dbQuery(`SELECT id,amount_amt,lock_days,reward_percent,txid,status,unlock_at,receiver,verified_at,created_at FROM amt_stakes WHERE pioneer_id=$1 ORDER BY created_at DESC`,[req.pioneer.id]);
+    res.json({ok:true,stakes:r.rows});
+  }catch(e){res.status(400).json({ok:false,error:e.message});}
+});
+
+app.post('/api/staking/create',requirePiAuth,async(req,res)=>{
+  try{
+    const amount=Number(req.body?.amount_amt), days=Number(req.body?.lock_days), txid=String(req.body?.txid||'').trim();
+    const plans={30:5,90:10,180:15};
+    if(!Number.isFinite(amount)||amount<0.01) throw new Error('Minimum stake is 0.01 AMT.');
+    if(!plans[days]) throw new Error('Invalid staking plan.');
+    if(!txid) throw new Error('Enter the AMT on-chain transaction hash.');
+    requireAMTChainConfig();
+    const from=req.pioneer.wallet_address||req.piUser.wallet_address||'';
+    if(!from) throw new Error('Your Pi Testnet wallet is not synced to this Pioneer.');
+    const receiver=AMT_STAKING_RECEIVER_ADDRESS;
+    if(!receiver) throw new Error('AMT_STAKING_RECEIVER_ADDRESS is not configured on Render.');
+    const used=await dbQuery('SELECT id FROM amt_stakes WHERE txid=$1 LIMIT 1',[txid]);
+    if(used.rows.length) throw new Error('This AMT transaction has already been used for staking.');
+    await verifyAMTTransfer(txid,{from,to:receiver,amount,receiver});
+    const r=await dbQuery(`INSERT INTO amt_stakes(pioneer_id,amount_amt,lock_days,reward_percent,txid,receiver,status,unlock_at,verified_at) VALUES($1,$2,$3,$4,$5,$6,'ACTIVE',NOW()+($3 * INTERVAL '1 day'),NOW()) RETURNING *`,[req.pioneer.id,amount,days,plans[days],txid,receiver]);
+    res.json({ok:true,stake:r.rows[0],message:'AMT stake verified and activated.'});
+  }catch(e){console.error('staking:',e);res.status(400).json({ok:false,error:e.message});}
 });
 
 app.post("/api/dev/give-pet",async(req,res)=>{
