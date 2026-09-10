@@ -117,7 +117,8 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
   <button class="tab" data-panel="pets" onclick="showPanel('pets',this)">🐾 MY PETS</button>
   <button class="tab" data-panel="profile" onclick="showPanel('profile',this)">👤 MY PROFILE</button>
   <button class="tab" data-panel="care" onclick="showPanel('care',this)">❤️ CARE</button>
-  <button class="tab" data-panel="battle" onclick="showPanel('battle',this)">⚔️ BATTLE</button>
+  <button class="tab" data-panel="battle" onclick="showPanel('battle',this)">⚔️ ARENA</button>
+  <button class="tab" data-panel="adventure" onclick="showPanel('adventure',this)">🗺️ ADVENTURE</button>
   <button class="tab" data-panel="breeding" onclick="showPanel('breeding',this)">🧬 BREEDING</button>
   <button class="tab" data-panel="trade" onclick="showPanel('trade',this)">🔄 TRADE</button>
   <button class="tab" data-panel="sell" onclick="showPanel('sell',this)">💰 SELL</button>
@@ -192,6 +193,8 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
     <div class="mini"><span class="muted">Pet Reputation</span><b id="petRep">100</b></div>
     <div class="mini"><span class="muted">Battles</span><b id="battleCount">0</b></div>
     <div class="mini"><span class="muted">Trades</span><b id="tradeCount">0</b></div>
+    <div class="mini"><span class="muted">🪙 Coins</span><b id="coinCount">0</b></div>
+    <div class="mini"><span class="muted">🍖 Food</span><b id="foodCount">0</b></div>
   </div>
 </section>
 
@@ -203,7 +206,11 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 </section>
 
 <section id="battle" class="panel">
-  <div class="card"><div class="cardTitle">⚔️ PET BATTLE ARENA</div><p class="muted">Choose one of your pets and challenge another Pioneer. Battle rewards and reputation will be connected to the backend after the battle rules are finalized.</p><button class="action" onclick="choosePetAction('battle')">ENTER BATTLE</button></div>
+  <div class="card"><div class="cardTitle">⚔️ PET BATTLE ARENA</div><p class="muted">Arena battles are against computer opponents only. Win to earn Coins, Food and XP.</p><button class="action" onclick="choosePetAction('arena')">ENTER COMPUTER ARENA</button></div>
+</section>
+
+<section id="adventure" class="panel">
+  <div class="card"><div class="cardTitle">🗺️ PIONEER ADVENTURE</div><p class="muted">Adventure battles are against other Pioneers. Earn Coins, Food and XP from real Pioneer encounters.</p><button class="action gold" onclick="choosePetAction('adventure')">START ADVENTURE</button></div>
 </section>
 
 <section id="breeding" class="panel">
@@ -256,7 +263,7 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
     <div id="marketModalActions">
       <button class="action gold" style="margin-top:10px" onclick="buyPetPrepared()">🟣 BUY PET — PI TESTNET</button>
       <button class="action" style="margin-top:10px" onclick="buyWithAMT()">🟡 BUY PET — AMT ON-CHAIN</button>
-      <div id="amtBuyStatus" class="muted" style="margin-top:8px">AMT purchase: send the exact AMT amount from your synchronized wallet, then submit the transaction hash for server-side verification.</div>
+      <div id="amtBuyStatus" class="muted" style="margin-top:8px">AMT purchase uses a verified on-chain transfer. The transaction proof is required so the server can safely grant the NFT.</div>
       <div class="muted" style="margin-top:8px">Pi Testnet payment uses the Pi SDK. AMT payment uses a real AMT Testnet transfer and is not granted from a local/app balance.</div>
     </div>
   </div>
@@ -354,29 +361,18 @@ function selectOwnedPet(index){
 /* Care / Train / Battle */
 async function choosePetAction(action){
   try{
-    const title=action==='care'?'❤️ Care Your Pet':action==='train'?'📈 Train Your Pet':'⚔️ Choose Battle Pet';
-    const sub=action==='care'?'Select the pet you want to care for.':action==='train'?'Select the pet you want to train and gain XP.':'Select your battle pet.';
-    const p=await chooseOwnedPet(title,sub);
-    if(!p)return;
-    if(action==='care'){
-      const d=await apiPost('/api/pets/care',{pet_id:p.id,petId:p.id});
-      toast(d.message||'Pet care completed successfully.');
-    }
-    if(action==='train'){
-      const d=await apiPost('/api/pets/train',{pet_id:p.id,petId:p.id});
-      toast(d.message||'Pet training completed successfully.');
-    }
-    if(action==='battle'){
-      try{
-        const d=await apiPost('/api/pets/battle',{pet_id:p.id,petId:p.id});
-        toast((d.message||'Battle completed.')+(d.xpEarned!=null?' +'+d.xpEarned+' XP':''));
-      }catch(e){
-        if(/endpoint not found|not found/i.test(e.message||'')) throw Error('Battle service is not deployed on the Render backend yet. Care and Training are working; Battle needs the backend route before it can be enabled safely.');
-        throw e;
-      }
-    }
-    await loadMyPets();
-  }catch(e){console.error('PET ACTION:',e);toast(e.message||'Pet action failed.')}
+    const title=action==='care'?'❤️ Care Your Pet':action==='train'?'📈 Train Your Pet':action==='arena'?'⚔️ Choose Arena Pet':'🗺️ Choose Adventure Pet';
+    const sub=action==='care'?'Select the pet you want to care for.':action==='train'?'Select the pet you want to train and gain XP.':action==='arena'?'Select a pet to fight a computer opponent.':'Select a pet to fight another Pioneer.';
+    const p=await chooseOwnedPet(title,sub); if(!p)return;
+    let d;
+    if(action==='care') d=await apiPost('/api/pets/care',{pet_id:p.id,petId:p.id});
+    if(action==='train') d=await apiPost('/api/pets/train',{pet_id:p.id,petId:p.id});
+    if(action==='arena') d=await apiPost('/api/battle/arena',{pet_id:p.id,petId:p.id});
+    if(action==='adventure') d=await apiPost('/api/battle/adventure',{pet_id:p.id,petId:p.id});
+    const reward=[]; if(d?.xpEarned!=null)reward.push('+'+d.xpEarned+' XP'); if(d?.coinsEarned!=null)reward.push('+'+d.coinsEarned+' Coins'); if(d?.foodEarned!=null)reward.push('+'+d.foodEarned+' Food');
+    toast((d.message||'Action completed.')+(reward.length?' • '+reward.join(' • '):''));
+    await loadMyPets(); await loadProfileStats();
+  }catch(e){console.error('PET ACTION:',e);toast(e.message||'Pet action failed.')} 
 }
 
 /* Breeding */
@@ -634,7 +630,7 @@ async function buyWithAMT(){
   try{
     const prep=await apiPost('/api/payments/amt/prepare',{pet_code:selectedPet.pet_code}),payment=prep.payment||prep;
     const amount=Number(payment.amount||100),receiver=payment.receiver||'';
-    $('amtBuyStatus').innerHTML='Send <b>'+amount+' '+esc(payment.asset_code||'AMT')+'</b> from your synchronized wallet to:<br><span class="walletBox" style="display:block;margin-top:6px">'+esc(receiver)+'</span><br>After the blockchain confirms, enter the transaction hash below.';
+    $('amtBuyStatus').innerHTML='Send <b>'+amount+' '+esc(payment.asset_code||'AMT')+'</b> from your synchronized wallet to:<br><span class="walletBox" style="display:block;margin-top:6px">'+esc(receiver)+'</span><br>After the blockchain confirms, provide the transaction proof so the server can verify the exact AMT transfer.';
     openActionModal('🟡 AMT ON-CHAIN PAYMENT','Complete the payment only after sending the exact AMT amount from your synchronized wallet.',`
       <div class="successBox">Amount: <b>${amount} ${esc(payment.asset_code||'AMT')}</b><br>Receiver: <span style="word-break:break-all">${esc(receiver)}</span></div>
       <label class="fieldLabel">CONFIRMED AMT TRANSACTION HASH</label>
@@ -730,7 +726,7 @@ function enterApp(){
   $('walletAddress').textContent=currentUser?.wallet_address||'Wallet address syncing...';
   const saved=localStorage.getItem('amtPetProfileImage');
   if(saved)$('avatar').innerHTML='<img class="avatar" src="'+esc(saved)+'" alt="Profile">';
-  loadMyPets();renderMarket();refreshWalletSync();
+  loadMyPets();renderMarket();refreshWalletSync();loadProfileStats();
 }
 
 /* Profile picture */
@@ -738,12 +734,23 @@ function previewProfile(){
   const f=$('profileImage').files[0];if(!f)return;
   if(f.size>5*1024*1024){toast('Maximum profile image size is 5 MB.');$('profileImage').value='';return}
   const r=new FileReader();
-  r.onload=()=>{$('avatar').innerHTML='<img class="avatar" src="'+esc(r.result)+'" alt="Profile preview">';window.__profileData=r.result};
+  r.onload=()=>{
+    const im=new Image(); im.onload=()=>{const c=document.createElement('canvas'),max=512,scale=Math.min(1,max/Math.max(im.width,im.height));c.width=Math.max(1,Math.round(im.width*scale));c.height=Math.max(1,Math.round(im.height*scale));const ctx=c.getContext('2d');ctx.drawImage(im,0,0,c.width,c.height);const data=c.toDataURL('image/jpeg',0.78);$('avatar').innerHTML='<img class="avatar" src="'+esc(data)+'" alt="Profile preview">';window.__profileData=data}; im.src=r.result;
+  };
   r.readAsDataURL(f);
 }
 function saveProfilePicture(){
   if(!window.__profileData){toast('Choose a profile picture first.');return}
-  localStorage.setItem('amtPetProfileImage',window.__profileData);toast('Profile picture saved on this device.')
+  apiPost('/api/profile/image',{image:window.__profileData}).then(d=>{localStorage.setItem('amtPetProfileImage',window.__profileData);toast(d.message||'Profile picture saved.');}).catch(e=>toast(e.message||'Profile picture could not be saved.'));
+}
+async function loadProfileStats(){
+  if(!currentUser?.accessToken)return;
+  try{
+    const r=await fetch(API+'/api/profile',{headers:authHeaders(),cache:'no-store'}),d=await r.json();
+    const p=d.profile||{};
+    if(p.profile_image){$('avatar').innerHTML='<img class="avatar" src="'+esc(p.profile_image)+'" alt="Profile">';localStorage.setItem('amtPetProfileImage',p.profile_image)}
+    $('coinCount').textContent=Number(p.coins||0).toLocaleString(); $('foodCount').textContent=Number(p.food||0).toLocaleString();
+  }catch(e){console.log('PROFILE:',e)}
 }
 
 /* Catalog */
