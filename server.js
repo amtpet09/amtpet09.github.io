@@ -22,7 +22,6 @@ if (DATABASE_URL) {
   pool = new Pool({connectionString:DATABASE_URL,ssl:{rejectUnauthorized:false}});
   pool.on("error",err=>console.error("PostgreSQL pool error:",err));
 }
-
 async function dbQuery(text,params=[]) {
   if (!pool) throw new Error("DATABASE_URL is not configured.");
   return pool.query(text,params);
@@ -68,7 +67,6 @@ async function initializeDatabase() {
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     completed_at TIMESTAMPTZ
   );`);
-
   await dbQuery(`CREATE INDEX IF NOT EXISTS idx_pets_catalog_element ON pets_catalog(element);`);
   await dbQuery(`CREATE INDEX IF NOT EXISTS idx_user_pets_pioneer ON user_pets(pioneer_id);`);
   await dbQuery(`CREATE INDEX IF NOT EXISTS idx_pet_payments_uid ON pet_payments(pi_uid);`);
@@ -93,23 +91,13 @@ async function piFetch(path,options={}) {
   if (!PI_API_KEY) throw new Error("PI_API_KEY is not configured on Render.");
   const r = await fetch(PI_API_BASE + path, {
     ...options,
-    headers: {
-      Accept:"application/json",
-      "Content-Type":"application/json",
-      "Authorization":"Key "+PI_API_KEY,
-      ...(options.headers||{})
-    }
+    headers: {Accept:"application/json","Content-Type":"application/json","Authorization":"Key "+PI_API_KEY,...(options.headers||{})}
   });
   const text = await r.text();
-  let data;
-  try { data = text ? JSON.parse(text) : {}; }
-  catch { data = {raw:text}; }
-
+  let data; try { data = text ? JSON.parse(text) : {}; } catch { data = {raw:text}; }
   if (!r.ok) {
     const err = new Error(data?.error || data?.message || `Pi API HTTP ${r.status}`);
-    err.status = r.status;
-    err.data = data;
-    throw err;
+    err.status = r.status; err.data = data; throw err;
   }
   return data;
 }
@@ -117,23 +105,12 @@ async function piFetch(path,options={}) {
 async function verifyPiAccessToken(token) {
   if (!token) throw new Error("Missing Pi access token.");
   if (!PI_API_KEY) throw new Error("PI_API_KEY is not configured.");
-
-  const r = await fetch("https://api.minepi.com/v2/me", {
-    headers:{
-      Authorization:"Bearer "+token,
-      Accept:"application/json"
-    }
+  const r = await fetch(PI_API_BASE+"/v2/me", {
+    headers: {Authorization:"Bearer "+token,Accept:"application/json"}
   });
-
   const text = await r.text();
-  let data;
-  try { data = text ? JSON.parse(text) : {}; }
-  catch { data = {}; }
-
-  if (!r.ok) {
-    throw new Error(data?.error || data?.detail || "Pi authentication verification failed.");
-  }
-
+  let data; try { data = text ? JSON.parse(text) : {}; } catch { data = {}; }
+  if (!r.ok) throw new Error(data?.error || "Pi authentication verification failed.");
   return {
     uid:data.uid || data.user?.uid || "",
     username:data.username || data.user?.username || "",
@@ -142,7 +119,7 @@ async function verifyPiAccessToken(token) {
 }
 
 async function upsertPioneer(pi_uid,username,wallet_address) {
-  const r=await dbQuery(`INSERT INTO pioneers(pi_uid,username,wallet_address)
+  const r = await dbQuery(`INSERT INTO pioneers(pi_uid,username,wallet_address)
     VALUES($1,$2,$3) ON CONFLICT(pi_uid) DO UPDATE SET
     username=COALESCE(EXCLUDED.username,pioneers.username),
     wallet_address=COALESCE(EXCLUDED.wallet_address,pioneers.wallet_address),
@@ -156,15 +133,10 @@ async function requirePiAuth(req,res,next) {
   try {
     const token=(req.headers.authorization||"").replace(/^Bearer\s+/i,"").trim();
     if (!token) return res.status(401).json({ok:false,error:"Pi authentication required."});
-
     const piUser=await verifyPiAccessToken(token);
     if (!piUser.uid) return res.status(401).json({ok:false,error:"Pi UID was not returned."});
-
     const pioneer=await upsertPioneer(piUser.uid,piUser.username,piUser.wallet_address);
-
-    req.piUser=piUser;
-    req.pioneer=pioneer;
-    req.piToken=token;
+    req.piUser=piUser; req.pioneer=pioneer; req.piToken=token;
     next();
   } catch(e) {
     console.error("Pi auth:",e.message);
@@ -175,50 +147,27 @@ async function requirePiAuth(req,res,next) {
 async function grantPet(pi_uid,pet_code) {
   const p=await dbQuery(`SELECT pet_code,name,element,rarity,image,base_hp,base_atk,base_def
     FROM pets_catalog WHERE pet_code=$1 LIMIT 1`,[pet_code]);
-
   if (!p.rows.length) throw new Error("Pet not found.");
-
   const pioneer=await dbQuery(`SELECT id FROM pioneers WHERE pi_uid=$1 LIMIT 1`,[pi_uid]);
   if (!pioneer.rows.length) throw new Error("Pioneer not found.");
-
   const pet=p.rows[0], pid=pioneer.rows[0].id;
-
   const existing=await dbQuery(`SELECT id FROM user_pets WHERE pioneer_id=$1 AND pet_code=$2
     LIMIT 1`,[pid,pet.pet_code]);
-
   // A catalog pet can be bought more than once; each row is a distinct collectible.
   const r=await dbQuery(`INSERT INTO user_pets(pioneer_id,pet_code,rarity,level,xp,hp,atk,def)
     VALUES($1,$2,'Common',1,0,$3,$4,$5) RETURNING *`,
     [pid,pet.pet_code,pet.base_hp,pet.base_atk,pet.base_def]);
-
   return {...r.rows[0],name:pet.name,element:pet.element,image:pet.image};
 }
 
-app.get("/",(req,res)=>res.json({
-  ok:true,
-  app:"AMT Pet Marketplace",
-  version:"2.0.0",
-  network:"Pi Testnet",
-  status:"online"
-}));
+app.get("/",(req,res)=>res.json({ok:true,app:"AMT Pet Marketplace",version:"2.0.0",network:"Pi Testnet",status:"online"}));
 
 app.get("/api/health",async(req,res)=>{
   let database=false;
-  if(pool) try{
-    await dbQuery("SELECT 1");
-    database=true;
-  }catch{}
-
-  res.json({
-    ok:true,
-    service:"amt-pet-marketplace",
-    databaseConfigured:!!DATABASE_URL,
-    databaseConnected:database,
-    piApiConfigured:!!PI_API_KEY,
-    petCount:PET_SEED.length,
-    prices:{pi:PET_PI_PRICE,amt:PET_AMT_PRICE},
-    timestamp:new Date().toISOString()
-  });
+  if(pool) try{await dbQuery("SELECT 1");database=true;}catch{}
+  res.json({ok:true,service:"amt-pet-marketplace",databaseConfigured:!!DATABASE_URL,
+    databaseConnected:database,piApiConfigured:!!PI_API_KEY,petCount:PET_SEED.length,
+    prices:{pi:PET_PI_PRICE,amt:PET_AMT_PRICE},timestamp:new Date().toISOString()});
 });
 
 app.get("/api/pets",async(req,res)=>{
@@ -227,103 +176,49 @@ app.get("/api/pets",async(req,res)=>{
       FROM pets_catalog ORDER BY CASE element WHEN 'Earth' THEN 1 WHEN 'Water' THEN 2
       WHEN 'Nature' THEN 3 WHEN 'Ice' THEN 4 WHEN 'Fire' THEN 5 WHEN 'Wind' THEN 6
       WHEN 'Thunder' THEN 7 ELSE 99 END,pet_code`);
-
-    const pets=r.rows.map(p=>({
-      ...p,
-      pi_price:Number(PET_PI_PRICE),
-      price_pi:Number(PET_PI_PRICE),
-      amt_price:Number(PET_AMT_PRICE)
-    }));
-
-    res.json({ok:true,count:pets.length,pets});
-  } catch(e) {
-    console.error(e);
-    res.status(500).json({ok:false,error:"Unable to load pet catalog."});
-  }
+    res.json({ok:true,count:r.rows.length,pets:r.rows});
+  } catch(e) { console.error(e); res.status(500).json({ok:false,error:"Unable to load pet catalog."}); }
 });
 
 app.get("/api/pets/element/:element",async(req,res)=>{
   try {
     const r=await dbQuery(`SELECT pet_code,name,element,rarity,image,base_hp,base_atk,base_def
-      FROM pets_catalog WHERE LOWER(element)=LOWER($1) ORDER BY pet_code`,
-      [req.params.element]);
-
-    const pets=r.rows.map(p=>({
-      ...p,
-      pi_price:Number(PET_PI_PRICE),
-      price_pi:Number(PET_PI_PRICE),
-      amt_price:Number(PET_AMT_PRICE)
-    }));
-
-    res.json({
-      ok:true,
-      element:req.params.element,
-      count:pets.length,
-      pets
-    });
-  } catch(e) {
-    res.status(500).json({ok:false,error:"Unable to load pets."});
-  }
+      FROM pets_catalog WHERE LOWER(element)=LOWER($1) ORDER BY pet_code`,[req.params.element]);
+    res.json({ok:true,element:req.params.element,count:r.rows.length,pets:r.rows});
+  } catch(e) { res.status(500).json({ok:false,error:"Unable to load pets."}); }
 });
 
 app.get("/api/pets/:petCode",async(req,res)=>{
   try {
     const r=await dbQuery(`SELECT pet_code,name,element,rarity,image,base_hp,base_atk,base_def
       FROM pets_catalog WHERE pet_code=$1 LIMIT 1`,[req.params.petCode]);
-
-    if(!r.rows.length)
-      return res.status(404).json({ok:false,error:"Pet not found."});
-
-    const pet={
-      ...r.rows[0],
-      pi_price:Number(PET_PI_PRICE),
-      price_pi:Number(PET_PI_PRICE),
-      amt_price:Number(PET_AMT_PRICE)
-    };
-
-    res.json({ok:true,pet});
-  } catch(e) {
-    res.status(500).json({ok:false,error:"Unable to load pet."});
-  }
+    if(!r.rows.length) return res.status(404).json({ok:false,error:"Pet not found."});
+    res.json({ok:true,pet:r.rows[0]});
+  } catch(e) { res.status(500).json({ok:false,error:"Unable to load pet."}); }
 });
 
 app.post("/api/auth/verify",requirePiAuth,async(req,res)=>{
-  res.json({
-    ok:true,
-    uid:req.piUser.uid,
-    username:req.piUser.username,
-    walletAddress:req.piUser.wallet_address||null,
-    wallet_address:req.piUser.wallet_address||null,
-    pioneer:req.pioneer
-  });
+  res.json({ok:true,uid:req.piUser.uid,username:req.piUser.username,
+    walletAddress:req.piUser.wallet_address||null,wallet_address:req.piUser.wallet_address||null,
+    pioneer:req.pioneer});
 });
 
 app.post("/api/pioneers",async(req,res)=>{
   try {
     const {pi_uid,username,wallet_address}=req.body||{};
-    if(!pi_uid)
-      return res.status(400).json({ok:false,error:"pi_uid is required."});
-
+    if(!pi_uid) return res.status(400).json({ok:false,error:"pi_uid is required."});
     const pioneer=await upsertPioneer(pi_uid,username,wallet_address);
     res.json({ok:true,pioneer});
-  } catch(e) {
-    console.error(e);
-    res.status(500).json({ok:false,error:"Unable to save Pioneer."});
-  }
+  } catch(e) { console.error(e);res.status(500).json({ok:false,error:"Unable to save Pioneer."}); }
 });
 
 app.get("/api/pioneers/:pi_uid",async(req,res)=>{
   try {
     const r=await dbQuery(`SELECT id,pi_uid,username,wallet_address,created_at,updated_at
       FROM pioneers WHERE pi_uid=$1 LIMIT 1`,[req.params.pi_uid]);
-
-    if(!r.rows.length)
-      return res.status(404).json({ok:false,error:"Pioneer not found."});
-
+    if(!r.rows.length) return res.status(404).json({ok:false,error:"Pioneer not found."});
     res.json({ok:true,pioneer:r.rows[0]});
-  } catch(e) {
-    res.status(500).json({ok:false,error:"Unable to load Pioneer."});
-  }
+  } catch(e) { res.status(500).json({ok:false,error:"Unable to load Pioneer."}); }
 });
 
 app.get("/api/my-pets/:pi_uid",async(req,res)=>{
@@ -333,11 +228,8 @@ app.get("/api/my-pets/:pi_uid",async(req,res)=>{
       FROM user_pets up JOIN pioneers p ON p.id=up.pioneer_id
       JOIN pets_catalog pc ON pc.pet_code=up.pet_code
       WHERE p.pi_uid=$1 ORDER BY up.created_at DESC`,[req.params.pi_uid]);
-
     res.json({ok:true,count:r.rows.length,pets:r.rows});
-  } catch(e) {
-    res.status(500).json({ok:false,error:"Unable to load Pioneer pets."});
-  }
+  } catch(e) { res.status(500).json({ok:false,error:"Unable to load Pioneer pets."}); }
 });
 
 /* Create/record a Pi payment intent. The client creates the payment with Pi SDK;
@@ -345,203 +237,68 @@ app.get("/api/my-pets/:pi_uid",async(req,res)=>{
 app.post("/api/payments/pi/prepare",requirePiAuth,async(req,res)=>{
   try {
     const {payment_id,pet_code}=req.body||{};
-
-    if(!payment_id||!pet_code)
-      return res.status(400).json({
-        ok:false,
-        error:"payment_id and pet_code are required."
-      });
-
-    const pet=await dbQuery(
-      "SELECT pet_code,name FROM pets_catalog WHERE pet_code=$1 LIMIT 1",
-      [pet_code]
-    );
-
-    if(!pet.rows.length)
-      return res.status(404).json({ok:false,error:"Pet not found."});
-
-    const payment=await piFetch(
-      "/v2/payments/"+encodeURIComponent(payment_id)
-    );
-
+    if(!payment_id||!pet_code) return res.status(400).json({ok:false,error:"payment_id and pet_code are required."});
+    const pet=await dbQuery("SELECT pet_code,name FROM pets_catalog WHERE pet_code=$1 LIMIT 1",[pet_code]);
+    if(!pet.rows.length) return res.status(404).json({ok:false,error:"Pet not found."});
+    const payment=await piFetch("/v2/payments/"+encodeURIComponent(payment_id));
     const amount=String(payment.amount ?? "");
     const memo=String(payment.memo||"");
     const metadata=payment.metadata||{};
-
-    if(Number(amount)!==Number(PET_PI_PRICE))
-      return res.status(400).json({
-        ok:false,
-        error:`Payment amount must be ${PET_PI_PRICE} Pi Test.`
-      });
-
-    if(metadata.pet_code && metadata.pet_code!==pet_code)
-      return res.status(400).json({
-        ok:false,
-        error:"Payment pet does not match."
-      });
-
+    if(Number(amount)!==Number(PET_PI_PRICE)) return res.status(400).json({ok:false,error:`Payment amount must be ${PET_PI_PRICE} Pi Test.`});
+    if(metadata.pet_code && metadata.pet_code!==pet_code) return res.status(400).json({ok:false,error:"Payment pet does not match."});
     await dbQuery(`INSERT INTO pet_payments(payment_id,pi_uid,username,pet_code,currency,amount,status)
       VALUES($1,$2,$3,$4,'PI',$5,'CREATED')
-      ON CONFLICT(payment_id) DO UPDATE SET
-      pet_code=EXCLUDED.pet_code,
-      updated_at=NOW()`,
-      [
-        payment_id,
-        req.piUser.uid,
-        req.piUser.username,
-        pet_code,
-        Number(PET_PI_PRICE)
-      ]);
-
-    res.json({
-      ok:true,
-      paymentId:payment_id,
-      pet_code,
-      amount:Number(PET_PI_PRICE),
-      currency:"Pi",
-      status:"CREATED"
-    });
-
-  } catch(e) {
-    console.error("prepare pi:",e);
-    res.status(400).json({
-      ok:false,
-      error:e.message||"Unable to prepare Pi payment."
-    });
-  }
+      ON CONFLICT(payment_id) DO UPDATE SET pet_code=EXCLUDED.pet_code,updated_at=NOW()`,
+      [payment_id,req.piUser.uid,req.piUser.username,pet_code,Number(PET_PI_PRICE)]);
+    res.json({ok:true,paymentId:payment_id,pet_code,amount:Number(PET_PI_PRICE),currency:"Pi",status:"CREATED"});
+  } catch(e) { console.error("prepare pi:",e);res.status(400).json({ok:false,error:e.message||"Unable to prepare Pi payment."}); }
 });
 
 app.post("/api/payments/pi/approve",requirePiAuth,async(req,res)=>{
   try {
     const {payment_id,pet_code}=req.body||{};
-
-    if(!payment_id||!pet_code)
-      return res.status(400).json({
-        ok:false,
-        error:"payment_id and pet_code are required."
-      });
-
-    const row=await dbQuery(
-      "SELECT * FROM pet_payments WHERE payment_id=$1 AND pi_uid=$2 LIMIT 1",
-      [payment_id,req.piUser.uid]
-    );
-
-    if(!row.rows.length)
-      return res.status(404).json({
-        ok:false,
-        error:"Payment intent not found. Prepare it first."
-      });
-
-    const payment=await piFetch(
-      "/v2/payments/"+encodeURIComponent(payment_id)
-    );
-
-    if(Number(payment.amount)!==Number(PET_PI_PRICE))
-      return res.status(400).json({
-        ok:false,
-        error:`Payment amount is not ${PET_PI_PRICE} Pi Test.`
-      });
-
-    const approved=await piFetch(
-      "/v2/payments/"+encodeURIComponent(payment_id)+"/approve",
-      {method:"POST"}
-    );
-
-    await dbQuery(
-      "UPDATE pet_payments SET status='APPROVED',updated_at=NOW() WHERE payment_id=$1",
-      [payment_id]
-    );
-
-    res.json({
-      ok:true,
-      paymentId:payment_id,
-      status:"APPROVED",
-      pi:approved
-    });
-
-  } catch(e) {
-    console.error("approve pi:",e);
-    res.status(400).json({
-      ok:false,
-      error:e.message||"Pi approval failed."
-    });
-  }
+    if(!payment_id||!pet_code) return res.status(400).json({ok:false,error:"payment_id and pet_code are required."});
+    const row=await dbQuery("SELECT * FROM pet_payments WHERE payment_id=$1 AND pi_uid=$2 LIMIT 1",[payment_id,req.piUser.uid]);
+    if(!row.rows.length) return res.status(404).json({ok:false,error:"Payment intent not found. Prepare it first."});
+    const payment=await piFetch("/v2/payments/"+encodeURIComponent(payment_id));
+    if(Number(payment.amount)!==Number(PET_PI_PRICE)) return res.status(400).json({ok:false,error:`Payment amount is not ${PET_PI_PRICE} Pi Test.`});
+    const approved=await piFetch("/v2/payments/"+encodeURIComponent(payment_id)+"/approve",{method:"POST"});
+    await dbQuery("UPDATE pet_payments SET status='APPROVED',updated_at=NOW() WHERE payment_id=$1",[payment_id]);
+    res.json({ok:true,paymentId:payment_id,status:"APPROVED",pi:approved});
+  } catch(e) { console.error("approve pi:",e);res.status(400).json({ok:false,error:e.message||"Pi approval failed."}); }
 });
 
 app.post("/api/payments/pi/complete",requirePiAuth,async(req,res)=>{
   try {
     const {payment_id,pet_code,txid}=req.body||{};
-
-    if(!payment_id||!pet_code)
-      return res.status(400).json({
-        ok:false,
-        error:"payment_id and pet_code are required."
-      });
-
-    const row=await dbQuery(
-      "SELECT * FROM pet_payments WHERE payment_id=$1 AND pi_uid=$2 LIMIT 1",
-      [payment_id,req.piUser.uid]
-    );
-
-    if(!row.rows.length)
-      return res.status(404).json({
-        ok:false,
-        error:"Payment intent not found."
-      });
-
+    if(!payment_id||!pet_code) return res.status(400).json({ok:false,error:"payment_id and pet_code are required."});
+    const row=await dbQuery("SELECT * FROM pet_payments WHERE payment_id=$1 AND pi_uid=$2 LIMIT 1",[payment_id,req.piUser.uid]);
+    if(!row.rows.length) return res.status(404).json({ok:false,error:"Payment intent not found."});
     if(row.rows[0].status==="COMPLETED") {
-      return res.json({
-        ok:true,
-        status:"COMPLETED",
-        message:"Payment already completed; pet ownership already granted."
-      });
+      return res.json({ok:true,status:"COMPLETED",message:"Payment already completed; pet ownership already granted."});
     }
-
-    const payment=await piFetch(
-      "/v2/payments/"+encodeURIComponent(payment_id)
-    );
-
-    const transactionId=
-      txid||
-      payment.transaction?.txid||
-      payment.txid||
-      "";
-
+    const payment=await piFetch("/v2/payments/"+encodeURIComponent(payment_id));
+    const transactionId=txid||payment.transaction?.txid||payment.txid||"";
     const status=payment.status||{};
-
-    if(status && status.completed===false) {
-      return res.status(409).json({
-        ok:false,
-        error:"Pi payment is not completed yet."
-      });
+    if(!transactionId) {
+      return res.status(409).json({ok:false,error:"Pi transaction ID is not available yet. Please wait for the blockchain transaction."});
     }
+    if(status.cancelled===true || status.cancelled===1) {
+      return res.status(409).json({ok:false,error:"Pi payment was cancelled."});
+    }
+
+    // IMPORTANT: Pi requires the developer server to confirm completion
+    // through the Pi API after the blockchain transaction is available.
+    const completed=await piFetch("/v2/payments/"+encodeURIComponent(payment_id)+"/complete",{
+      method:"POST",
+      body:JSON.stringify({txid:transactionId})
+    });
 
     const pet=await grantPet(req.piUser.uid,pet_code);
-
-    await dbQuery(`UPDATE pet_payments SET
-      status='COMPLETED',
-      transaction_id=$1,
-      completed_at=NOW(),
-      updated_at=NOW()
-      WHERE payment_id=$2`,
-      [transactionId,payment_id]
-    );
-
-    res.json({
-      ok:true,
-      status:"COMPLETED",
-      paymentId:payment_id,
-      transactionId,
-      pet
-    });
-
-  } catch(e) {
-    console.error("complete pi:",e);
-    res.status(400).json({
-      ok:false,
-      error:e.message||"Pi completion verification failed."
-    });
-  }
+    await dbQuery(`UPDATE pet_payments SET status='COMPLETED',transaction_id=$1,completed_at=NOW(),updated_at=NOW()
+      WHERE payment_id=$2`,[transactionId,payment_id]);
+    res.json({ok:true,status:"COMPLETED",paymentId:payment_id,transactionId,pet});
+  } catch(e) { console.error("complete pi:",e);res.status(400).json({ok:false,error:e.message||"Pi completion verification failed."}); }
 });
 
 /* Pi SDK server callbacks can hit these endpoints without the browser.
@@ -549,69 +306,29 @@ app.post("/api/payments/pi/complete",requirePiAuth,async(req,res)=>{
 app.post("/api/payments/pi/callback",async(req,res)=>{
   try {
     const {payment_id,txid}=req.body||{};
-
-    if(!payment_id)
-      return res.status(400).json({
-        ok:false,
-        error:"payment_id is required."
-      });
-
-    const payment=await piFetch(
-      "/v2/payments/"+encodeURIComponent(payment_id)
-    );
-
-    const row=await dbQuery(
-      "SELECT * FROM pet_payments WHERE payment_id=$1 LIMIT 1",
-      [payment_id]
-    );
-
-    if(!row.rows.length)
-      return res.status(404).json({
-        ok:false,
-        error:"Payment intent not found."
-      });
-
+    if(!payment_id) return res.status(400).json({ok:false,error:"payment_id is required."});
+    const payment=await piFetch("/v2/payments/"+encodeURIComponent(payment_id));
+    const row=await dbQuery("SELECT * FROM pet_payments WHERE payment_id=$1 LIMIT 1",[payment_id]);
+    if(!row.rows.length) return res.status(404).json({ok:false,error:"Payment intent not found."});
     if(row.rows[0].status!=="COMPLETED") {
+      const transactionId=txid||payment.transaction?.txid||payment.txid||"";
       const status=payment.status||{};
-
-      if(status.completed===true) {
-        const pet=await grantPet(
-          row.rows[0].pi_uid,
-          row.rows[0].pet_code
-        );
-
-        await dbQuery(`UPDATE pet_payments SET
-          status='COMPLETED',
-          transaction_id=$1,
-          completed_at=NOW(),
-          updated_at=NOW()
-          WHERE payment_id=$2`,
-          [
-            txid||payment.transaction?.txid||payment.txid||"",
-            payment_id
-          ]
-        );
-
-        return res.json({
-          ok:true,
-          status:"COMPLETED",
-          pet
+      if(status.cancelled===true || status.cancelled===1) {
+        return res.status(409).json({ok:false,error:"Pi payment was cancelled."});
+      }
+      if(transactionId) {
+        await piFetch("/v2/payments/"+encodeURIComponent(payment_id)+"/complete",{
+          method:"POST",
+          body:JSON.stringify({txid:transactionId})
         });
+        const pet=await grantPet(row.rows[0].pi_uid,row.rows[0].pet_code);
+        await dbQuery(`UPDATE pet_payments SET status='COMPLETED',transaction_id=$1,completed_at=NOW(),updated_at=NOW()
+          WHERE payment_id=$2`,[transactionId,payment_id]);
+        return res.json({ok:true,status:"COMPLETED",pet});
       }
     }
-
-    res.json({
-      ok:true,
-      status:row.rows[0].status
-    });
-
-  } catch(e) {
-    console.error("callback:",e);
-    res.status(400).json({
-      ok:false,
-      error:e.message||"Callback verification failed."
-    });
-  }
+    res.json({ok:true,status:row.rows[0].status});
+  } catch(e) { console.error("callback:",e);res.status(400).json({ok:false,error:e.message||"Callback verification failed."}); }
 });
 
 /* AMT button is intentionally not a fake balance deduction. A real AMT Testnet
@@ -620,81 +337,30 @@ app.post("/api/payments/pi/callback",async(req,res)=>{
 app.post("/api/payments/amt/prepare",requirePiAuth,async(req,res)=>{
   try {
     const {pet_code}=req.body||{};
-
-    const pet=await dbQuery(
-      "SELECT pet_code,name FROM pets_catalog WHERE pet_code=$1 LIMIT 1",
-      [pet_code]
-    );
-
-    if(!pet.rows.length)
-      return res.status(404).json({
-        ok:false,
-        error:"Pet not found."
-      });
-
-    res.json({
-      ok:true,
-      pet_code,
-      amount:PET_AMT_PRICE,
-      currency:AMT_ASSET_CODE,
+    const pet=await dbQuery("SELECT pet_code,name FROM pets_catalog WHERE pet_code=$1 LIMIT 1",[pet_code]);
+    if(!pet.rows.length) return res.status(404).json({ok:false,error:"Pet not found."});
+    res.json({ok:true,pet_code,amount:PET_AMT_PRICE,currency:AMT_ASSET_CODE,
       status:"READY_FOR_VERIFIED_AMT_TRANSFER",
-      message:"AMT Test payment is prepared. No ownership is granted until a real AMT Testnet transfer is verified server-side."
-    });
-
-  } catch(e) {
-    res.status(400).json({
-      ok:false,
-      error:e.message
-    });
-  }
+      message:"AMT Test payment is prepared. No ownership is granted until a real AMT Testnet transfer is verified server-side."});
+  } catch(e) { res.status(400).json({ok:false,error:e.message}); }
 });
 
 app.post("/api/dev/give-pet",async(req,res)=>{
   try {
     const {pi_uid,pet_code,username,wallet_address}=req.body||{};
-
-    if(!pi_uid||!pet_code)
-      return res.status(400).json({
-        ok:false,
-        error:"pi_uid and pet_code are required."
-      });
-
-    await upsertPioneer(
-      pi_uid,
-      username,
-      wallet_address
-    );
-
-    const pet=await grantPet(
-      pi_uid,
-      pet_code
-    );
-
-    res.json({
-      ok:true,
-      message:"Pet added to Pioneer collection.",
-      pet
-    });
-
-  } catch(e) {
-    console.error(e);
-    res.status(500).json({
-      ok:false,
-      error:"Unable to give pet."
-    });
-  }
+    if(!pi_uid||!pet_code) return res.status(400).json({ok:false,error:"pi_uid and pet_code are required."});
+    await upsertPioneer(pi_uid,username,wallet_address);
+    const pet=await grantPet(pi_uid,pet_code);
+    res.json({ok:true,message:"Pet added to Pioneer collection.",pet});
+  } catch(e) { console.error(e);res.status(500).json({ok:false,error:"Unable to give pet."}); }
 });
 
-app.use((req,res)=>res.status(404).json({
-  ok:false,
-  error:"Endpoint not found."
-}));
+app.use((req,res)=>res.status(404).json({ok:false,error:"Endpoint not found."}));
 
 async function startServer() {
   try {
     await initializeDatabase();
     await seedPetCatalog();
-
     app.listen(PORT,()=>{
       console.log("======================================");
       console.log("       AMT PET MARKETPLACE");
@@ -702,18 +368,12 @@ async function startServer() {
       console.log(`Server running on port ${PORT}`);
       console.log(`Database configured: ${!!DATABASE_URL}`);
       console.log(`Pi API key configured: ${!!PI_API_KEY}`);
-      console.log(`Pi API Base: ${PI_API_BASE}`);
       console.log(`Pet catalog: ${PET_SEED.length} pets`);
       console.log("Pi network: Testnet");
       console.log("Pet Pi price: "+PET_PI_PRICE);
-      console.log("Pet AMT price: "+PET_AMT_PRICE);
+      console.log("Pet AMT price: 100");
       console.log("======================================");
     });
-
-  } catch(e) {
-    console.error("SERVER STARTUP ERROR:",e);
-    process.exit(1);
-  }
+  } catch(e) { console.error("SERVER STARTUP ERROR:",e);process.exit(1); }
 }
-
 startServer();
