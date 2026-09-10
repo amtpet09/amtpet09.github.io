@@ -152,9 +152,13 @@ button{cursor:pointer}
       </div>
     </div>
     <div class="card">
-      <div class="cardTitle">🔐 PIONEER WALLET</div>
+      <div class="cardTitle">🔐 SYNCHRONIZED PI WALLET</div>
       <div class="walletBox" id="walletAddress">Not synchronized</div>
-      <div class="muted" style="margin-top:9px">The wallet shown here is the wallet returned by the logged-in Pi session. Never enter a private key or secret key in this app.</div>
+      <div class="row" style="margin-top:10px"><span class="muted">Wallet status</span><b id="walletSyncStatus">NOT SYNCHRONIZED</b></div>
+      <div class="row"><span class="muted">On-chain AMT</span><b id="onChainAMT">— AMT</b></div>
+      <div class="row"><span class="muted">AMT issuer</span><span id="amtIssuer">Not configured</span></div>
+      <button class="action" style="margin-top:10px" onclick="refreshWalletSync()">🔄 SYNC / REFRESH WALLET</button>
+      <div class="muted" style="margin-top:9px">The wallet is verified through the Pi session and the AMT balance is read from the configured Pi Testnet chain. Never enter a private key or secret key in this app.</div>
     </div>
     <div class="profileGrid">
       <div class="mini"><span class="muted">Pets Owned</span><b id="ownedCount">0</b></div>
@@ -224,7 +228,9 @@ button{cursor:pointer}
     <img id="modalImg" class="modalImg">
     <div id="modalDetails"></div>
     <button class="action gold" style="margin-top:10px" onclick="buyPetPrepared()">🟣 BUY PET — PI TESTNET</button>
-    <div class="muted" style="margin-top:8px">Pi Testnet payment uses the Pi SDK. Server approval and completion are required before ownership is created.</div>
+    <button class="action" style="margin-top:10px" onclick="buyWithAMT()">🟡 BUY PET — AMT ON-CHAIN</button>
+    <div id="amtBuyStatus" class="muted" style="margin-top:8px">AMT purchase: send the exact AMT amount from your synchronized wallet, then submit the transaction hash for server-side verification.</div>
+    <div class="muted" style="margin-top:8px">Pi Testnet payment uses the Pi SDK. AMT payment uses a real AMT Testnet transfer and is not granted from a local/app balance.</div>
   </div>
 </div>
 <div id="toast" class="toast"></div>
@@ -253,7 +259,48 @@ async function createTrade(){try{const p=await chooseOwnedPet('Choose pet to pla
 async function sellPet(){try{const p=await chooseOwnedPet('Choose pet to list publicly');if(!p)return;const price=Number(prompt('AMT sale price:','100'));if(!price||price<=0)return;const d=await apiPost('/api/sell/list',{pet_id:p.id,price_amt:price});toast(d.message);await loadPublicListings();}catch(e){toast(e.message)}}
 async function loadPublicListings(){try{const r=await fetch(API+'/api/market/listings',{cache:'no-store'}),d=await r.json();const a=d.listings||[];$('publicListings').innerHTML=a.length?a.map(x=>`<div class="publicCard"><img src="${img(x.image)}"><b>${esc(x.name)}</b><div class="small">Seller: @${esc(x.username||'Pioneer')}</div><div class="small">⭐ Reputation ${x.seller_reputation}</div><div class="price">${x.price_amt} AMT</div><div class="status">🔒 ESCROW-READY LISTING</div></div>`).join(''):'<div class="msg">No public listings yet.</div>'}catch(e){$('publicListings').innerHTML='<div class="msg">Unable to load public listings.</div>'}}
 async function loadStakes(){try{const r=await fetch(API+'/api/staking',{headers:authHeaders()}),d=await r.json();const a=d.stakes||[];$('stakes').innerHTML=a.length?a.map(x=>`<div class="row"><span>${x.amount_amt} AMT • ${x.lock_days}D • ${x.reward_percent}%</span><span class="status">${esc(x.status)}</span></div><div class="small">TX: ${esc(x.txid||'—')} • Unlock: ${esc(x.unlock_at)}</div>`).join(''):'<div class="muted">No stakes yet.</div>'}catch(e){$('stakes').innerHTML='<div class="muted">Unable to load stakes.</div>'}}
-async function stakeAMT(){try{const amount=Number($('stakeAmount').value),days=Number($('stakeDays').value),txid=$('stakeTxid').value.trim();const d=await apiPost('/api/staking/create',{amount_amt:amount,lock_days:days,txid});toast(d.message);$('stakeAmount').value='';$('stakeTxid').value='';await loadStakes();}catch(e){toast(e.message)}}
+async function stakeAMT(){try{const amount=Number($('stakeAmount').value),days=Number($('stakeDays').value),txid=$('stakeTxid').value.trim();if(!amount||amount<0.01)throw Error('Minimum stake is 0.01 AMT.');if(!txid)throw Error('Enter the real AMT on-chain transaction hash.');const d=await apiPost('/api/staking/create',{amount_amt:amount,lock_days:days,txid});toast(d.message||'AMT stake verified and activated.');$('stakeAmount').value='';$('stakeTxid').value='';await loadStakes();await refreshWalletSync();}catch(e){toast(e.message)}}
+async function refreshWalletSync(){
+  if(!currentUser?.accessToken){toast('Login with Pi first.');return}
+  try{
+    $('walletSyncStatus').textContent='SYNCING...';
+    const verify=await fetch(API+'/api/auth/verify',{method:'POST',headers:authHeaders()});
+    const vd=await verify.json().catch(()=>({}));
+    if(!verify.ok)throw Error(vd.error||'Wallet verification failed.');
+    currentUser.wallet_address=vd.walletAddress||vd.wallet_address||currentUser.wallet_address||'';
+    localStorage.setItem('amtPetPiWallet',currentUser.wallet_address);
+    $('walletAddress').textContent=currentUser.wallet_address||'Wallet address unavailable';
+    const r=await fetch(API+'/api/wallet/onchain',{headers:authHeaders()});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw Error(d.error||'Unable to read on-chain AMT balance.');
+    $('walletSyncStatus').textContent='SYNCHRONIZED';
+    $('walletSyncStatus').style.color='#79ffad';
+    $('onChainAMT').textContent=Number(d.balance||0).toFixed(8)+' AMT';
+    $('amtIssuer').textContent=d.issuer||'Not configured';
+    window.__amtWalletConfig=d;
+  }catch(e){
+    $('walletSyncStatus').textContent='SYNC FAILED';
+    $('walletSyncStatus').style.color='#ff8090';
+    $('onChainAMT').textContent='— AMT';
+    toast(e.message||'Wallet synchronization failed.');
+  }
+}
+async function buyWithAMT(){
+  if(!selectedPet||!currentUser?.accessToken){toast('Login with Pi first and select a pet.');return}
+  try{
+    const prep=await apiPost('/api/payments/amt/prepare',{pet_code:selectedPet.pet_code});
+    const payment=prep.payment||prep;
+    const amount=Number(payment.amount||100),receiver=payment.receiver||'';
+    $('amtBuyStatus').innerHTML='Send <b>'+amount+' '+esc(payment.asset_code||'AMT')+'</b> from your synchronized wallet to:<br><span class="walletBox" style="display:block;margin-top:6px">'+esc(receiver)+'</span><br>After the blockchain confirms, paste the transaction hash below.';
+    const txid=prompt('AMT ON-CHAIN PAYMENT\n\nSend exactly '+amount+' AMT to:\n'+receiver+'\n\nPaste the confirmed AMT transaction hash:');
+    if(!txid)return;
+    $('amtBuyStatus').textContent='Verifying AMT transaction on-chain...';
+    const done=await apiPost('/api/payments/amt/complete',{payment_id:payment.id,txid:txid.trim()});
+    if(done.status!=='COMPLETED')throw Error(done.error||'AMT purchase was not completed.');
+    $('amtBuyStatus').textContent='✅ AMT purchase verified on-chain.';
+    closeModal();toast(selectedPet.name+' purchased successfully with verified AMT.');await loadMyPets();await refreshWalletSync();
+  }catch(e){$('amtBuyStatus').textContent='❌ '+e.message;toast(e.message)}
+}
 function logoutPi(){localStorage.removeItem('amtPetPiUid');localStorage.removeItem('amtPetPiUsername');localStorage.removeItem('amtPetPiWallet');localStorage.removeItem('amtPetPiAccessToken');localStorage.removeItem('amtPetProfileImage');currentUser=null;$('app').style.display='none';$('loginScreen').style.display='flex';$('loginBtn').disabled=false;$('loginBtn').textContent='🟣 LOGIN WITH PI'}
 function loginPi(){
   if(!window.Pi){toast('Open AMT Pet Marketplace in Pi Browser.');return}
@@ -316,7 +363,7 @@ function enterApp(){
   $('profileUid').textContent='Pi UID: '+(currentUser.uid||'—');
   $('walletAddress').textContent=currentUser.wallet_address||'Wallet address not returned by Pi session';
   const saved=localStorage.getItem('amtPetProfileImage');if(saved)$('avatar').innerHTML='<img class="avatar" src="'+esc(saved)+'" alt="Profile">';
-  loadMyPets();renderMarket();
+  loadMyPets();renderMarket();refreshWalletSync();
 }
 function previewProfile(){
   const f=$('profileImage').files[0];if(!f)return;
