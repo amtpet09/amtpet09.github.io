@@ -158,7 +158,10 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
     <div class="row" style="margin-top:10px"><span class="muted">Wallet status</span><b id="walletSyncStatus">NOT SYNCHRONIZED</b></div>
     <div class="row"><span class="muted">On-chain AMT</span><b id="onChainAMT">— AMT</b></div>
     <div class="row"><span class="muted">AMT issuer</span><span id="amtIssuer">Not configured</span></div>
-    <button class="action" style="margin-top:10px" onclick="refreshWalletSync()">🔄 SYNC / REFRESH WALLET</button>
+    <div class="row" style="gap:8px;margin-top:10px">
+      <button class="action" style="margin-top:0;flex:1" onclick="refreshWalletSync()">🔄 SYNC / REFRESH WALLET</button>
+      <button class="action dark" style="margin-top:0;flex:1" onclick="requestWalletPermission()">🔐 AUTHORIZE WALLET</button>
+    </div>
     <div class="muted" style="margin-top:9px">The wallet is verified through the Pi session and the AMT balance is read from the configured Pi Testnet chain. Never enter a private key or secret key in this app.</div>
   </div>
 
@@ -482,9 +485,9 @@ async function refreshWalletSync(){
       if(vd.username)currentUser.username=vd.username;if(vd.uid)currentUser.uid=vd.uid;
     }
     if(!currentUser.wallet_address){
-      $('walletSyncStatus').textContent='SYNC FAILED';$('walletSyncStatus').style.color='#ff8090';
-      $('walletAddress').textContent='Pi wallet address was not returned by the verified session.';$('onChainAMT').textContent='— AMT';
-      throw Error(syncData.error||vd.error||'Pi wallet address was not returned. Open this marketplace in Pi Browser and login again.');
+      $('walletSyncStatus').textContent='WALLET PERMISSION REQUIRED';$('walletSyncStatus').style.color='#ffd66b';
+      $('walletAddress').textContent='Wallet address permission is not active for this app.';$('onChainAMT').textContent='— AMT';
+      throw Error('Wallet permission is not active. Tap AUTHORIZE WALLET, approve wallet_address, then sync again.');
     }
     const r=await fetch(API+'/api/wallet/onchain',{headers:authHeaders(),cache:'no-store'}),d=await r.json().catch(()=>({}));
     if(!r.ok)throw Error(d.error||'Unable to read on-chain AMT balance.');
@@ -493,6 +496,38 @@ async function refreshWalletSync(){
     localStorage.setItem('amtPetPiWallet',currentUser.wallet_address);
   }catch(e){
     console.error('WALLET SYNC ERROR:',e);$('walletSyncStatus').textContent='SYNC FAILED';$('walletSyncStatus').style.color='#ff8090';$('onChainAMT').textContent='— AMT';toast(e.message||'Wallet synchronization failed.')
+  }
+}
+
+/* Wallet permission refresh */
+async function requestWalletPermission(){
+  if(!window.Pi){toast('Open AMT Pet Marketplace in Pi Browser.');return}
+  try{
+    $('walletSyncStatus').textContent='REQUESTING PERMISSION...';
+    $('walletSyncStatus').style.color='#ffd66b';
+    Pi.init({version:'2.0',sandbox:true});
+    const auth=await Pi.authenticate(['username','payments','wallet_address'],p=>{
+      console.log('Incomplete payment during wallet authorization:',p);
+      window.__amtIncompletePayment=p;
+      window.__amtIncompletePaymentAt=Date.now();
+    });
+    const u=auth.user||{};
+    const wallet=u.wallet_address||u.walletAddress||'';
+    if(!/^G[A-Z2-7]{55}$/.test(String(wallet).toUpperCase())){
+      throw Error('Pi did not return a public wallet address. In Pi Browser, approve the wallet_address permission for this app, then try again.');
+    }
+    currentUser={...(currentUser||{}),uid:u.uid||currentUser?.uid||'',username:u.username||currentUser?.username||'Pioneer',wallet_address:String(wallet).toUpperCase(),accessToken:auth.accessToken||currentUser?.accessToken||''};
+    localStorage.setItem('amtPetPiUid',currentUser.uid);
+    localStorage.setItem('amtPetPiUsername',currentUser.username);
+    localStorage.setItem('amtPetPiWallet',currentUser.wallet_address);
+    localStorage.setItem('amtPetPiAccessToken',currentUser.accessToken);
+    await refreshWalletSync();
+    if(currentUser.accessToken)await recoverIncompletePayment();
+  }catch(e){
+    console.error('WALLET AUTH:',e);
+    $('walletSyncStatus').textContent='WALLET PERMISSION REQUIRED';
+    $('walletSyncStatus').style.color='#ffd66b';
+    toast(e.message||'Wallet authorization failed.');
   }
 }
 
@@ -527,7 +562,7 @@ async function submitAMTPayment(paymentId){
 /* Logout */
 function logoutPi(){
   ['amtPetPiUid','amtPetPiUsername','amtPetPiWallet','amtPetPiAccessToken','amtPetProfileImage'].forEach(k=>localStorage.removeItem(k));
-  currentUser=null;$('app').style.display='none';$('loginScreen').style.display='flex';$('loginBtn').disabled=false;$('loginBtn').textContent='🟣 LOGIN WITH PI';
+  currentUser=null;window.__amtIncompletePayment=null;$('app').style.display='none';$('loginScreen').style.display='flex';$('loginBtn').disabled=false;$('loginBtn').textContent='🟣 LOGIN WITH PI';
 }
 
 /* Pi Login */
@@ -539,8 +574,9 @@ function loginPi(){
     Pi.authenticate(['username','payments','wallet_address'],p=>{console.log('Incomplete payment:',p);window.__amtIncompletePayment=p;window.__amtIncompletePaymentAt=Date.now()})
     .then(async auth=>{
       const u=auth.user||{};
-      currentUser={uid:u.uid||'',username:u.username||'Pioneer',wallet_address:u.wallet_address||u.walletAddress||'',accessToken:auth.accessToken||''};
-      if(!/^G[A-Za-z0-9]{55}$/.test(currentUser.wallet_address||'')){currentUser.wallet_address='';localStorage.removeItem('amtPetPiWallet')}
+      const returnedWallet=String(u.wallet_address||u.walletAddress||'').toUpperCase();
+      const savedWallet=String(localStorage.getItem('amtPetPiWallet')||'').toUpperCase();
+      currentUser={uid:u.uid||'',username:u.username||'Pioneer',wallet_address:/^G[A-Z2-7]{55}$/.test(returnedWallet)?returnedWallet:(/^G[A-Z2-7]{55}$/.test(savedWallet)?savedWallet:''),accessToken:auth.accessToken||''};
       localStorage.setItem('amtPetPiUid',currentUser.uid);localStorage.setItem('amtPetPiUsername',currentUser.username);localStorage.setItem('amtPetPiWallet',currentUser.wallet_address);localStorage.setItem('amtPetPiAccessToken',currentUser.accessToken);
       await syncPioneer();await refreshWalletSync();await recoverIncompletePayment();enterApp();
       toast(currentUser.wallet_address?'Welcome, @'+currentUser.username+'! Wallet synchronized.':'Welcome, @'+currentUser.username+'! Wallet sync needs attention.');
@@ -557,11 +593,11 @@ async function recoverIncompletePayment(){
   try{
     toast('Checking pending Pi payment...');
     const r=await fetch(API+'/api/payments/pi/recover',{method:'POST',headers:authHeaders(),body:JSON.stringify({payment_id:paymentId,paymentId:paymentId,payment:pending})}),d=await r.json().catch(()=>({}));
-    if(d.status==='COMPLETED'){toast('Pending payment completed successfully.');await loadMyPets()}
-    else if(d.status==='PENDING')toast('Pending Pi payment is still waiting for blockchain confirmation.');
-    else if(d.status==='CANCELLED')toast('The pending Pi payment was cancelled.');
-  }catch(e){console.error('Pending recovery:',e)}
-  window.__amtIncompletePayment=null;
+    if(d.status==='COMPLETED'){toast('Pending payment completed successfully.');await loadMyPets();window.__amtIncompletePayment=null}
+    else if(d.status==='PENDING'){toast(d.message||'Pending Pi payment is still waiting for blockchain confirmation. Keep the payment open and try again.');}
+    else if(d.status==='CANCELLED'){toast('The pending Pi payment was cancelled.');window.__amtIncompletePayment=null}
+    else if(d.status==='NOT_COMPLETED'){toast('Pi payment is not completed yet. Please wait for blockchain confirmation, then use SYNC / REFRESH.');}
+  }catch(e){console.error('Pending recovery:',e);toast('Pending payment recovery needs another check.')}
 }
 
 /* Pioneer sync */
