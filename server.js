@@ -11,7 +11,7 @@ const PI_API_KEY = process.env.PI_API_KEY || "";
 const PI_API_BASE = "https://api.minepi.com";
 const PI_PAYMENT_CURRENCY = "Pi";
 const PET_PI_PRICE = "10";
-const PET_AMT_PRICE = "100";
+const PET_AMT_PRICE = "10";
 const AMT_ASSET_CODE = process.env.AMT_ASSET_CODE || "AMT";
 
 app.use(cors({origin:"*",methods:["GET","POST","OPTIONS"],allowedHeaders:["Content-Type","Authorization"]}));
