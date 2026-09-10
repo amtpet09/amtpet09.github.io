@@ -350,6 +350,28 @@ document.addEventListener('DOMContentLoaded',()=>{
   const uid=localStorage.getItem('amtPetPiUid'),name=localStorage.getItem('amtPetPiUsername'),wallet=localStorage.getItem('amtPetPiWallet');
   if(uid&&name){currentUser={uid,username:name,wallet_address:wallet||''};enterApp()}
   load();
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    currentUser = null;
+
+    const app = document.getElementById('app');
+    const loginScreen = document.getElementById('loginScreen');
+    const loginBtn = document.getElementById('loginBtn');
+
+    if (app) {
+        app.style.display = 'none';
+    }
+
+    if (loginScreen) {
+        loginScreen.style.display = 'flex';
+    }
+
+    if (loginBtn) {
+        loginBtn.disabled = false;
+        loginBtn.textContent = '🟣 LOGIN WITH PI';
+    }
+
+    load();
 });
 </script>
 </body>
