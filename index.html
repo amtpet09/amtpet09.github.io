@@ -240,21 +240,10 @@ function loginPi(){
   $('loginBtn').disabled=true;$('loginBtn').textContent='Connecting to Pi...';
   try{
     Pi.init({version:'2.0',sandbox:true});
-    Pi.authenticate(['username','payments'],async p=>{
+    Pi.authenticate(['username','payments'],p=>{
       console.log('Incomplete payment:',p);
-      try{
-        const pendingId=p?.identifier||p?.paymentId||p?.payment_id||p?.id||'';
-        const pendingPet=p?.metadata?.pet_code||p?.metadata?.petCode||p?.pet_code||'';
-        if(pendingId){
-          const token=p?.user?.accessToken||localStorage.getItem('amtPetPiAccessToken')||'';
-          if(token){
-            const rr=await fetch(API+'/api/payments/pi/recover',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({payment_id:pendingId,pet_code:pendingPet})});
-            const rd=await rr.json().catch(()=>({}));
-            console.log('Pending payment recovery:',rd);
-            if(rd.ok&&rd.status==='COMPLETED') toast('Pending Pi payment completed successfully.');
-          }
-        }
-      }catch(e){console.error('Pending payment recovery:',e)}
+      window.__amtIncompletePayment=p;
+      window.__amtIncompletePaymentAt=Date.now();
     })
       .then(async auth=>{
         const u=auth.user||{};
