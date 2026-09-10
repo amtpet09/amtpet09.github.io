@@ -234,7 +234,7 @@ function showPanel(id,btn){
   if(id==='pets')loadMyPets();
 }
 function featureSoon(name){toast(name+' is prepared. Backend rules will be connected next.')}
-function logoutPi(){localStorage.removeItem('amtPetPiUid');localStorage.removeItem('amtPetPiUsername');localStorage.removeItem('amtPetPiWallet');localStorage.removeItem('amtPetProfileImage');currentUser=null;$('app').style.display='none';$('loginScreen').style.display='flex';$('loginBtn').disabled=false;$('loginBtn').textContent='🟣 LOGIN WITH PI'}
+function logoutPi(){localStorage.removeItem('amtPetPiUid');localStorage.removeItem('amtPetPiUsername');localStorage.removeItem('amtPetPiWallet');localStorage.removeItem('amtPetPiAccessToken');localStorage.removeItem('amtPetProfileImage');currentUser=null;$('app').style.display='none';$('loginScreen').style.display='flex';$('loginBtn').disabled=false;$('loginBtn').textContent='🟣 LOGIN WITH PI'}
 function loginPi(){
   if(!window.Pi){toast('Open AMT Pet Marketplace in Pi Browser.');return}
   $('loginBtn').disabled=true;$('loginBtn').textContent='Connecting to Pi...';
@@ -247,6 +247,7 @@ function loginPi(){
         localStorage.setItem('amtPetPiUid',currentUser.uid);
         localStorage.setItem('amtPetPiUsername',currentUser.username);
         localStorage.setItem('amtPetPiWallet',currentUser.wallet_address);
+         localStorage.setItem('amtPetPiAccessToken',currentUser.accessToken);
         await syncPioneer();
         enterApp();
         toast('Welcome, @'+currentUser.username+'! Wallet synchronized.');
@@ -310,26 +311,115 @@ async function buyPetPrepared(){
   if(!selectedPet){toast('Select a pet first.');return}
   if(!currentUser){toast('Login with Pi first.');return}
   if(!window.Pi){toast('Open AMT Pet Marketplace in Pi Browser.');return}
+  if(!currentUser.accessToken){toast('Please log in with Pi again.');return}
+
   const amount=Number(selectedPet.pi_price||selectedPet.price_pi||100);
-  const memo='AMT Pet Marketplace - '+selectedPet.pet_code;
-  const metadata={type:'pet_purchase',pet_code:selectedPet.pet_code,pet_name:selectedPet.name,pi_uid:currentUser.uid};
+  const petCode=selectedPet.pet_code;
+  const memo='AMT Pet Marketplace - '+petCode;
+  const metadata={
+    type:'pet_purchase',
+    pet_code:petCode,
+    pet_name:selectedPet.name
+  };
+
   try{
     toast('Opening Pi payment...');
-    const payment=await new Promise((resolve,reject)=>{
-      try{Pi.createPayment({amount,currency:'Pi',memo,metadata},{
-        onReadyForServerApproval:async paymentId=>{
-          try{const r=await fetch(API+'/api/payments/pi/approve',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+currentUser.accessToken},body:JSON.stringify({paymentId})});if(!r.ok)throw Error('Server approval failed.');}
-          catch(e){console.error(e);reject(e)}
-        },
-        onReadyForServerCompletion:async paymentId=>{
-          try{const r=await fetch(API+'/api/payments/pi/complete',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+currentUser.accessToken},body:JSON.stringify({paymentId,txid:paymentId})});if(!r.ok)throw Error('Payment completion failed.');resolve(paymentId)}
-          catch(e){console.error(e);reject(e)}
-        },
-        onCancel:()=>reject(Error('Payment cancelled.')),
-        onError:error=>reject(Error(error?.message||'Pi payment failed.'))
-      })}catch(e){reject(e)}});
-    console.log('Pi payment completed:',payment);closeModal();toast('Payment completed for '+selectedPet.name+'.');await loadMyPets();
-  }catch(e){console.error('BUY PET:',e);toast(e.message||'Pi payment was not completed.')}
+    await new Promise((resolve,reject)=>{
+      let settled=false;
+      const fail=e=>{
+        if(settled)return;
+        settled=true;
+        reject(e instanceof Error?e:Error(String(e||'Pi payment failed.')));
+      };
+      const done=v=>{
+        if(settled)return;
+        settled=true;
+        resolve(v);
+      };
+
+      Pi.createPayment(
+        {amount,currency:'Pi',memo,metadata},
+        {
+          onReadyForServerApproval:async paymentId=>{
+            try{
+              /* IMPORTANT: prepare must happen before approval.
+                 The Render backend requires payment_id + pet_code. */
+              const prep=await fetch(API+'/api/payments/pi/prepare',{
+                method:'POST',
+                headers:{
+                  'Content-Type':'application/json',
+                  'Authorization':'Bearer '+currentUser.accessToken
+                },
+                body:JSON.stringify({
+                  payment_id:paymentId,
+                  pet_code:petCode
+                })
+              });
+              const prepData=await prep.json().catch(()=>({}));
+              if(!prep.ok){
+                throw Error(prepData.error||'Payment preparation failed.');
+              }
+
+              const approval=await fetch(API+'/api/payments/pi/approve',{
+                method:'POST',
+                headers:{
+                  'Content-Type':'application/json',
+                  'Authorization':'Bearer '+currentUser.accessToken
+                },
+                body:JSON.stringify({
+                  payment_id:paymentId,
+                  pet_code:petCode
+                })
+              });
+              const approvalData=await approval.json().catch(()=>({}));
+              if(!approval.ok){
+                throw Error(approvalData.error||'Server approval failed.');
+              }
+              console.log('Pi payment approved:',approvalData);
+            }catch(e){
+              console.error('Pi approval:',e);
+              fail(e);
+            }
+          },
+
+          onReadyForServerCompletion:async paymentId=>{
+            try{
+              const complete=await fetch(API+'/api/payments/pi/complete',{
+                method:'POST',
+                headers:{
+                  'Content-Type':'application/json',
+                  'Authorization':'Bearer '+currentUser.accessToken
+                },
+                body:JSON.stringify({
+                  payment_id:paymentId,
+                  pet_code:petCode
+                })
+              });
+              const completeData=await complete.json().catch(()=>({}));
+              if(!complete.ok){
+                throw Error(completeData.error||'Payment completion failed.');
+              }
+              console.log('Pi payment completed:',completeData);
+              done(completeData);
+            }catch(e){
+              console.error('Pi completion:',e);
+              fail(e);
+            }
+          },
+
+          onCancel:()=>fail(Error('Payment cancelled.')),
+          onError:error=>fail(Error(error?.message||'Pi payment failed.'))
+        }
+      );
+    });
+
+    closeModal();
+    toast(selectedPet.name+' purchased successfully with Pi Testnet.');
+    await loadMyPets();
+  }catch(e){
+    console.error('BUY PET:',e);
+    toast(e.message||'Pi payment was not completed.');
+  }
 }
 async function loadMyPets(){
   $('myPets').innerHTML='<div class="msg">Loading your pets...</div>';
@@ -347,31 +437,12 @@ function renderMyPets(list){
   $('myPets').innerHTML=list.map(p=>`<div class="owned"><img src="${img(p.image)}" alt="${esc(p.name)}"><div><b>${esc(p.name)}</b><br><span class="muted">${esc(p.element||'—')} • ${esc(p.rarity||'Common')} • Lv.${esc(p.level||1)}</span></div></div>`).join('');
 }
 document.addEventListener('DOMContentLoaded',()=>{
-  const uid=localStorage.getItem('amtPetPiUid'),name=localStorage.getItem('amtPetPiUsername'),wallet=localStorage.getItem('amtPetPiWallet');
-  if(uid&&name){currentUser={uid,username:name,wallet_address:wallet||''};enterApp()}
+  currentUser=null;
+  $('app').style.display='none';
+  $('loginScreen').style.display='flex';
+  $('loginBtn').disabled=false;
+  $('loginBtn').textContent='🟣 LOGIN WITH PI';
   load();
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    currentUser = null;
-
-    const app = document.getElementById('app');
-    const loginScreen = document.getElementById('loginScreen');
-    const loginBtn = document.getElementById('loginBtn');
-
-    if (app) {
-        app.style.display = 'none';
-    }
-
-    if (loginScreen) {
-        loginScreen.style.display = 'flex';
-    }
-
-    if (loginBtn) {
-        loginBtn.disabled = false;
-        loginBtn.textContent = '🟣 LOGIN WITH PI';
-    }
-
-    load();
 });
 </script>
 </body>
