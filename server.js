@@ -271,6 +271,28 @@ app.post("/api/payments/pi/approve",requirePiAuth,async(req,res)=>{
   } catch(e) { console.error("approve pi:",e);res.status(400).json({ok:false,error:e.message||"Pi approval failed."}); }
 });
 
+app.post("/api/payments/pi/recover",requirePiAuth,async(req,res)=>{
+  try {
+    const {payment_id}=req.body||{};
+    if(!payment_id) return res.status(400).json({ok:false,error:"payment_id is required."});
+    const payment=await piFetch("/v2/payments/"+encodeURIComponent(payment_id));
+    const row=await dbQuery("SELECT * FROM pet_payments WHERE payment_id=$1 AND pi_uid=$2 LIMIT 1",[payment_id,req.piUser.uid]);
+    if(!row.rows.length) return res.status(404).json({ok:false,error:"Pending payment is not registered by this app."});
+    if(row.rows[0].status==="COMPLETED") return res.json({ok:true,status:"COMPLETED",message:"Payment already completed."});
+    const transactionId=payment.transaction?.txid||payment.txid||"";
+    const status=payment.status||{};
+    if(status.cancelled===true || status.cancelled===1) {
+      await dbQuery("UPDATE pet_payments SET status='CANCELLED',updated_at=NOW() WHERE payment_id=$1",[payment_id]);
+      return res.status(409).json({ok:false,status:"CANCELLED",error:"Pi payment was cancelled."});
+    }
+    if(!transactionId) return res.status(409).json({ok:false,status:"PENDING",error:"Pi transaction is not available yet."});
+    await piFetch("/v2/payments/"+encodeURIComponent(payment_id)+"/complete",{method:"POST",body:JSON.stringify({txid:transactionId})});
+    const pet=await grantPet(req.piUser.uid,row.rows[0].pet_code);
+    await dbQuery(`UPDATE pet_payments SET status='COMPLETED',transaction_id=$1,completed_at=NOW(),updated_at=NOW() WHERE payment_id=$2`,[transactionId,payment_id]);
+    res.json({ok:true,status:"COMPLETED",paymentId:payment_id,transactionId,pet});
+  } catch(e) { console.error("recover pi:",e);res.status(400).json({ok:false,error:e.message||"Pending payment recovery failed."}); }
+});
+
 app.post("/api/payments/pi/complete",requirePiAuth,async(req,res)=>{
   try {
     const {payment_id,pet_code,txid}=req.body||{};
