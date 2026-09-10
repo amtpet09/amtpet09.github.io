@@ -264,11 +264,28 @@ function loginPi(){
         localStorage.setItem('amtPetPiWallet',currentUser.wallet_address);
          localStorage.setItem('amtPetPiAccessToken',currentUser.accessToken);
         await syncPioneer();
+        await recoverIncompletePayment();
         enterApp();
         toast('Welcome, @'+currentUser.username+'! Wallet synchronized.');
       })
       .catch(e=>{console.error(e);$('loginBtn').disabled=false;$('loginBtn').textContent='🟣 LOGIN WITH PI';toast('Pi Login failed. Please try again in Pi Browser.')});
   }catch(e){console.error(e);$('loginBtn').disabled=false;$('loginBtn').textContent='🟣 LOGIN WITH PI';toast('Unable to start Pi Login.')}
+}
+async function recoverIncompletePayment(){
+  const pending=window.__amtIncompletePayment;
+  const paymentId=pending?.identifier||pending?.paymentId||pending?.payment_id||pending?.id||'';
+  if(!paymentId || !currentUser?.accessToken) return;
+  try{
+    toast('Checking pending Pi payment...');
+    const r=await fetch(API+'/api/payments/pi/recover',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+currentUser.accessToken},body:JSON.stringify({payment_id:paymentId})});
+    const d=await r.json().catch(()=>({}));
+    console.log('Pending payment recovery:',d);
+    if(d.status==='COMPLETED'){ toast('Pending payment completed successfully.'); await loadMyPets(); }
+    else if(d.status==='PENDING'){ toast('Pending Pi payment is still waiting for blockchain confirmation.'); }
+    else if(d.status==='CANCELLED'){ toast('The pending Pi payment was cancelled.'); }
+    else if(!r.ok){ console.warn('Pending recovery:',d.error||'Not recoverable yet.'); }
+  }catch(e){ console.error('Pending recovery:',e); }
+  window.__amtIncompletePayment=null;
 }
 async function syncPioneer(){
   try{
