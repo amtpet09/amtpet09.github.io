@@ -345,7 +345,7 @@ async function verifyPiAccessToken(token) {
     throw new Error("Missing Pi access token.");
   }
 
-  const url = PI_API_BASE + "/v2/me";
+  const url = "https://api.minepi.com/v2/me";
 
   console.log("======================================");
   console.log("PI AUTH VERIFY");
@@ -365,7 +365,6 @@ async function verifyPiAccessToken(token) {
   const text = await r.text();
 
   let data;
-
   try {
     data = text ? JSON.parse(text) : {};
   } catch {
