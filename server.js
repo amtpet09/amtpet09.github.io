@@ -77,6 +77,9 @@ async function initializeDatabase(){
   await dbQuery(`CREATE TABLE IF NOT EXISTS pioneers(
     id BIGSERIAL PRIMARY KEY,pi_uid TEXT UNIQUE NOT NULL,username TEXT,wallet_address TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`);
+  await dbQuery(`ALTER TABLE pioneers ADD COLUMN IF NOT EXISTS profile_image TEXT;`);
+  await dbQuery(`ALTER TABLE pioneers ADD COLUMN IF NOT EXISTS coins BIGINT NOT NULL DEFAULT 0;`);
+  await dbQuery(`ALTER TABLE pioneers ADD COLUMN IF NOT EXISTS food BIGINT NOT NULL DEFAULT 0;`);
   await dbQuery(`CREATE TABLE IF NOT EXISTS pets_catalog(
     id BIGSERIAL PRIMARY KEY,pet_code TEXT UNIQUE NOT NULL,name TEXT NOT NULL,element TEXT NOT NULL,
     rarity TEXT NOT NULL DEFAULT 'Common',image TEXT NOT NULL,base_hp INTEGER NOT NULL DEFAULT 100,
@@ -88,6 +91,9 @@ async function initializeDatabase(){
     level INTEGER NOT NULL DEFAULT 1,xp BIGINT NOT NULL DEFAULT 0,hp INTEGER NOT NULL DEFAULT 100,
     atk INTEGER NOT NULL DEFAULT 10,def INTEGER NOT NULL DEFAULT 10,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`);
+  await dbQuery(`ALTER TABLE pioneers ADD COLUMN IF NOT EXISTS profile_image TEXT;`);
+  await dbQuery(`ALTER TABLE pioneers ADD COLUMN IF NOT EXISTS coins BIGINT NOT NULL DEFAULT 0;`);
+  await dbQuery(`ALTER TABLE pioneers ADD COLUMN IF NOT EXISTS food BIGINT NOT NULL DEFAULT 0;`);
   await dbQuery(`ALTER TABLE user_pets ADD COLUMN IF NOT EXISTS payment_id TEXT;`);
   await dbQuery(`CREATE UNIQUE INDEX IF NOT EXISTS user_pets_payment_id_uq ON user_pets(payment_id) WHERE payment_id IS NOT NULL;`);
   await dbQuery(`CREATE TABLE IF NOT EXISTS pet_payments(
@@ -107,6 +113,14 @@ async function initializeDatabase(){
     defender_pet_id BIGINT NOT NULL REFERENCES user_pets(id) ON DELETE CASCADE,
     winner_pioneer_id BIGINT REFERENCES pioneers(id) ON DELETE SET NULL,
     xp_earned INTEGER NOT NULL DEFAULT 0,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`);
+  await dbQuery(`CREATE TABLE IF NOT EXISTS pet_breeding(
+    id BIGSERIAL PRIMARY KEY,parent1_id BIGINT NOT NULL REFERENCES user_pets(id) ON DELETE CASCADE,
+    parent2_id BIGINT NOT NULL REFERENCES user_pets(id) ON DELETE CASCADE,offspring_id BIGINT REFERENCES user_pets(id) ON DELETE SET NULL,
+    pioneer_id BIGINT NOT NULL REFERENCES pioneers(id) ON DELETE CASCADE,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`);
+  await dbQuery(`CREATE TABLE IF NOT EXISTS pet_listings(
+    id BIGSERIAL PRIMARY KEY,pet_id BIGINT UNIQUE NOT NULL REFERENCES user_pets(id) ON DELETE CASCADE,
+    pioneer_id BIGINT NOT NULL REFERENCES pioneers(id) ON DELETE CASCADE,price_amt NUMERIC(30,8) NOT NULL,
+    status TEXT NOT NULL DEFAULT 'ACTIVE',created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`);
   console.log("Database tables ready.");
 }
 async function seedPetCatalog(){
@@ -232,6 +246,19 @@ FROM user_pets up JOIN pioneers p ON p.id=up.pioneer_id JOIN pets_catalog pc ON 
 
 app.post("/api/auth/verify",requirePiAuth,(req,res)=>res.json({ok:true,uid:req.piUser.uid,username:req.piUser.username,
   walletAddress:req.pioneer.wallet_address||null,wallet_address:req.pioneer.wallet_address||null,pioneer:req.pioneer}));
+app.get("/api/profile",requirePiAuth,async(req,res)=>{
+  try{const r=await dbQuery("SELECT pi_uid,username,wallet_address,profile_image,coins,food FROM pioneers WHERE pi_uid=$1 LIMIT 1",[req.piUser.uid]);
+    if(!r.rows.length)return res.status(404).json({ok:false,error:"Pioneer profile not found."});
+    res.json({ok:true,profile:r.rows[0]});
+  }catch(e){res.status(500).json({ok:false,error:e.message});}
+});
+app.post("/api/profile/image",requirePiAuth,async(req,res)=>{
+  try{const image=String(req.body?.image||"");if(!image.startsWith("data:image/"))return res.status(400).json({ok:false,error:"Invalid profile image."});
+    if(image.length>900000) return res.status(400).json({ok:false,error:"Profile image is too large after compression."});
+    await dbQuery("UPDATE pioneers SET profile_image=$1,updated_at=NOW() WHERE pi_uid=$2",[image,req.piUser.uid]);
+    res.json({ok:true,message:"Profile picture saved to your Pioneer profile."});
+  }catch(e){res.status(400).json({ok:false,error:e.message});}
+});
 
 async function walletBindHandler(req,res){
   try{
@@ -275,30 +302,73 @@ async function train(req,res){
   catch(e){res.status(400).json({ok:false,error:e.message});}
 }
 
-/* REAL BATTLE: requires another Pioneer to own a pet; never creates a fake opponent. */
+/* BATTLES: Arena uses computer opponents; Adventure uses real Pioneer opponents. */
 function battleMult(a,d){const strong={fire:"nature",nature:"water",water:"fire",wind:"earth",earth:"thunder",thunder:"wind",ice:"wind"};if(strong[String(a).toLowerCase()]===String(d).toLowerCase())return 1.15;if(strong[String(d).toLowerCase()]===String(a).toLowerCase())return .9;return 1;}
-async function battle(req,res){
+function battleScore(a,d){return Number(a.atk)*1.25+Number(a.def)*.75+Number(a.hp)*.15+Number(a.level)*5}
+async function arenaBattle(req,res){
   try{
     const a=await findOwnedPet(req.piUser.uid,req);
-    const q=await dbQuery(`SELECT up.*,p.pi_uid AS opponent_uid,p.username AS opponent_username,
-      pc.name,pc.element,pc.image,pc.base_hp,pc.base_atk,pc.base_def
+    const elements=["Fire","Water","Earth","Wind","Nature","Ice","Thunder"], names=["Shadow Beast","Iron Fang","Storm Bot","Flame Golem","Frost Drone","Terra Mech","Aqua Guardian"];
+    const idx=Math.floor(Math.random()*names.length), element=elements[idx], baseHp=120+Math.floor(Math.random()*55), baseAtk=22+Math.floor(Math.random()*18), baseDef=18+Math.floor(Math.random()*15), level=Math.max(1,Number(a.level)+Math.floor(Math.random()*3)-1);
+    const d={name:names[idx],element,level,hp:baseHp,atk:baseAtk,def:baseDef};
+    const ap=battleScore(a,d)*battleMult(a.element,d.element),dp=battleScore(d,a)*battleMult(d.element,a.element);
+    const win=ap>=dp,gain=win?35:12,total=Number(a.xp)+gain,newLevel=Math.max(1,Math.floor(total/100)+1),ups=Math.max(0,newLevel-Number(a.level));
+    const u=await dbQuery(`UPDATE user_pets SET xp=$1,level=$2,atk=$3,def=$4,updated_at=NOW() WHERE id=$5 RETURNING *`,[total,newLevel,Number(a.atk)+ups*2,Number(a.def)+ups*2,a.id]);
+    const coins=win?50:15,food=win?3:1;
+    await dbQuery(`UPDATE pioneers SET coins=coins+$1,food=food+$2,updated_at=NOW() WHERE pi_uid=$3`,[coins,food,req.piUser.uid]);
+    res.json({ok:true,mode:"ARENA",result:win?"WIN":"LOSS",message:win?`Victory! ${a.name} defeated the computer ${d.name}.`:`${a.name} lost to the computer ${d.name}.`,xpEarned:gain,coinsEarned:coins,foodEarned:food,levelUps:ups,pet:{...u.rows[0],name:a.name,element:a.element,image:a.image},opponent:{name:d.name,element:d.element,level:d.level,computer:true}});
+  }catch(e){console.error("arena:",e);res.status(400).json({ok:false,error:e.message});}
+}
+async function adventureBattle(req,res){
+  try{
+    const a=await findOwnedPet(req.piUser.uid,req);
+    const q=await dbQuery(`SELECT up.*,p.id AS opponent_pioneer_id,p.pi_uid AS opponent_uid,p.username AS opponent_username,pc.name,pc.element,pc.image,pc.base_hp,pc.base_atk,pc.base_def
       FROM user_pets up JOIN pioneers p ON p.id=up.pioneer_id JOIN pets_catalog pc ON pc.pet_code=up.pet_code
       WHERE p.pi_uid<>$1 ORDER BY RANDOM() LIMIT 1`,[req.piUser.uid]);
-    if(!q.rows.length)return res.status(409).json({ok:false,error:"No opponent Pioneer with a pet is available yet.",message:"Another Pioneer needs to own at least one pet before a battle can start."});
-    const d=q.rows[0],ap=Number(a.atk)*1.25+Number(a.def)*.75+Number(a.hp)*.15+Number(a.level)*5,dp=Number(d.atk)*1.25+Number(d.def)*.75+Number(d.hp)*.15+Number(d.level)*5;
-    const win=ap*battleMult(a.element,d.element)>=dp*battleMult(d.element,a.element),gain=win?25:10,total=Number(a.xp)+gain,level=Math.max(1,Math.floor(total/100)+1),ups=Math.max(0,level-Number(a.level));
-    const u=await dbQuery(`UPDATE user_pets SET xp=$1,level=$2,atk=$3,def=$4,updated_at=NOW() WHERE id=$5 RETURNING *`,
-      [total,level,Number(a.atk)+ups*2,Number(a.def)+ups*2,a.id]);
-    await dbQuery(`INSERT INTO pet_battles(attacker_pioneer_id,attacker_pet_id,defender_pioneer_id,defender_pet_id,winner_pioneer_id,xp_earned)
-      VALUES($1,$2,(SELECT id FROM pioneers WHERE pi_uid=$3),$4,$5,$6)`,
-      [req.pioneer.id,a.id,d.opponent_uid,d.id,win?req.pioneer.id:d.pioneer_id,gain]);
-    res.json({ok:true,action:"BATTLE",result:win?"WIN":"LOSS",message:win?`Victory! ${a.name} defeated ${d.name}.`:`${a.name} lost the battle against ${d.name}.`,
-      xpEarned:gain,levelUps:ups,pet:{...u.rows[0],name:a.name,element:a.element,image:a.image},opponent:{id:d.id,pet_code:d.pet_code,name:d.name,element:d.element,image:d.image,level:d.level,username:d.opponent_username||"Pioneer"}});
-  }catch(e){console.error("battle:",e);res.status(400).json({ok:false,error:e.message});}
+    if(!q.rows.length)return res.status(409).json({ok:false,error:"No other Pioneer is available for Adventure yet.",message:"Another Pioneer needs to own a pet before an Adventure battle can start."});
+    const d=q.rows[0],ap=battleScore(a,d)*battleMult(a.element,d.element),dp=battleScore(d,a)*battleMult(d.element,a.element),win=ap>=dp;
+    const gain=win?45:18,total=Number(a.xp)+gain,newLevel=Math.max(1,Math.floor(total/100)+1),ups=Math.max(0,newLevel-Number(a.level)),coins=win?80:25,food=win?5:2;
+    const u=await dbQuery(`UPDATE user_pets SET xp=$1,level=$2,atk=$3,def=$4,updated_at=NOW() WHERE id=$5 RETURNING *`,[total,newLevel,Number(a.atk)+ups*2,Number(a.def)+ups*2,a.id]);
+    await dbQuery(`INSERT INTO pet_battles(attacker_pioneer_id,attacker_pet_id,defender_pioneer_id,defender_pet_id,winner_pioneer_id,xp_earned) VALUES($1,$2,$3,$4,$5,$6)`,[req.pioneer.id,a.id,d.opponent_pioneer_id,d.id,win?req.pioneer.id:d.opponent_pioneer_id,gain]);
+    await dbQuery(`UPDATE pioneers SET coins=coins+$1,food=food+$2,updated_at=NOW() WHERE pi_uid=$3`,[coins,food,req.piUser.uid]);
+    res.json({ok:true,mode:"ADVENTURE",result:win?"WIN":"LOSS",message:win?`Adventure victory! You defeated Pioneer @${d.opponent_username||"Pioneer"}.`:`Adventure loss against Pioneer @${d.opponent_username||"Pioneer"}.`,xpEarned:gain,coinsEarned:coins,foodEarned:food,levelUps:ups,pet:{...u.rows[0],name:a.name,element:a.element,image:a.image},opponent:{id:d.id,name:d.name,element:d.element,image:d.image,level:d.level,username:d.opponent_username||"Pioneer",computer:false}});
+  }catch(e){console.error("adventure:",e);res.status(400).json({ok:false,error:e.message});}
 }
-app.post("/api/pets/battle",requirePiAuth,battle);
-app.post("/api/battle",requirePiAuth,battle);
-app.post("/api/battle/pet",requirePiAuth,battle);
+app.post("/api/battle/arena",requirePiAuth,arenaBattle);
+app.post("/api/battle/adventure",requirePiAuth,adventureBattle);
+app.post("/api/pets/battle",requirePiAuth,arenaBattle);
+app.post("/api/battle",requirePiAuth,arenaBattle);
+app.post("/api/battle/pet",requirePiAuth,arenaBattle);
+
+/* BREEDING */
+app.post("/api/pets/breed",requirePiAuth,async(req,res)=>{
+  try{
+    const p1=await findOwnedPet(req.piUser.uid,{body:{pet_id:req.body?.parent1_id}}),p2=await findOwnedPet(req.piUser.uid,{body:{pet_id:req.body?.parent2_id}});
+    if(String(p1.id)===String(p2.id))return res.status(400).json({ok:false,error:"Choose two different parent pets."});
+    const cats=await dbQuery(`SELECT * FROM pets_catalog WHERE element IN ($1,$2) ORDER BY RANDOM() LIMIT 1`,[p1.element,p2.element]);
+    if(!cats.rows.length)return res.status(400).json({ok:false,error:"No compatible offspring pet is available."});
+    const c=cats.rows[0],rarity=(p1.rarity===p2.rarity?p1.rarity:"Common");
+    const r=await dbQuery(`INSERT INTO user_pets(pioneer_id,pet_code,rarity,level,xp,hp,atk,def) VALUES($1,$2,$3,1,0,$4,$5,$6) RETURNING *`,[req.pioneer.id,c.pet_code,rarity,c.base_hp,c.base_atk,c.base_def]);
+    await dbQuery(`INSERT INTO pet_breeding(parent1_id,parent2_id,offspring_id,pioneer_id) VALUES($1,$2,$3,$4)`,[p1.id,p2.id,r.rows[0].id,req.pioneer.id]);
+    res.json({ok:true,message:`Breeding complete! ${c.name} joined your collection.`,pet:{...r.rows[0],name:c.name,element:c.element,image:c.image,rarity}});
+  }catch(e){console.error("breed:",e);res.status(400).json({ok:false,error:e.message});}
+});
+
+/* SELL / PUBLIC LISTINGS */
+app.post("/api/sell/list",requirePiAuth,async(req,res)=>{
+  try{
+    const pet=await findOwnedPet(req.piUser.uid,req),price=Number(req.body?.price_amt);
+    if(!price||price<=0)return res.status(400).json({ok:false,error:"Enter a valid AMT sale price."});
+    const existing=await dbQuery("SELECT id,status FROM pet_listings WHERE pet_id=$1 LIMIT 1",[pet.id]);
+    if(existing.rows.length&&existing.rows[0].status==='ACTIVE')return res.status(409).json({ok:false,error:"This pet is already listed for sale."});
+    await dbQuery(`INSERT INTO pet_listings(pet_id,pioneer_id,price_amt,status) VALUES($1,$2,$3,'ACTIVE') ON CONFLICT(pet_id) DO UPDATE SET pioneer_id=EXCLUDED.pioneer_id,price_amt=EXCLUDED.price_amt,status='ACTIVE',updated_at=NOW()`,[pet.id,req.pioneer.id,price]);
+    res.json({ok:true,message:`${pet.name} is now listed for ${price} AMT.`});
+  }catch(e){console.error("sell list:",e);res.status(400).json({ok:false,error:e.message});}
+});
+app.get("/api/market/listings",async(req,res)=>{
+  try{const r=await dbQuery(`SELECT l.id,l.pet_id,l.price_amt,l.status,p.username,pc.name,pc.element,pc.image,up.level,up.rarity,100 AS seller_reputation FROM pet_listings l JOIN user_pets up ON up.id=l.pet_id JOIN pioneers p ON p.id=l.pioneer_id JOIN pets_catalog pc ON pc.pet_code=up.pet_code WHERE l.status='ACTIVE' ORDER BY l.created_at DESC`);res.json({ok:true,count:r.rows.length,listings:r.rows});}
+  catch(e){res.status(500).json({ok:false,error:e.message});}
+});
 
 /* PI PAYMENT RECOVERY - intentionally unauthenticated because Pi calls the incomplete-payment callback before auth resolves. */
 app.post("/api/payments/pi/recover",async(req,res)=>{
