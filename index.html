@@ -315,8 +315,13 @@ async function choosePetAction(action){
       toast(d.message||'Pet training completed successfully.');
     }
     if(action==='battle'){
-      const d=await apiPost('/api/pets/battle',{pet_id:p.id,petId:p.id});
-      toast((d.message||'Battle completed.')+(d.xpEarned!=null?' +'+d.xpEarned+' XP':''));
+      try{
+        const d=await apiPost('/api/pets/battle',{pet_id:p.id,petId:p.id});
+        toast((d.message||'Battle completed.')+(d.xpEarned!=null?' +'+d.xpEarned+' XP':''));
+      }catch(e){
+        if(/endpoint not found|not found/i.test(e.message||'')) throw Error('Battle service is not deployed on the Render backend yet. Care and Training are working; Battle needs the backend route before it can be enabled safely.');
+        throw e;
+      }
     }
     await loadMyPets();
   }catch(e){console.error('PET ACTION:',e);toast(e.message||'Pet action failed.')}
@@ -452,13 +457,13 @@ async function refreshWalletSync(){
     syncData=await syncResponse.json().catch(()=>({}));
     if(syncResponse.ok){
       const syncedWallet=syncData.walletAddress||syncData.wallet_address||syncData.address||syncData.wallet||'';
-      if(syncedWallet){currentUser.wallet_address=syncedWallet;localStorage.setItem('amtPetPiWallet',syncedWallet);$('walletAddress').textContent=syncedWallet}
+      if(/^G[A-Za-z0-9]{55}$/.test(syncedWallet)){currentUser.wallet_address=syncedWallet;localStorage.setItem('amtPetPiWallet',syncedWallet);$('walletAddress').textContent=syncedWallet}
     }
     const verify=await fetch(API+'/api/auth/verify',{method:'POST',headers:authHeaders(),cache:'no-store'});
     const vd=await verify.json().catch(()=>({}));
     if(verify.ok){
       const verifiedWallet=vd.walletAddress||vd.wallet_address||vd.address||'';
-      if(verifiedWallet){currentUser.wallet_address=verifiedWallet;localStorage.setItem('amtPetPiWallet',verifiedWallet);$('walletAddress').textContent=verifiedWallet}
+      if(/^G[A-Za-z0-9]{55}$/.test(verifiedWallet)){currentUser.wallet_address=verifiedWallet;localStorage.setItem('amtPetPiWallet',verifiedWallet);$('walletAddress').textContent=verifiedWallet}
       if(vd.username)currentUser.username=vd.username;if(vd.uid)currentUser.uid=vd.uid;
     }
     if(!currentUser.wallet_address){
@@ -516,10 +521,11 @@ function loginPi(){
   $('loginBtn').disabled=true;$('loginBtn').textContent='Connecting to Pi...';
   try{
     Pi.init({version:'2.0',sandbox:true});
-    Pi.authenticate(['username','payments'],p=>{console.log('Incomplete payment:',p);window.__amtIncompletePayment=p;window.__amtIncompletePaymentAt=Date.now()})
+    Pi.authenticate(['username','payments','wallet_address'],p=>{console.log('Incomplete payment:',p);window.__amtIncompletePayment=p;window.__amtIncompletePaymentAt=Date.now()})
     .then(async auth=>{
       const u=auth.user||{};
       currentUser={uid:u.uid||'',username:u.username||'Pioneer',wallet_address:u.wallet_address||u.walletAddress||'',accessToken:auth.accessToken||''};
+      if(!/^G[A-Za-z0-9]{55}$/.test(currentUser.wallet_address||'')){currentUser.wallet_address='';localStorage.removeItem('amtPetPiWallet')}
       localStorage.setItem('amtPetPiUid',currentUser.uid);localStorage.setItem('amtPetPiUsername',currentUser.username);localStorage.setItem('amtPetPiWallet',currentUser.wallet_address);localStorage.setItem('amtPetPiAccessToken',currentUser.accessToken);
       await syncPioneer();await refreshWalletSync();await recoverIncompletePayment();enterApp();
       toast(currentUser.wallet_address?'Welcome, @'+currentUser.username+'! Wallet synchronized.':'Welcome, @'+currentUser.username+'! Wallet sync needs attention.');
@@ -535,7 +541,7 @@ async function recoverIncompletePayment(){
   if(!paymentId||!currentUser?.accessToken)return;
   try{
     toast('Checking pending Pi payment...');
-    const r=await fetch(API+'/api/payments/pi/recover',{method:'POST',headers:authHeaders(),body:JSON.stringify({payment_id:paymentId})}),d=await r.json().catch(()=>({}));
+    const r=await fetch(API+'/api/payments/pi/recover',{method:'POST',headers:authHeaders(),body:JSON.stringify({payment_id:paymentId,paymentId:paymentId,payment:pending})}),d=await r.json().catch(()=>({}));
     if(d.status==='COMPLETED'){toast('Pending payment completed successfully.');await loadMyPets()}
     else if(d.status==='PENDING')toast('Pending Pi payment is still waiting for blockchain confirmation.');
     else if(d.status==='CANCELLED')toast('The pending Pi payment was cancelled.');
@@ -550,7 +556,7 @@ async function syncPioneer(){
     if(r.ok){
       const d=await r.json().catch(()=>({}));
       const wallet=d.walletAddress||d.wallet_address||d.address||'';
-      if(wallet){currentUser.wallet_address=wallet;localStorage.setItem('amtPetPiWallet',wallet)}
+      if(/^G[A-Za-z0-9]{55}$/.test(wallet)){currentUser.wallet_address=wallet;localStorage.setItem('amtPetPiWallet',wallet)}
       if(d.username)currentUser.username=d.username;if(d.uid)currentUser.uid=d.uid;
     }
   }catch(e){console.log('Optional backend sync:',e)}
@@ -638,9 +644,9 @@ async function buyPetPrepared(){
             console.log('Pi payment approved:',approvalData);
           }catch(e){console.error('Pi approval:',e);fail(e)}
         },
-        onReadyForServerCompletion:async paymentId=>{
+        onReadyForServerCompletion:async (paymentId,txid)=>{
           try{
-            const complete=await fetch(API+'/api/payments/pi/complete',{method:'POST',headers:authHeaders(),body:JSON.stringify({payment_id:paymentId,pet_code:petCode})}),completeData=await complete.json().catch(()=>({}));
+            const complete=await fetch(API+'/api/payments/pi/complete',{method:'POST',headers:authHeaders(),body:JSON.stringify({payment_id:paymentId,txid:txid||'',pet_code:petCode})}),completeData=await complete.json().catch(()=>({}));
             if(!complete.ok)throw Error(completeData.error||'Payment completion failed.');
             done(completeData);
           }catch(e){console.error('Pi completion:',e);fail(e)}
