@@ -172,7 +172,8 @@ app.get("/api/health",async(req,res)=>{
 
 app.get("/api/pets",async(req,res)=>{
   try {
-    const r=await dbQuery(`SELECT pet_code,name,element,rarity,image,base_hp,base_atk,base_def
+    const r=await dbQuery(`SELECT pet_code,name,element,rarity,image,base_hp,base_atk,base_def,
+        ${PET_PI_PRICE}::numeric AS pi_price, ${PET_PI_PRICE}::numeric AS price_pi, ${PET_AMT_PRICE}::numeric AS amt_price
       FROM pets_catalog ORDER BY CASE element WHEN 'Earth' THEN 1 WHEN 'Water' THEN 2
       WHEN 'Nature' THEN 3 WHEN 'Ice' THEN 4 WHEN 'Fire' THEN 5 WHEN 'Wind' THEN 6
       WHEN 'Thunder' THEN 7 ELSE 99 END,pet_code`);
@@ -182,7 +183,8 @@ app.get("/api/pets",async(req,res)=>{
 
 app.get("/api/pets/element/:element",async(req,res)=>{
   try {
-    const r=await dbQuery(`SELECT pet_code,name,element,rarity,image,base_hp,base_atk,base_def
+    const r=await dbQuery(`SELECT pet_code,name,element,rarity,image,base_hp,base_atk,base_def,
+        ${PET_PI_PRICE}::numeric AS pi_price, ${PET_PI_PRICE}::numeric AS price_pi, ${PET_AMT_PRICE}::numeric AS amt_price
       FROM pets_catalog WHERE LOWER(element)=LOWER($1) ORDER BY pet_code`,[req.params.element]);
     res.json({ok:true,element:req.params.element,count:r.rows.length,pets:r.rows});
   } catch(e) { res.status(500).json({ok:false,error:"Unable to load pets."}); }
@@ -190,7 +192,8 @@ app.get("/api/pets/element/:element",async(req,res)=>{
 
 app.get("/api/pets/:petCode",async(req,res)=>{
   try {
-    const r=await dbQuery(`SELECT pet_code,name,element,rarity,image,base_hp,base_atk,base_def
+    const r=await dbQuery(`SELECT pet_code,name,element,rarity,image,base_hp,base_atk,base_def,
+        ${PET_PI_PRICE}::numeric AS pi_price, ${PET_PI_PRICE}::numeric AS price_pi, ${PET_AMT_PRICE}::numeric AS amt_price
       FROM pets_catalog WHERE pet_code=$1 LIMIT 1`,[req.params.petCode]);
     if(!r.rows.length) return res.status(404).json({ok:false,error:"Pet not found."});
     res.json({ok:true,pet:r.rows[0]});
@@ -299,6 +302,65 @@ app.post("/api/payments/pi/complete",requirePiAuth,async(req,res)=>{
       WHERE payment_id=$2`,[transactionId,payment_id]);
     res.json({ok:true,status:"COMPLETED",paymentId:payment_id,transactionId,pet});
   } catch(e) { console.error("complete pi:",e);res.status(400).json({ok:false,error:e.message||"Pi completion verification failed."}); }
+});
+
+/* Recover/complete a payment reported by Pi SDK as incomplete/pending. */
+app.post("/api/payments/pi/recover",requirePiAuth,async(req,res)=>{
+  try {
+    const {payment_id,pet_code}=req.body||{};
+    if(!payment_id) return res.status(400).json({ok:false,error:"payment_id is required."});
+
+    const payment=await piFetch("/v2/payments/"+encodeURIComponent(payment_id));
+    const row=await dbQuery("SELECT * FROM pet_payments WHERE payment_id=$1 LIMIT 1",[payment_id]);
+    const metadata=payment.metadata||{};
+    const resolvedPetCode=pet_code||metadata.pet_code||row.rows[0]?.pet_code;
+    if(!resolvedPetCode) return res.status(400).json({ok:false,error:"Pet code is missing from the pending payment."});
+
+    const pet=await dbQuery("SELECT pet_code,name FROM pets_catalog WHERE pet_code=$1 LIMIT 1",[resolvedPetCode]);
+    if(!pet.rows.length) return res.status(404).json({ok:false,error:"Pet not found for pending payment."});
+
+    if(row.rows.length && row.rows[0].pi_uid!==req.piUser.uid) {
+      return res.status(403).json({ok:false,error:"This payment belongs to another Pioneer."});
+    }
+
+    if(!row.rows.length) {
+      await dbQuery(`INSERT INTO pet_payments(payment_id,pi_uid,username,pet_code,currency,amount,status)
+        VALUES($1,$2,$3,$4,'PI',$5,'CREATED')
+        ON CONFLICT(payment_id) DO NOTHING`,
+        [payment_id,req.piUser.uid,req.piUser.username,resolvedPetCode,Number(payment.amount||PET_PI_PRICE)]);
+    }
+
+    if(Number(payment.amount)!==Number(PET_PI_PRICE)) {
+      return res.status(400).json({ok:false,error:`Pending payment amount is not ${PET_PI_PRICE} Pi Test.`});
+    }
+    const status=payment.status||{};
+    if(status.cancelled===true || status.cancelled===1) {
+      return res.status(409).json({ok:false,error:"Pi pending payment was cancelled."});
+    }
+
+    const transactionId=payment.transaction?.txid||payment.txid||"";
+    if(!transactionId) {
+      return res.status(409).json({ok:false,error:"Pending payment has no blockchain transaction ID yet. Please wait for Pi to finish the transaction."});
+    }
+
+    if(!(row.rows.length && row.rows[0].status==="COMPLETED")) {
+      await piFetch("/v2/payments/"+encodeURIComponent(payment_id)+"/complete",{
+        method:"POST",
+        body:JSON.stringify({txid:transactionId})
+      });
+      const fresh=await dbQuery("SELECT status FROM pet_payments WHERE payment_id=$1 LIMIT 1",[payment_id]);
+      if(!fresh.rows.length || fresh.rows[0].status!=="COMPLETED") {
+        const petOwned=await grantPet(req.piUser.uid,resolvedPetCode);
+        await dbQuery(`UPDATE pet_payments SET status='COMPLETED',transaction_id=$1,completed_at=NOW(),updated_at=NOW()
+          WHERE payment_id=$2`,[transactionId,payment_id]);
+        return res.json({ok:true,status:"COMPLETED",paymentId:payment_id,transactionId,pet:petOwned,recovered:true});
+      }
+    }
+    res.json({ok:true,status:"COMPLETED",paymentId:payment_id,transactionId,recovered:true});
+  } catch(e) {
+    console.error("recover pi:",e);
+    res.status(400).json({ok:false,error:e.message||"Unable to recover pending Pi payment."});
+  }
 });
 
 /* Pi SDK server callbacks can hit these endpoints without the browser.
