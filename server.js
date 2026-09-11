@@ -3,6 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const { Pool } = require("pg");
+const StellarSDK = require("@stellar/stellar-sdk");
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -19,6 +20,13 @@ const AMT_ISSUER = process.env.AMT_ISSUER || "GCDV5VKFE4EPQFRPDDZN64RXZMH2T4EHP4
 const AMT_RECEIVER = process.env.AMT_RECEIVER || process.env.AMT_DISTRIBUTOR ||
   "GAVFYNEHSTW4P65DM75P4TYAC6PNO5A6LGSYSGEFNN3O7A23XHWABSBP";
 const AMT_HORIZON_URL = process.env.AMT_HORIZON_URL || "https://api.testnet.minepi.com";
+const AMT_NETWORK_PASSPHRASE = process.env.AMT_NETWORK_PASSPHRASE || "Pi Testnet";
+const AMT_DISTRIBUTOR_SECRET = process.env.AMT_DISTRIBUTOR_SECRET || "";
+const AMT_DISTRIBUTOR_WALLET = process.env.AMT_DISTRIBUTOR_WALLET || "";
+const AMT_STORE_RATE = Number(process.env.AMT_STORE_RATE || "0.8");
+const AMT_STORE_CURRENCY = "Pi";
+const AMT_STORE_MIN_PI = 1;
+const AMT_STORE_MAX_PI = 1000;
 
 app.use(cors({origin:"*",methods:["GET","POST","OPTIONS"],allowedHeaders:["Content-Type","Authorization"]}));
 app.use(express.json({limit:"1mb"}));
@@ -103,6 +111,12 @@ async function initializeDatabase(){
     amount NUMERIC(30,8) NOT NULL,asset_code TEXT NOT NULL DEFAULT 'AMT',receiver TEXT NOT NULL,
     txid TEXT UNIQUE,status TEXT NOT NULL DEFAULT 'PREPARED',created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     completed_at TIMESTAMPTZ);`);
+  await dbQuery(`CREATE TABLE IF NOT EXISTS amt_store_orders(
+    id BIGSERIAL PRIMARY KEY,payment_id TEXT UNIQUE NOT NULL,pi_uid TEXT NOT NULL,username TEXT,
+    wallet_address TEXT NOT NULL,pi_amount NUMERIC(30,8) NOT NULL,amt_amount NUMERIC(30,8) NOT NULL,
+    rate NUMERIC(30,8) NOT NULL DEFAULT 0.8,status TEXT NOT NULL DEFAULT 'CREATED',
+    pi_txid TEXT,amt_txid TEXT,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),completed_at TIMESTAMPTZ);`);
   await dbQuery(`CREATE TABLE IF NOT EXISTS pet_battles(
     id BIGSERIAL PRIMARY KEY,attacker_pioneer_id BIGINT NOT NULL REFERENCES pioneers(id) ON DELETE CASCADE,
     attacker_pet_id BIGINT NOT NULL REFERENCES user_pets(id) ON DELETE CASCADE,
@@ -461,6 +475,113 @@ app.get("/api/market/eggs",async(req,res)=>{
       WHERE l.status='ACTIVE' ORDER BY l.created_at DESC`);
     res.json({ok:true,count:r.rows.length,listings:r.rows});
   }catch(e){res.status(500).json({ok:false,error:e.message});}
+});
+
+/* AMT TOKEN STORE — Pi Testnet -> on-chain AMT */
+function storeAmountValid(amount){
+  const n=Number(amount);
+  return Number.isFinite(n)&&n>=AMT_STORE_MIN_PI&&n<=AMT_STORE_MAX_PI;
+}
+function distributorConfig(){
+  if(!AMT_DISTRIBUTOR_SECRET)throw new Error("AMT_DISTRIBUTOR_SECRET is not configured on the server.");
+  const keypair=StellarSDK.Keypair.fromSecret(AMT_DISTRIBUTOR_SECRET);
+  const wallet=AMT_DISTRIBUTOR_WALLET||keypair.publicKey();
+  if(wallet!==keypair.publicKey())throw new Error("AMT_DISTRIBUTOR_WALLET does not match AMT_DISTRIBUTOR_SECRET.");
+  return {keypair,wallet};
+}
+async function sendAMTFromDistributor(destination,amount){
+  if(!isPublicStellarAddress(destination))throw new Error("Recipient wallet address is invalid.");
+  const amountText=Number(amount).toFixed(7).replace(/0+$/,'').replace(/\.$/,'');
+  if(Number(amountText)<=0)throw new Error("AMT payout amount must be greater than zero.");
+  const {keypair,wallet}=distributorConfig();
+  const server=new StellarSDK.Horizon.Server(AMT_HORIZON_URL);
+  const distributor=await server.loadAccount(wallet);
+  const recipient=await server.loadAccount(destination);
+  const asset=new StellarSDK.Asset(AMT_ASSET_CODE,AMT_ISSUER);
+  const trust=recipient.balances.find(b=>b.asset_type!=="native"&&b.asset_code===AMT_ASSET_CODE&&b.asset_issuer===AMT_ISSUER);
+  if(!trust)throw new Error("Your Pi Testnet wallet has no AMT trustline. Open Pi Wallet → Tokens, add AMT, and enable the AMT trustline first.");
+  const fee=await server.fetchBaseFee();
+  const tx=new StellarSDK.TransactionBuilder(distributor,{fee,networkPassphrase:AMT_NETWORK_PASSPHRASE,timebounds:await server.fetchTimebounds(90)})
+    .addOperation(StellarSDK.Operation.payment({destination,asset,amount:amountText}))
+    .build();
+  tx.sign(keypair);
+  const submitted=await server.submitTransaction(tx);
+  return {txid:submitted.hash,ledger:submitted.ledger,amount:Number(amountText),from:wallet,to:destination};
+}
+async function finalizeAMTStoreOrder(paymentId,piTxid,piUser){
+  const row=await dbQuery("SELECT * FROM amt_store_orders WHERE payment_id=$1 AND pi_uid=$2 LIMIT 1",[paymentId,piUser.uid]);
+  if(!row.rows.length)throw new Error("AMT Store order not found.");
+  const order=row.rows[0];
+  if(order.status==='AMT_SENT')return {status:'COMPLETED',order,alreadySent:true};
+  await dbQuery(`UPDATE amt_store_orders SET status='PI_COMPLETED',pi_txid=$1,updated_at=NOW() WHERE payment_id=$2`,[piTxid,paymentId]);
+  try{
+    const payout=await sendAMTFromDistributor(order.wallet_address,order.amt_amount);
+    const updated=await dbQuery(`UPDATE amt_store_orders SET status='AMT_SENT',amt_txid=$1,completed_at=NOW(),updated_at=NOW() WHERE payment_id=$2 RETURNING *`,[payout.txid,paymentId]);
+    return {status:'COMPLETED',order:updated.rows[0],payout};
+  }catch(e){
+    await dbQuery(`UPDATE amt_store_orders SET status='PI_COMPLETED_PENDING_AMT',updated_at=NOW() WHERE payment_id=$1`,[paymentId]);
+    return {status:'PI_COMPLETED_PENDING_AMT',order:{...order,status:'PI_COMPLETED_PENDING_AMT',pi_txid:piTxid},error:e.message};
+  }
+}
+
+app.get("/api/amt-store/config",requirePiAuth,async(req,res)=>{
+  try{
+    res.json({ok:true,network:"Pi Testnet",currency:AMT_STORE_CURRENCY,rate:AMT_STORE_RATE,formula:`1 Pi = ${AMT_STORE_RATE} AMT`,minPi:AMT_STORE_MIN_PI,maxPi:AMT_STORE_MAX_PI,asset_code:AMT_ASSET_CODE,issuer:AMT_ISSUER,distributorConfigured:Boolean(AMT_DISTRIBUTOR_SECRET)});
+  }catch(e){res.status(400).json({ok:false,error:e.message});}
+});
+app.get("/api/amt-store/orders",requirePiAuth,async(req,res)=>{
+  try{const r=await dbQuery(`SELECT id,payment_id,pi_amount,amt_amount,rate,status,pi_txid,amt_txid,created_at,completed_at FROM amt_store_orders WHERE pi_uid=$1 ORDER BY created_at DESC LIMIT 20`,[req.piUser.uid]);res.json({ok:true,orders:r.rows});}
+  catch(e){res.status(500).json({ok:false,error:e.message});}
+});
+app.post("/api/amt-store/prepare",requirePiAuth,async(req,res)=>{
+  try{
+    const paymentId=String(req.body?.payment_id||'').trim(),piAmount=Number(req.body?.pi_amount),wallet=req.pioneer.wallet_address||'';
+    if(!paymentId||!storeAmountValid(piAmount))return res.status(400).json({ok:false,error:`Choose a Pi amount from ${AMT_STORE_MIN_PI} to ${AMT_STORE_MAX_PI}.`});
+    if(!isPublicStellarAddress(wallet))return res.status(400).json({ok:false,error:"Sync your public Pi Testnet wallet first."});
+    const amtAmount=Number((piAmount*AMT_STORE_RATE).toFixed(7));
+    await dbQuery(`INSERT INTO amt_store_orders(payment_id,pi_uid,username,wallet_address,pi_amount,amt_amount,rate,status) VALUES($1,$2,$3,$4,$5,$6,$7,'CREATED') ON CONFLICT(payment_id) DO UPDATE SET wallet_address=EXCLUDED.wallet_address,pi_amount=EXCLUDED.pi_amount,amt_amount=EXCLUDED.amt_amount,rate=EXCLUDED.rate,updated_at=NOW()`,[paymentId,req.piUser.uid,req.piUser.username,wallet,piAmount,amtAmount,AMT_STORE_RATE]);
+    res.json({ok:true,paymentId,piAmount,amtAmount,rate:AMT_STORE_RATE,currency:AMT_STORE_CURRENCY,status:"CREATED"});
+  }catch(e){res.status(400).json({ok:false,error:e.message});}
+});
+app.post("/api/amt-store/approve",requirePiAuth,async(req,res)=>{
+  try{
+    const paymentId=String(req.body?.payment_id||'').trim();
+    const row=await dbQuery("SELECT * FROM amt_store_orders WHERE payment_id=$1 AND pi_uid=$2 LIMIT 1",[paymentId,req.piUser.uid]);
+    if(!row.rows.length)return res.status(404).json({ok:false,error:"AMT Store order not found."});
+    const payment=await piFetch("/v2/payments/"+encodeURIComponent(paymentId));
+    if(Number(payment.amount)!==Number(row.rows[0].pi_amount))return res.status(400).json({ok:false,error:"Pi payment amount does not match the store order."});
+    const approved=await piFetch("/v2/payments/"+encodeURIComponent(paymentId)+"/approve",{method:"POST"});
+    await dbQuery("UPDATE amt_store_orders SET status='APPROVED',updated_at=NOW() WHERE payment_id=$1",[paymentId]);
+    res.json({ok:true,status:"APPROVED",paymentId,pi:approved});
+  }catch(e){res.status(400).json({ok:false,error:e.message});}
+});
+app.post("/api/amt-store/complete",requirePiAuth,async(req,res)=>{
+  try{
+    const paymentId=String(req.body?.payment_id||'').trim(),txid=String(req.body?.txid||'').trim();
+    const row=await dbQuery("SELECT * FROM amt_store_orders WHERE payment_id=$1 AND pi_uid=$2 LIMIT 1",[paymentId,req.piUser.uid]);
+    if(!row.rows.length)return res.status(404).json({ok:false,error:"AMT Store order not found."});
+    if(row.rows[0].status==='AMT_SENT')return res.json({ok:true,status:'COMPLETED',order:row.rows[0]});
+    const payment=await piFetch("/v2/payments/"+encodeURIComponent(paymentId));
+    const transactionId=txid||payment.transaction?.txid||'';
+    if(!transactionId)return res.status(409).json({ok:false,status:'PENDING',error:"Pi transaction ID is not available yet."});
+    if(Number(payment.amount)!==Number(row.rows[0].pi_amount))return res.status(400).json({ok:false,error:"Pi payment amount does not match the store order."});
+    if(payment.status?.cancelled===true)return res.status(409).json({ok:false,error:"Pi payment was cancelled."});
+    const completed=await piFetch("/v2/payments/"+encodeURIComponent(paymentId)+"/complete",{method:"POST",body:JSON.stringify({txid:transactionId})});
+    if(completed?.status?.developer_completed!==true)throw new Error("Pi payment was not developer-completed.");
+    const result=await finalizeAMTStoreOrder(paymentId,transactionId,req.piUser);
+    res.json({ok:true,status:result.status,paymentId,piTxid:transactionId,order:result.order,payout:result.payout||null,error:result.error||null});
+  }catch(e){console.error("AMT STORE COMPLETE:",e);res.status(400).json({ok:false,error:e.message});}
+});
+app.post("/api/amt-store/retry",requirePiAuth,async(req,res)=>{
+  try{
+    const paymentId=String(req.body?.payment_id||'').trim();
+    const row=await dbQuery("SELECT * FROM amt_store_orders WHERE payment_id=$1 AND pi_uid=$2 LIMIT 1",[paymentId,req.piUser.uid]);
+    if(!row.rows.length)return res.status(404).json({ok:false,error:"AMT Store order not found."});
+    if(row.rows[0].status==='AMT_SENT')return res.json({ok:true,status:'COMPLETED',order:row.rows[0]});
+    if(!row.rows[0].pi_txid)return res.status(409).json({ok:false,error:"The Pi payment is not completed yet."});
+    const result=await finalizeAMTStoreOrder(paymentId,row.rows[0].pi_txid,req.piUser);
+    res.json({ok:true,status:result.status,order:result.order,payout:result.payout||null,error:result.error||null});
+  }catch(e){res.status(400).json({ok:false,error:e.message});}
 });
 
 /* PI PAYMENT RECOVERY */
