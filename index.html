@@ -62,6 +62,8 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 .filterBtn.active{background:linear-gradient(135deg,#12a9df,#4169ff);color:#fff;border-color:transparent;box-shadow:0 4px 14px #148fe044}
 .filterLabel{font-size:11px;font-weight:1000;color:#8faec1;margin:2px 0 6px}
 
+/* AMT Token Store */
+.storeHero{background:radial-gradient(circle at 15% 20%,#35c9ff18,transparent 34%),radial-gradient(circle at 90% 10%,#ffd66b16,transparent 30%),linear-gradient(145deg,#102d46,#07121e);border:1px solid #2d617f;border-radius:22px;padding:18px;box-shadow:0 18px 42px #0006;margin-bottom:12px}.storeHero h2{margin:0 0 6px;font-size:24px}.storeHero p{margin:0;color:#9eb8ca;line-height:1.5;font-size:12px}.storeRate{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;padding:12px;border:1px solid #315a77;border-radius:14px;background:#06111bdd}.storeRate b{color:var(--gold);font-size:17px}.storeGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}.storePack{position:relative;background:linear-gradient(145deg,#112d44,#07131f);border:1px solid #2a536d;border-radius:17px;padding:15px;box-shadow:0 10px 24px #0005}.storePack.featured{border-color:#ffd66b;box-shadow:0 0 24px #ffd66b12,0 12px 30px #0006}.storePack .tag{display:inline-block;font-size:9px;font-weight:1000;color:#ffd66b;border:1px solid #8b6b27;border-radius:99px;padding:4px 7px;margin-bottom:8px}.storePack h3{margin:0;font-size:21px}.storePack .receive{margin:5px 0 12px;color:#54e39a;font-weight:1000}.storeNote{font-size:10px;color:#7895a8;line-height:1.5}.storeStatus{margin-top:10px;padding:10px;border-radius:11px;background:#06111b;border:1px solid #1b3a50;color:#a9bfd0;font-size:11px;line-height:1.45}.orderRow{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid #173248;font-size:11px}.orderRow:last-child{border-bottom:0}.statusGood{color:#54e39a;font-weight:1000}.statusWait{color:#ffd66b;font-weight:1000}.statusBad{color:#ff7180;font-weight:1000}
 .petGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:11px}
 .petCard{background:linear-gradient(145deg,#122b42 0%,#081521 68%,#06101a 100%);border:1px solid #27516d;border-radius:19px;overflow:hidden;position:relative;box-shadow:0 12px 30px #0005,0 0 0 1px #ffffff05 inset;transition:.22s}.petCard:hover{transform:translateY(-4px);border-color:#45cfff;box-shadow:0 18px 36px #0007,0 0 25px #35c9ff12}.petCard .petPic{padding:7px;background:radial-gradient(circle at 50% 38%,#1a4160,#06101b 72%);object-fit:contain}.petVisual{position:relative;background:radial-gradient(circle at 50% 42%,#1c4563 0,#07121d 72%)}.rarityRibbon{position:absolute;right:8px;top:8px;padding:5px 8px;border-radius:999px;background:#06101ddd;border:1px solid #55748a;font-size:9px;font-weight:1000;letter-spacing:.7px}.petGlow{position:absolute;inset:auto 15% 6px;height:22px;background:#35c9ff1a;filter:blur(12px);border-radius:50%}.petStatsGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:9px 0}.petStatBox{padding:7px 5px;text-align:center;border:1px solid #1b3a50;background:#06111b;border-radius:9px}.petStatBox span{display:block;font-size:8px;color:#7895a8;font-weight:900}.petStatBox b{display:block;font-size:12px;margin-top:2px}.rarity-Common .rarityRibbon{border-color:#6b8392}.rarity-Uncommon .rarityRibbon{border-color:#54e39a;color:#54e39a}.rarity-Rare .rarityRibbon{border-color:#35c9ff;color:#35c9ff}.rarity-Epic .rarityRibbon{border-color:#c48cff;color:#d5a8ff}.rarity-Legendary .rarityRibbon{border-color:#ffd66b;color:#ffd66b}.rarity-Mythic .rarityRibbon{border-color:#ff7180;color:#ff9aa5}
 .petPic{display:block;width:100%;aspect-ratio:1/1.08;object-fit:cover;background:#07111d}.petBadge{position:absolute;top:7px;left:7px;background:#06101ddd;border:1px solid #4b718b;border-radius:99px;padding:5px 7px;font-size:9px;font-weight:900}
@@ -155,6 +157,7 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 
 <nav class="tabs">
   <button class="tab active" data-panel="market" onclick="showPanel('market',this)">🛒 MARKET</button>
+  <button class="tab" data-panel="store" onclick="showPanel('store',this);loadAMTStore()">🪙 AMT STORE</button>
   <button class="tab" data-panel="pets" onclick="showPanel('pets',this)">🐾 MY PETS</button>
   <button class="tab" data-panel="eggs" onclick="showPanel('eggs',this);loadMyEggs()">🥚 EGGS</button>
   <button class="tab" data-panel="profile" onclick="showPanel('profile',this)">👤 MY PROFILE</button>
@@ -188,6 +191,25 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
     </select>
   </div>
   <div id="grid" class="petGrid"><div class="msg">Loading pets...</div></div>
+</section>
+
+<section id="store" class="panel">
+  <div class="storeHero">
+    <h2>🪙 AMT TOKEN STORE</h2>
+    <p>Convert Pi Testnet into real on-chain AMT through the verified Pi payment flow. AMT is sent from the marketplace distributor wallet directly to your synchronized Pi Testnet wallet.</p>
+    <div class="storeRate"><span>TESTNET COMMUNITY RATE</span><b>100 Pi → 80 AMT</b></div>
+  </div>
+  <div class="card">
+    <div class="cardTitle">⚡ CHOOSE YOUR AMT PACKAGE</div>
+    <div id="amtStorePacks" class="storeGrid">
+      <div class="msg">Checking AMT Store...</div>
+    </div>
+    <div id="amtStoreStatus" class="storeStatus">Wallet and distributor checks will appear here.</div>
+  </div>
+  <div class="card">
+    <div class="cardTitle">🧾 MY AMT ORDERS</div>
+    <div id="amtStoreOrders"><div class="muted">No AMT Store orders loaded yet.</div></div>
+  </div>
 </section>
 
 <section id="pets" class="panel">
@@ -596,6 +618,83 @@ async function stakeAMT(){
     const d=await apiPost('/api/staking/create',{amount_amt:amount,lock_days:days,txid});
     toast(d.message||'AMT stake verified and activated.');$('stakeAmount').value='';$('stakeTxid').value='';await loadStakes();await refreshWalletSync();
   }catch(e){console.error('STAKE:',e);toast(e.message)}
+}
+
+/* AMT Token Store */
+const AMT_STORE_PACKS=[
+  {pi:10,amt:8},
+  {pi:25,amt:20},
+  {pi:50,amt:40},
+  {pi:100,amt:80,featured:true}
+];
+async function loadAMTStore(){
+  if(!currentUser?.accessToken)return;
+  const box=$('amtStorePacks'),status=$('amtStoreStatus');
+  if(box)box.innerHTML=AMT_STORE_PACKS.map((x,i)=>`<article class="storePack ${x.featured?'featured':''}">${x.featured?'<span class="tag">RECOMMENDED</span>':''}<h3>${x.pi} Pi</h3><div class="receive">→ ${x.amt} AMT</div><div class="storeNote">On-chain AMT payout<br>Pi Testnet only</div><button class="action gold" style="margin-top:11px" onclick="buyAMTBundle(${x.pi},${x.amt})">BUY ${x.amt} AMT</button></article>`).join('');
+  try{
+    const r=await fetch(API+'/api/amt-store/config',{headers:authHeaders(),cache:'no-store'}),d=await r.json().catch(()=>({}));
+    if(!r.ok)throw Error(d.error||'AMT Store configuration unavailable.');
+    if(status)status.innerHTML=`Rate: <b>${esc(d.formula||'1 Pi = 0.8 AMT')}</b> • Network: <b>Pi Testnet</b> • AMT distributor: <b class="${d.distributorConfigured?'statusGood':'statusWait'}">${d.distributorConfigured?'READY':'NOT CONFIGURED'}</b><br><span class="small">Your wallet must have the AMT trustline enabled before payout.</span>`;
+    await loadAMTStoreOrders();
+  }catch(e){if(status)status.textContent=e.message||'AMT Store unavailable.';console.error('AMT STORE CONFIG:',e)}
+}
+async function loadAMTStoreOrders(){
+  if(!currentUser?.accessToken)return;
+  try{
+    const r=await fetch(API+'/api/amt-store/orders',{headers:authHeaders(),cache:'no-store'}),d=await r.json().catch(()=>({}));
+    if(!r.ok)throw Error(d.error||'Could not load AMT orders.');
+    const rows=d.orders||[];
+    $('amtStoreOrders').innerHTML=rows.length?rows.map(o=>{
+      const cls=o.status==='AMT_SENT'?'statusGood':(o.status.includes('PENDING')?'statusWait':'');
+      return `<div class="orderRow"><span>${Number(o.pi_amount)} Pi → ${Number(o.amt_amount)} AMT<br><span class="small">${esc(o.created_at||'')}</span></span><span class="${cls}">${esc(o.status)}</span>${o.status.includes('PENDING_AMT')?`<button class="copyBtn" onclick="retryAMTStore('${esc(o.payment_id)}')">RETRY</button>`:''}</div>`;
+    }).join(''):'<div class="muted">No AMT Store orders yet.</div>';
+  }catch(e){console.error('AMT STORE ORDERS:',e)}
+}
+async function buyAMTBundle(piAmount,expectedAMT){
+  if(!currentUser){toast('Login with Pi first.');return}
+  if(!currentUser.accessToken){toast('Please log in with Pi again.');return}
+  if(!validWallet(currentUser.wallet_address)){toast('Sync your Pi Testnet wallet first.');return}
+  if(!window.Pi){toast('Open AMT Pet Marketplace in Pi Browser.');return}
+  try{
+    initPi();
+    toast(`Opening Pi payment for ${piAmount} Pi...`);
+    await new Promise((resolve,reject)=>{
+      let settled=false;const fail=e=>{if(settled)return;settled=true;reject(e instanceof Error?e:Error(String(e||'Payment failed.')))};const done=v=>{if(settled)return;settled=true;resolve(v)};
+      Pi.createPayment({amount:Number(piAmount),currency:'Pi',memo:`AMT Token Store — ${expectedAMT} AMT`,metadata:{type:'amt_token_purchase',pi_amount:Number(piAmount),amt_amount:Number(expectedAMT)}},{
+        onReadyForServerApproval:async paymentId=>{
+          try{
+            const prep=await fetch(API+'/api/amt-store/prepare',{method:'POST',headers:authHeaders(),body:JSON.stringify({payment_id:paymentId,pi_amount:Number(piAmount)})}),pd=await prep.json().catch(()=>({}));
+            if(!prep.ok)throw Error(pd.error||'AMT Store order preparation failed.');
+            const approval=await fetch(API+'/api/amt-store/approve',{method:'POST',headers:authHeaders(),body:JSON.stringify({payment_id:paymentId})}),ad=await approval.json().catch(()=>({}));
+            if(!approval.ok)throw Error(ad.error||'AMT Store server approval failed.');
+            console.log('AMT Store approved:',ad);
+          }catch(e){fail(e)}
+        },
+        onReadyForServerCompletion:async(paymentId,txid)=>{
+          try{
+            const complete=await fetch(API+'/api/amt-store/complete',{method:'POST',headers:authHeaders(),body:JSON.stringify({payment_id:paymentId,txid:txid||''})}),cd=await complete.json().catch(()=>({}));
+            if(!complete.ok)throw Error(cd.error||'AMT Store completion failed.');
+            done(cd);
+          }catch(e){fail(e)}
+        },
+        onIncompletePaymentFound:p=>{window.__amtIncompletePayment=p;window.__amtIncompletePaymentAt=Date.now()},
+        onCancel:()=>fail(Error('AMT Store payment cancelled.')),
+        onError:e=>fail(Error(e?.message||'AMT Store payment failed.'))
+      });
+    }).then(async d=>{
+      if(d.status==='COMPLETED')toast(`Success! ${expectedAMT} AMT was sent to your Pi Testnet wallet.`);
+      else if(d.status==='PI_COMPLETED_PENDING_AMT')toast('Pi payment completed, but AMT payout is waiting. Open AMT Store and tap RETRY after your wallet trustline is ready.');
+      await refreshWalletSync();await loadAMTStoreOrders();
+    });
+  }catch(e){console.error('AMT STORE BUY:',e);toast(e.message||'AMT Store payment failed.')}
+}
+async function retryAMTStore(paymentId){
+  try{
+    const r=await fetch(API+'/api/amt-store/retry',{method:'POST',headers:authHeaders(),body:JSON.stringify({payment_id:paymentId})}),d=await r.json().catch(()=>({}));
+    if(!r.ok)throw Error(d.error||'AMT payout retry failed.');
+    toast(d.status==='COMPLETED'?'AMT payout completed successfully.':(d.error||'AMT payout is still pending.'));
+    await refreshWalletSync();await loadAMTStoreOrders();
+  }catch(e){toast(e.message||'AMT payout retry failed.')}
 }
 
 /* Pi / wallet helpers */
