@@ -244,7 +244,7 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
     <div class="row" style="margin-top:10px"><span class="muted">Wallet status</span><b id="walletSyncStatus">NOT SYNCHRONIZED</b></div>
     <div class="row"><span class="muted">🟣 Pi Wallet Balance</span><b id="piBalance">— PI</b></div>
     <div class="row"><span class="muted">🪙 On-chain AMT</span><b id="onChainAMT">— AMT</b></div>
-    <div class="row"><span class="muted">AMT issuer</span><span id="amtIssuer">Not configured</span></div>
+    <div class="row"><span class="muted">AMT Network</span><b>Pi Testnet</b><span id="amtIssuer" style="display:none">Not configured</span></div>
     <div class="row" style="gap:8px;margin-top:10px">
       <button class="action" style="margin-top:0;flex:1" onclick="refreshWalletSync()">🔄 SYNC / REFRESH WALLET</button>
       <button class="action dark" style="margin-top:0;flex:1" onclick="requestWalletPermission()">🔐 AUTHORIZE WALLET</button>
@@ -280,7 +280,7 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 <section id="breeding" class="panel">
   <div class="incubatorBanner"><div><b>🧪 24-HOUR INCUBATOR</b><br><span>Breed first. Get an Egg. Incubate it. Then hatch your next NFT pet.</span></div><span>🥚 → 🧪 → 🐣</span></div>
   <div class="card"><div class="cardTitle">🧬 BREEDING LAB</div><p class="muted">Choose two different owned pets. Breeding creates a tradable Egg first — no instant pet generation.</p><div class="row"><span class="muted">Community breeding target</span><b style="color:var(--gold)">5 AMT</b></div><div class="small">Testnet note: the AMT wallet charge will be connected to the secure wallet flow before live charging. Breeding itself is already recorded server-side.</div><button class="action" style="margin-top:11px" onclick="breedPets()">🧬 BREED → CREATE EGG</button></div>
-  <div class="card"><div class="cardTitle">🥚 MY EGGS & INCUBATOR</div><div class="muted">Your eggs are stored server-side. Incubation is a 24-hour server timer and cannot be reset by refreshing the page.</div></div>
+  <div class="card"><div class="cardTitle">🥚 MY EGGS & INCUBATOR <span class="status" style="float:right">READY TO USE</span></div><div class="muted">Your eggs are stored server-side. Tap <b>START INCUBATOR</b> to begin the 24-hour incubation. The timer is server-controlled and cannot be reset by refreshing the page.</div></div>
   <div id="myEggs" class="eggGrid"><div class="msg">Loading eggs...</div></div>
 </section>
 
@@ -732,7 +732,7 @@ function testWalletFallbackForCurrentUser(){
 async function refreshWalletSync(){
   if(!currentUser?.accessToken){
     $('walletSyncStatus').textContent='NOT SYNCHRONIZED';$('walletSyncStatus').style.color='';
-    $('walletAddress').textContent='Login with Pi first';$('piBalance').textContent='— PI';$('onChainAMT').textContent='— AMT';$('amtIssuer').textContent='Not configured';return;
+    $('walletAddress').textContent='Login with Pi first';$('piBalance').textContent='— PI';$('onChainAMT').textContent='— AMT';if($('amtIssuer'))$('amtIssuer').textContent='Not configured';return;
   }
   try{
     $('walletSyncStatus').textContent='SYNCING...';$('walletSyncStatus').style.color='#ffd66b';
@@ -755,7 +755,7 @@ async function refreshWalletSync(){
     if(!validWallet(candidate)){
       $('walletSyncStatus').textContent='WALLET PERMISSION REQUIRED';$('walletSyncStatus').style.color='#ffd66b';
       $('walletAddress').textContent='Wallet permission is not active. Tap AUTHORIZE WALLET and approve wallet_address.';$('piBalance').textContent='— PI';$('onChainAMT').textContent='— AMT';
-      $('amtIssuer').textContent='AMT issuer will appear after wallet sync';
+      if($('amtIssuer'))$('amtIssuer').textContent='configured';
       throw Error('Wallet permission is not active for this app. Tap AUTHORIZE WALLET in Pi Browser, approve wallet_address, then tap SYNC / REFRESH WALLET.');
     }
     saveWalletForCurrentUser(candidate);
@@ -779,7 +779,7 @@ async function refreshWalletSync(){
     $('walletAddress').textContent=shortAddress(currentUser.wallet_address);$('walletAddress').title=currentUser.wallet_address;
     $('piBalance').textContent=Number(d.pi_balance??d.piBalance??0).toFixed(8)+' PI';
     $('onChainAMT').textContent=Number(d.balance||0).toFixed(8)+' AMT';
-    const issuer=d.issuer||d.amt?.issuer||'Not configured';$('amtIssuer').textContent=shortAddress(issuer);$('amtIssuer').title=issuer;$('walletDiag').textContent=(currentUser.wallet_address===DEBUG_TEST_WALLET_FALLBACK&&String(currentUser.username||'').toLowerCase()===DEBUG_TEST_USERNAME.toLowerCase())?'Wallet source: TEMPORARY TESTNET DIAGNOSTIC FALLBACK':'Wallet source: Pi SDK / synchronized wallet';window.__amtWalletConfig=d;
+    const issuer=d.issuer||d.amt?.issuer||'Not configured';if($('amtIssuer')){$('amtIssuer').textContent=issuer;$('amtIssuer').title=issuer;}$('walletDiag').textContent=(currentUser.wallet_address===DEBUG_TEST_WALLET_FALLBACK&&String(currentUser.username||'').toLowerCase()===DEBUG_TEST_USERNAME.toLowerCase())?'Wallet source: TEMPORARY TESTNET DIAGNOSTIC FALLBACK':'Wallet source: Pi SDK / synchronized wallet';window.__amtWalletConfig=d;
     saveWalletForCurrentUser(currentUser.wallet_address);
   }catch(e){
     console.error('WALLET SYNC ERROR:',e);
