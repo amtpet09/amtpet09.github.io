@@ -962,10 +962,18 @@ function renderMyPets(list){
   $('myPets').innerHTML=window.__ownedPets.map((p,i)=>`<div class="owned" role="button" tabindex="0" onclick="openOwnedPet(${i})" onkeydown="if(event.key==='Enter'||event.key===' ')openOwnedPet(${i})"><img src="${img(p.image)}" alt="${esc(p.name)}"><div><b>${esc(p.name)}</b><br><span class="muted">${esc(p.element||'—')} • ${esc(p.rarity||'Common')} • Lv.${esc(p.level||1)}</span>${p.xp!=null?`<br><span class="small">XP: ${esc(p.xp)}</span>`:''}<div class="ownedHint">👆 TAP TO VIEW ABILITY STATS</div></div></div>`).join('');
 }
 
-/* Startup */
+/* Startup — ALWAYS show Pi Login first on every fresh browser open.
+   We intentionally do not restore the previous authenticated session here.
+   The Pioneer must press LOGIN WITH PI before entering the marketplace.
+   This avoids opening directly inside the marketplace and also prevents a
+   stale localStorage session from being treated as a fresh login. */
 document.addEventListener('DOMContentLoaded',()=>{
-  const uid=localStorage.getItem('amtPetPiUid'),name=localStorage.getItem('amtPetPiUsername'),wallet=localStorage.getItem('amtPetPiWallet'),accessToken=localStorage.getItem('amtPetPiAccessToken'),walletOwner=localStorage.getItem('amtPetPiWalletOwnerUid');
-  if(uid&&name&&accessToken){currentUser={uid,username:name,wallet_address:(walletOwner&&walletOwner!==uid)?'':(wallet||''),accessToken};enterApp()}
+  currentUser=null;
+  window.__amtIncompletePayment=null;
+  $('app').style.display='none';
+  $('loginScreen').style.display='flex';
+  $('loginBtn').disabled=false;
+  $('loginBtn').textContent='🟣 LOGIN WITH PI';
   load();
 });
 </script>
