@@ -33,7 +33,7 @@ async function dbQuery(text,params=[]) {
   return pool.query(text,params);
 }
 
-/* SAME 70-PET CATALOG */
+/* 70-PET CATALOG */
 const PET_SEED = [
 ["earth-01","Terrax","Earth","terrax.png",120,20,22],["earth-02","Rockhorn","Earth","rockhorn.png",125,19,24],
 ["earth-03","Stonefist","Earth","stonefist.png",130,22,25],["earth-04","Earthdrake","Earth","earthdrake.png",128,23,23],
@@ -91,9 +91,6 @@ async function initializeDatabase(){
     level INTEGER NOT NULL DEFAULT 1,xp BIGINT NOT NULL DEFAULT 0,hp INTEGER NOT NULL DEFAULT 100,
     atk INTEGER NOT NULL DEFAULT 10,def INTEGER NOT NULL DEFAULT 10,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`);
-  await dbQuery(`ALTER TABLE pioneers ADD COLUMN IF NOT EXISTS profile_image TEXT;`);
-  await dbQuery(`ALTER TABLE pioneers ADD COLUMN IF NOT EXISTS coins BIGINT NOT NULL DEFAULT 0;`);
-  await dbQuery(`ALTER TABLE pioneers ADD COLUMN IF NOT EXISTS food BIGINT NOT NULL DEFAULT 0;`);
   await dbQuery(`ALTER TABLE user_pets ADD COLUMN IF NOT EXISTS payment_id TEXT;`);
   await dbQuery(`CREATE UNIQUE INDEX IF NOT EXISTS user_pets_payment_id_uq ON user_pets(payment_id) WHERE payment_id IS NOT NULL;`);
   await dbQuery(`CREATE TABLE IF NOT EXISTS pet_payments(
@@ -121,8 +118,26 @@ async function initializeDatabase(){
     id BIGSERIAL PRIMARY KEY,pet_id BIGINT UNIQUE NOT NULL REFERENCES user_pets(id) ON DELETE CASCADE,
     pioneer_id BIGINT NOT NULL REFERENCES pioneers(id) ON DELETE CASCADE,price_amt NUMERIC(30,8) NOT NULL,
     status TEXT NOT NULL DEFAULT 'ACTIVE',created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`);
+
+  /* EGGS + INCUBATOR */
+  await dbQuery(`CREATE TABLE IF NOT EXISTS pet_eggs(
+    id BIGSERIAL PRIMARY KEY,egg_code TEXT UNIQUE NOT NULL,
+    pioneer_id BIGINT NOT NULL REFERENCES pioneers(id) ON DELETE CASCADE,
+    parent1_id BIGINT NOT NULL REFERENCES user_pets(id) ON DELETE CASCADE,
+    parent2_id BIGINT NOT NULL REFERENCES user_pets(id) ON DELETE CASCADE,
+    future_pet_code TEXT NOT NULL REFERENCES pets_catalog(pet_code),
+    element TEXT NOT NULL,rarity TEXT NOT NULL DEFAULT 'Common',
+    status TEXT NOT NULL DEFAULT 'NEW',incubated_at TIMESTAMPTZ,
+    hatch_ready_at TIMESTAMPTZ,hatch_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`);
+  await dbQuery(`CREATE TABLE IF NOT EXISTS egg_listings(
+    id BIGSERIAL PRIMARY KEY,egg_id BIGINT UNIQUE NOT NULL REFERENCES pet_eggs(id) ON DELETE CASCADE,
+    pioneer_id BIGINT NOT NULL REFERENCES pioneers(id) ON DELETE CASCADE,
+    price_amt NUMERIC(30,8) NOT NULL,status TEXT NOT NULL DEFAULT 'ACTIVE',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW());`);
   console.log("Database tables ready.");
 }
+
 async function seedPetCatalog(){
   if(!pool)return;
   for(const p of PET_SEED){
@@ -153,36 +168,26 @@ async function verifyPiAccessToken(token){
   const text=await r.text();let data={};
   try{data=text?JSON.parse(text):{};}catch{}
   if(!r.ok)throw new Error(data?.error||data?.message||"Pi authentication verification failed.");
-  return {
-    uid:data.uid||data.user?.uid||"",
-    username:data.username||data.user?.username||"",
-    wallet_address:data.wallet_address||data.walletAddress||data.user?.wallet_address||data.user?.walletAddress||""
-  };
+  return {uid:data.uid||data.user?.uid||"",username:data.username||data.user?.username||"",
+    wallet_address:data.wallet_address||data.walletAddress||data.user?.wallet_address||data.user?.walletAddress||""};
 }
 function isPublicStellarAddress(v){return typeof v==="string"&&/^G[A-Z2-7]{55}$/.test(v.trim().toUpperCase());}
-function normalizeWallet(v){
-  const x=String(v||"").trim().toUpperCase();
-  return isPublicStellarAddress(x)?x:"";
-}
+function normalizeWallet(v){const x=String(v||"").trim().toUpperCase();return isPublicStellarAddress(x)?x:"";}
 
-/* WALLET IS NOW LOCKED AFTER THE FIRST VALID SYNC */
 async function upsertPioneer(pi_uid,username,wallet_address){
   const incoming=normalizeWallet(wallet_address);
-  if(wallet_address && !incoming)throw new Error("Invalid Pi Testnet public wallet address.");
+  if(wallet_address&&!incoming)throw new Error("Invalid Pi Testnet public wallet address.");
   const old=await dbQuery("SELECT * FROM pioneers WHERE pi_uid=$1 LIMIT 1",[pi_uid]);
   if(old.rows.length){
     const current=normalizeWallet(old.rows[0].wallet_address);
-    if(current&&incoming&&current!==incoming)
-      throw new Error("This Pioneer wallet is already synchronized and cannot be changed from this app.");
+    if(current&&incoming&&current!==incoming)throw new Error("This Pioneer wallet is already synchronized and cannot be changed from this app.");
     const r=await dbQuery(`UPDATE pioneers SET username=COALESCE(NULLIF($2,''),username),
-      wallet_address=COALESCE(NULLIF($3,''),wallet_address),updated_at=NOW()
-      WHERE pi_uid=$1 RETURNING id,pi_uid,username,wallet_address,created_at,updated_at`,
-      [pi_uid,username||"",incoming]);
+      wallet_address=COALESCE(NULLIF($3,''),wallet_address),updated_at=NOW() WHERE pi_uid=$1
+      RETURNING id,pi_uid,username,wallet_address,created_at,updated_at`,[pi_uid,username||"",incoming]);
     return r.rows[0];
   }
-  const r=await dbQuery(`INSERT INTO pioneers(pi_uid,username,wallet_address)
-    VALUES($1,$2,$3) RETURNING id,pi_uid,username,wallet_address,created_at,updated_at`,
-    [pi_uid,username||"",incoming||null]);
+  const r=await dbQuery(`INSERT INTO pioneers(pi_uid,username,wallet_address) VALUES($1,$2,$3)
+    RETURNING id,pi_uid,username,wallet_address,created_at,updated_at`,[pi_uid,username||"",incoming||null]);
   return r.rows[0];
 }
 
@@ -210,7 +215,8 @@ async function grantPet(pi_uid,pet_code,payment_id=null){
   const u=await dbQuery("SELECT id FROM pioneers WHERE pi_uid=$1 LIMIT 1",[pi_uid]);
   if(!u.rows.length)throw new Error("Pioneer not found.");
   if(payment_id){
-    const existing=await dbQuery("SELECT up.*,pc.name,pc.element,pc.image FROM user_pets up JOIN pets_catalog pc ON pc.pet_code=up.pet_code WHERE up.payment_id=$1 LIMIT 1",[payment_id]);
+    const existing=await dbQuery(`SELECT up.*,pc.name,pc.element,pc.image FROM user_pets up
+      JOIN pets_catalog pc ON pc.pet_code=up.pet_code WHERE up.payment_id=$1 LIMIT 1`,[payment_id]);
     if(existing.rows.length)return existing.rows[0];
   }
   const x=p.rows[0];
@@ -218,8 +224,9 @@ async function grantPet(pi_uid,pet_code,payment_id=null){
     (pioneer_id,pet_code,payment_id,rarity,level,xp,hp,atk,def)
     VALUES($1,$2,$3,'Common',1,0,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING *`,
     [u.rows[0].id,x.pet_code,payment_id||null,x.base_hp,x.base_atk,x.base_def]);
-  if(!r.rows.length && payment_id){
-    const existing=await dbQuery("SELECT up.*,pc.name,pc.element,pc.image FROM user_pets up JOIN pets_catalog pc ON pc.pet_code=up.pet_code WHERE up.payment_id=$1 LIMIT 1",[payment_id]);
+  if(!r.rows.length&&payment_id){
+    const existing=await dbQuery(`SELECT up.*,pc.name,pc.element,pc.image FROM user_pets up
+      JOIN pets_catalog pc ON pc.pet_code=up.pet_code WHERE up.payment_id=$1 LIMIT 1`,[payment_id]);
     if(existing.rows.length)return existing.rows[0];
   }
   if(!r.rows.length)throw new Error("Pet could not be granted.");
@@ -227,7 +234,7 @@ async function grantPet(pi_uid,pet_code,payment_id=null){
 }
 function requestedPetId(req){return req.body?.pet_id||req.body?.petId||req.body?.id||null;}
 async function findOwnedPet(uid,req){
-  const id=requestedPetId(req);const code=req.body?.pet_code||req.body?.petCode||null;
+  const id=requestedPetId(req),code=req.body?.pet_code||req.body?.petCode||null;
   if(!id&&!code)throw new Error("pet_id or pet_code is required.");
   const r=await dbQuery(`SELECT up.*,pc.name,pc.element,pc.image,pc.base_hp,pc.base_atk,pc.base_def
     FROM user_pets up JOIN pioneers p ON p.id=up.pioneer_id JOIN pets_catalog pc ON pc.pet_code=up.pet_code
@@ -237,7 +244,7 @@ async function findOwnedPet(uid,req){
   return r.rows[0];
 }
 
-app.get("/",(req,res)=>res.json({ok:true,app:"AMT Pet Marketplace",version:"2.1.0",network:"Pi Testnet",status:"online"}));
+app.get("/",(req,res)=>res.json({ok:true,app:"AMT Pet Marketplace",version:"2.3.0",network:"Pi Testnet",status:"online"}));
 app.get("/api/health",async(req,res)=>{let db=false;try{if(pool){await dbQuery("SELECT 1");db=true;}}catch{}res.json({ok:true,databaseConfigured:!!DATABASE_URL,databaseConnected:db,piApiConfigured:!!PI_API_KEY,petCount:PET_SEED.length});});
 
 app.get("/api/pets",async(req,res)=>{try{const r=await dbQuery("SELECT pet_code,name,element,rarity,image,base_hp,base_atk,base_def FROM pets_catalog ORDER BY pet_code");res.json({ok:true,count:r.rows.length,pets:r.rows});}catch(e){res.status(500).json({ok:false,error:e.message});}});
@@ -248,13 +255,12 @@ app.post("/api/auth/verify",requirePiAuth,(req,res)=>res.json({ok:true,uid:req.p
   walletAddress:req.pioneer.wallet_address||null,wallet_address:req.pioneer.wallet_address||null,pioneer:req.pioneer}));
 app.get("/api/profile",requirePiAuth,async(req,res)=>{
   try{const r=await dbQuery("SELECT pi_uid,username,wallet_address,profile_image,coins,food FROM pioneers WHERE pi_uid=$1 LIMIT 1",[req.piUser.uid]);
-    if(!r.rows.length)return res.status(404).json({ok:false,error:"Pioneer profile not found."});
-    res.json({ok:true,profile:r.rows[0]});
+    if(!r.rows.length)return res.status(404).json({ok:false,error:"Pioneer profile not found."});res.json({ok:true,profile:r.rows[0]});
   }catch(e){res.status(500).json({ok:false,error:e.message});}
 });
 app.post("/api/profile/image",requirePiAuth,async(req,res)=>{
   try{const image=String(req.body?.image||"");if(!image.startsWith("data:image/"))return res.status(400).json({ok:false,error:"Invalid profile image."});
-    if(image.length>900000) return res.status(400).json({ok:false,error:"Profile image is too large after compression."});
+    if(image.length>900000)return res.status(400).json({ok:false,error:"Profile image is too large after compression."});
     await dbQuery("UPDATE pioneers SET profile_image=$1,updated_at=NOW() WHERE pi_uid=$2",[image,req.piUser.uid]);
     res.json({ok:true,message:"Profile picture saved to your Pioneer profile."});
   }catch(e){res.status(400).json({ok:false,error:e.message});}
@@ -283,36 +289,29 @@ app.get("/api/wallet/onchain",requirePiAuth,async(req,res)=>{
 });
 app.get("/api/wallet/config",(req,res)=>res.json({ok:true,asset_code:AMT_ASSET_CODE,issuer:AMT_ISSUER,receiver:AMT_RECEIVER,horizon:AMT_HORIZON_URL,network:"Pi Testnet"}));
 
-app.post("/api/care",requirePiAuth,care);
-app.post("/api/care/pet",requirePiAuth,care);
-app.post("/api/pets/care",requirePiAuth,care);
 async function care(req,res){
   try{const p=await findOwnedPet(req.piUser.uid,req);const r=await dbQuery("UPDATE user_pets SET hp=$1,updated_at=NOW() WHERE id=$2 RETURNING *",[p.base_hp,p.id]);
-  res.json({ok:true,action:"CARE",message:"Pet cared for successfully. HP restored.",pet:{...r.rows[0],name:p.name,element:p.element,image:p.image,max_hp:p.base_hp}});}
-  catch(e){res.status(400).json({ok:false,error:e.message});}
+    res.json({ok:true,action:"CARE",message:"Pet cared for successfully. HP restored.",pet:{...r.rows[0],name:p.name,element:p.element,image:p.image,max_hp:p.base_hp}});
+  }catch(e){res.status(400).json({ok:false,error:e.message});}
 }
-app.post("/api/train",requirePiAuth,train);
-app.post("/api/train/pet",requirePiAuth,train);
-app.post("/api/pets/train",requirePiAuth,train);
+app.post("/api/care",requirePiAuth,care);app.post("/api/care/pet",requirePiAuth,care);app.post("/api/pets/care",requirePiAuth,care);
+
 async function train(req,res){
   try{const p=await findOwnedPet(req.piUser.uid,req),gain=25,total=Number(p.xp||0)+gain,old=Number(p.level||1),level=Math.max(1,Math.floor(total/100)+1),ups=Math.max(0,level-old);
-  const r=await dbQuery(`UPDATE user_pets SET xp=$1,level=$2,atk=$3,def=$4,updated_at=NOW() WHERE id=$5 RETURNING *`,
-    [total,level,Number(p.atk)+ups*2,Number(p.def)+ups*2,p.id]);
-  res.json({ok:true,action:"TRAIN",message:ups?`Training complete. Pet reached Level ${level}!`:"Training complete. XP gained.",xpGained:gain,levelUps:ups,pet:{...r.rows[0],name:p.name,element:p.element,image:p.image}});}
-  catch(e){res.status(400).json({ok:false,error:e.message});}
+    const r=await dbQuery(`UPDATE user_pets SET xp=$1,level=$2,atk=$3,def=$4,updated_at=NOW() WHERE id=$5 RETURNING *`,
+      [total,level,Number(p.atk)+ups*2,Number(p.def)+ups*2,p.id]);
+    res.json({ok:true,action:"TRAIN",message:ups?`Training complete. Pet reached Level ${level}!`:"Training complete. XP gained.",xpGained:gain,levelUps:ups,pet:{...r.rows[0],name:p.name,element:p.element,image:p.image}});
+  }catch(e){res.status(400).json({ok:false,error:e.message});}
 }
+app.post("/api/train",requirePiAuth,train);app.post("/api/train/pet",requirePiAuth,train);app.post("/api/pets/train",requirePiAuth,train);
 
-/* BATTLES: Arena uses computer opponents; Adventure uses real Pioneer opponents. */
 function battleMult(a,d){const strong={fire:"nature",nature:"water",water:"fire",wind:"earth",earth:"thunder",thunder:"wind",ice:"wind"};if(strong[String(a).toLowerCase()]===String(d).toLowerCase())return 1.15;if(strong[String(d).toLowerCase()]===String(a).toLowerCase())return .9;return 1;}
 function battleScore(a,d){return Number(a.atk)*1.25+Number(a.def)*.75+Number(a.hp)*.15+Number(a.level)*5}
 async function arenaBattle(req,res){
   try{
-    const a=await findOwnedPet(req.piUser.uid,req);
-    const elements=["Fire","Water","Earth","Wind","Nature","Ice","Thunder"], names=["Shadow Beast","Iron Fang","Storm Bot","Flame Golem","Frost Drone","Terra Mech","Aqua Guardian"];
-    const idx=Math.floor(Math.random()*names.length), element=elements[idx], baseHp=120+Math.floor(Math.random()*55), baseAtk=22+Math.floor(Math.random()*18), baseDef=18+Math.floor(Math.random()*15), level=Math.max(1,Number(a.level)+Math.floor(Math.random()*3)-1);
-    const d={name:names[idx],element,level,hp:baseHp,atk:baseAtk,def:baseDef};
-    const ap=battleScore(a,d)*battleMult(a.element,d.element),dp=battleScore(d,a)*battleMult(d.element,a.element);
-    const win=ap>=dp,gain=win?35:12,total=Number(a.xp)+gain,newLevel=Math.max(1,Math.floor(total/100)+1),ups=Math.max(0,newLevel-Number(a.level));
+    const a=await findOwnedPet(req.piUser.uid,req),elements=["Fire","Water","Earth","Wind","Nature","Ice","Thunder"],names=["Shadow Beast","Iron Fang","Storm Bot","Flame Golem","Frost Drone","Terra Mech","Aqua Guardian"];
+    const idx=Math.floor(Math.random()*names.length),element=elements[idx],baseHp=120+Math.floor(Math.random()*55),baseAtk=22+Math.floor(Math.random()*18),baseDef=18+Math.floor(Math.random()*15),level=Math.max(1,Number(a.level)+Math.floor(Math.random()*3)-1);
+    const d={name:names[idx],element,level,hp:baseHp,atk:baseAtk,def:baseDef},ap=battleScore(a,d)*battleMult(a.element,d.element),dp=battleScore(d,a)*battleMult(d.element,a.element),win=ap>=dp,gain=win?35:12,total=Number(a.xp)+gain,newLevel=Math.max(1,Math.floor(total/100)+1),ups=Math.max(0,newLevel-Number(a.level));
     const u=await dbQuery(`UPDATE user_pets SET xp=$1,level=$2,atk=$3,def=$4,updated_at=NOW() WHERE id=$5 RETURNING *`,[total,newLevel,Number(a.atk)+ups*2,Number(a.def)+ups*2,a.id]);
     const coins=win?50:15,food=win?3:1;
     await dbQuery(`UPDATE pioneers SET coins=coins+$1,food=food+$2,updated_at=NOW() WHERE pi_uid=$3`,[coins,food,req.piUser.uid]);
@@ -321,109 +320,188 @@ async function arenaBattle(req,res){
 }
 async function adventureBattle(req,res){
   try{
-    const a=await findOwnedPet(req.piUser.uid,req);
-    const q=await dbQuery(`SELECT up.*,p.id AS opponent_pioneer_id,p.pi_uid AS opponent_uid,p.username AS opponent_username,pc.name,pc.element,pc.image,pc.base_hp,pc.base_atk,pc.base_def
+    const a=await findOwnedPet(req.piUser.uid,req),q=await dbQuery(`SELECT up.*,p.id AS opponent_pioneer_id,p.pi_uid AS opponent_uid,p.username AS opponent_username,pc.name,pc.element,pc.image,pc.base_hp,pc.base_atk,pc.base_def
       FROM user_pets up JOIN pioneers p ON p.id=up.pioneer_id JOIN pets_catalog pc ON pc.pet_code=up.pet_code
       WHERE p.pi_uid<>$1 ORDER BY RANDOM() LIMIT 1`,[req.piUser.uid]);
     if(!q.rows.length)return res.status(409).json({ok:false,error:"No other Pioneer is available for Adventure yet.",message:"Another Pioneer needs to own a pet before an Adventure battle can start."});
-    const d=q.rows[0],ap=battleScore(a,d)*battleMult(a.element,d.element),dp=battleScore(d,a)*battleMult(d.element,a.element),win=ap>=dp;
-    const gain=win?45:18,total=Number(a.xp)+gain,newLevel=Math.max(1,Math.floor(total/100)+1),ups=Math.max(0,newLevel-Number(a.level)),coins=win?80:25,food=win?5:2;
+    const d=q.rows[0],ap=battleScore(a,d)*battleMult(a.element,d.element),dp=battleScore(d,a)*battleMult(d.element,a.element),win=ap>=dp,gain=win?45:18,total=Number(a.xp)+gain,newLevel=Math.max(1,Math.floor(total/100)+1),ups=Math.max(0,newLevel-Number(a.level)),coins=win?80:25,food=win?5:2;
     const u=await dbQuery(`UPDATE user_pets SET xp=$1,level=$2,atk=$3,def=$4,updated_at=NOW() WHERE id=$5 RETURNING *`,[total,newLevel,Number(a.atk)+ups*2,Number(a.def)+ups*2,a.id]);
     await dbQuery(`INSERT INTO pet_battles(attacker_pioneer_id,attacker_pet_id,defender_pioneer_id,defender_pet_id,winner_pioneer_id,xp_earned) VALUES($1,$2,$3,$4,$5,$6)`,[req.pioneer.id,a.id,d.opponent_pioneer_id,d.id,win?req.pioneer.id:d.opponent_pioneer_id,gain]);
     await dbQuery(`UPDATE pioneers SET coins=coins+$1,food=food+$2,updated_at=NOW() WHERE pi_uid=$3`,[coins,food,req.piUser.uid]);
     res.json({ok:true,mode:"ADVENTURE",result:win?"WIN":"LOSS",message:win?`Adventure victory! You defeated Pioneer @${d.opponent_username||"Pioneer"}.`:`Adventure loss against Pioneer @${d.opponent_username||"Pioneer"}.`,xpEarned:gain,coinsEarned:coins,foodEarned:food,levelUps:ups,pet:{...u.rows[0],name:a.name,element:a.element,image:a.image},opponent:{id:d.id,name:d.name,element:d.element,image:d.image,level:d.level,username:d.opponent_username||"Pioneer",computer:false}});
   }catch(e){console.error("adventure:",e);res.status(400).json({ok:false,error:e.message});}
 }
-app.post("/api/battle/arena",requirePiAuth,arenaBattle);
-app.post("/api/battle/adventure",requirePiAuth,adventureBattle);
-app.post("/api/pets/battle",requirePiAuth,arenaBattle);
-app.post("/api/battle",requirePiAuth,arenaBattle);
-app.post("/api/battle/pet",requirePiAuth,arenaBattle);
+app.post("/api/battle/arena",requirePiAuth,arenaBattle);app.post("/api/battle/adventure",requirePiAuth,adventureBattle);
+app.post("/api/pets/battle",requirePiAuth,arenaBattle);app.post("/api/battle",requirePiAuth,arenaBattle);app.post("/api/battle/pet",requirePiAuth,arenaBattle);
 
-/* BREEDING */
+/* BREEDING -> EGG -> 24H INCUBATOR */
+function rarityRank(r){return {Common:1,Rare:2,Epic:3,Legendary:4}[String(r||"Common")]||1;}
+function chooseEggRarity(a,b){
+  const base=Math.min(rarityRank(a.rarity),rarityRank(b.rarity));
+  const bump=Math.random()<0.18?1:0;
+  return Object.keys({Common:1,Rare:2,Epic:3,Legendary:4}).find(k=>({Common:1,Rare:2,Epic:3,Legendary:4}[k]===Math.min(4,base+bump)))||"Common";
+}
+function newEggCode(){return "AMT-EGG-"+Date.now().toString(36).toUpperCase()+"-"+Math.random().toString(36).slice(2,7).toUpperCase();}
+async function ownedEgg(uid,req){
+  const id=req.body?.egg_id||req.body?.eggId||req.body?.id||null;
+  if(!id)throw new Error("egg_id is required.");
+  const r=await dbQuery(`SELECT e.*,p1.pet_code AS parent1_pet_code,p2.pet_code AS parent2_pet_code,
+    c.name AS future_name,c.image AS future_image
+    FROM pet_eggs e JOIN pioneers p ON p.id=e.pioneer_id
+    JOIN user_pets p1 ON p1.id=e.parent1_id JOIN user_pets p2 ON p2.id=e.parent2_id
+    JOIN pets_catalog c ON c.pet_code=e.future_pet_code
+    WHERE e.id=$1 AND p.pi_uid=$2 LIMIT 1`,[Number(id),uid]);
+  if(!r.rows.length)throw new Error("Owned egg not found.");
+  return r.rows[0];
+}
+function normalizeEggStatus(row){
+  if(row.status==="INCUBATING"&&row.hatch_ready_at&&new Date(row.hatch_ready_at).getTime()<=Date.now())return "READY";
+  return row.status;
+}
 app.post("/api/pets/breed",requirePiAuth,async(req,res)=>{
   try{
-    const p1=await findOwnedPet(req.piUser.uid,{body:{pet_id:req.body?.parent1_id}}),p2=await findOwnedPet(req.piUser.uid,{body:{pet_id:req.body?.parent2_id}});
+    const p1=await findOwnedPet(req.piUser.uid,{body:{pet_id:req.body?.parent1_id}});
+    const p2=await findOwnedPet(req.piUser.uid,{body:{pet_id:req.body?.parent2_id}});
     if(String(p1.id)===String(p2.id))return res.status(400).json({ok:false,error:"Choose two different parent pets."});
     const cats=await dbQuery(`SELECT * FROM pets_catalog WHERE element IN ($1,$2) ORDER BY RANDOM() LIMIT 1`,[p1.element,p2.element]);
     if(!cats.rows.length)return res.status(400).json({ok:false,error:"No compatible offspring pet is available."});
-    const c=cats.rows[0],rarity=(p1.rarity===p2.rarity?p1.rarity:"Common");
-    const r=await dbQuery(`INSERT INTO user_pets(pioneer_id,pet_code,rarity,level,xp,hp,atk,def) VALUES($1,$2,$3,1,0,$4,$5,$6) RETURNING *`,[req.pioneer.id,c.pet_code,rarity,c.base_hp,c.base_atk,c.base_def]);
-    await dbQuery(`INSERT INTO pet_breeding(parent1_id,parent2_id,offspring_id,pioneer_id) VALUES($1,$2,$3,$4)`,[p1.id,p2.id,r.rows[0].id,req.pioneer.id]);
-    res.json({ok:true,message:`Breeding complete! ${c.name} joined your collection.`,pet:{...r.rows[0],name:c.name,element:c.element,image:c.image,rarity}});
+    const c=cats.rows[0],rarity=chooseEggRarity(p1,p2),eggCode=newEggCode();
+    const r=await dbQuery(`INSERT INTO pet_eggs(egg_code,pioneer_id,parent1_id,parent2_id,future_pet_code,element,rarity,status)
+      VALUES($1,$2,$3,$4,$5,$6,$7,'NEW') RETURNING *`,
+      [eggCode,req.pioneer.id,p1.id,p2.id,c.pet_code,c.element,rarity]);
+    await dbQuery(`INSERT INTO pet_breeding(parent1_id,parent2_id,offspring_id,pioneer_id) VALUES($1,$2,NULL,$3)`,
+      [p1.id,p2.id,req.pioneer.id]);
+    res.json({ok:true,message:`Breeding complete! Egg ${eggCode} was created.`,egg:{...r.rows[0],future_name:c.name,future_image:c.image,incubator_hours:24}});
   }catch(e){console.error("breed:",e);res.status(400).json({ok:false,error:e.message});}
+});
+
+app.get("/api/my-eggs",requirePiAuth,async(req,res)=>{
+  try{
+    const r=await dbQuery(`SELECT e.*,p1.pet_code AS parent1_pet_code,p2.pet_code AS parent2_pet_code,
+      c.name AS future_name,c.image AS future_image
+      FROM pet_eggs e JOIN pioneers p ON p.id=e.pioneer_id
+      JOIN user_pets p1 ON p1.id=e.parent1_id JOIN user_pets p2 ON p2.id=e.parent2_id
+      JOIN pets_catalog c ON c.pet_code=e.future_pet_code
+      WHERE p.pi_uid=$1 ORDER BY e.created_at DESC`,[req.piUser.uid]);
+    const eggs=[];
+    for(const row of r.rows){
+      const status=normalizeEggStatus(row);
+      if(status!==row.status)await dbQuery("UPDATE pet_eggs SET status='READY' WHERE id=$1",[row.id]);
+      eggs.push({...row,status,ready_in_ms:status==="INCUBATING"?Math.max(0,new Date(row.hatch_ready_at).getTime()-Date.now()):0});
+    }
+    res.json({ok:true,count:eggs.length,eggs});
+  }catch(e){res.status(500).json({ok:false,error:e.message});}
+});
+app.post("/api/eggs/incubate",requirePiAuth,async(req,res)=>{
+  try{
+    const e=await ownedEgg(req.piUser.uid,req);
+    const status=normalizeEggStatus(e);
+    if(status!=="NEW")return res.status(400).json({ok:false,error:`Egg status is ${status}; only NEW eggs can enter the incubator.`});
+    const r=await dbQuery(`UPDATE pet_eggs SET status='INCUBATING',incubated_at=NOW(),hatch_ready_at=NOW()+INTERVAL '24 hours' WHERE id=$1 RETURNING *`,[e.id]);
+    res.json({ok:true,message:`${e.egg_code} is now incubating for 24 hours.`,egg:r.rows[0]});
+  }catch(e){res.status(400).json({ok:false,error:e.message});}
+});
+app.post("/api/eggs/hatch",requirePiAuth,async(req,res)=>{
+  try{
+    const e=await ownedEgg(req.piUser.uid,req),status=normalizeEggStatus(e);
+    if(status!=="READY")return res.status(400).json({ok:false,error:"This egg is not ready to hatch yet."});
+    const c=await dbQuery("SELECT * FROM pets_catalog WHERE pet_code=$1 LIMIT 1",[e.future_pet_code]);
+    if(!c.rows.length)throw new Error("Future pet catalog entry not found.");
+    const x=c.rows[0];
+    const r=await dbQuery(`INSERT INTO user_pets(pioneer_id,pet_code,rarity,level,xp,hp,atk,def)
+      VALUES($1,$2,$3,1,0,$4,$5,$6) RETURNING *`,
+      [req.pioneer.id,x.pet_code,e.rarity,x.base_hp,x.base_atk,x.base_def]);
+    await dbQuery("UPDATE pet_eggs SET status='HATCHED',hatch_at=NOW() WHERE id=$1",[e.id]);
+    res.json({ok:true,message:`Hatch complete! ${x.name} joined your pet squad.`,pet:{...r.rows[0],name:x.name,element:x.element,image:x.image,rarity:e.rarity}});
+  }catch(e){console.error("hatch:",e);res.status(400).json({ok:false,error:e.message});}
 });
 
 /* SELL / PUBLIC LISTINGS */
 app.post("/api/sell/list",requirePiAuth,async(req,res)=>{
   try{
     const pet=await findOwnedPet(req.piUser.uid,req),price=Number(req.body?.price_amt);
-    if(!price||price<=0)return res.status(400).json({ok:false,error:"Enter a valid AMT sale price."});
+    if(!price||price<=0||price>200)return res.status(400).json({ok:false,error:"Pet price must be between 1 and 200 AMT."});
     const existing=await dbQuery("SELECT id,status FROM pet_listings WHERE pet_id=$1 LIMIT 1",[pet.id]);
-    if(existing.rows.length&&existing.rows[0].status==='ACTIVE')return res.status(409).json({ok:false,error:"This pet is already listed for sale."});
-    await dbQuery(`INSERT INTO pet_listings(pet_id,pioneer_id,price_amt,status) VALUES($1,$2,$3,'ACTIVE') ON CONFLICT(pet_id) DO UPDATE SET pioneer_id=EXCLUDED.pioneer_id,price_amt=EXCLUDED.price_amt,status='ACTIVE',updated_at=NOW()`,[pet.id,req.pioneer.id,price]);
+    if(existing.rows.length&&existing.rows[0].status==="ACTIVE")return res.status(409).json({ok:false,error:"This pet is already listed for sale."});
+    await dbQuery(`INSERT INTO pet_listings(pet_id,pioneer_id,price_amt,status) VALUES($1,$2,$3,'ACTIVE')
+      ON CONFLICT(pet_id) DO UPDATE SET pioneer_id=EXCLUDED.pioneer_id,price_amt=EXCLUDED.price_amt,status='ACTIVE',updated_at=NOW()`,
+      [pet.id,req.pioneer.id,price]);
     res.json({ok:true,message:`${pet.name} is now listed for ${price} AMT.`});
   }catch(e){console.error("sell list:",e);res.status(400).json({ok:false,error:e.message});}
 });
 app.get("/api/market/listings",async(req,res)=>{
-  try{const r=await dbQuery(`SELECT l.id,l.pet_id,l.price_amt,l.status,p.username,pc.name,pc.element,pc.image,up.level,up.rarity,100 AS seller_reputation FROM pet_listings l JOIN user_pets up ON up.id=l.pet_id JOIN pioneers p ON p.id=l.pioneer_id JOIN pets_catalog pc ON pc.pet_code=up.pet_code WHERE l.status='ACTIVE' ORDER BY l.created_at DESC`);res.json({ok:true,count:r.rows.length,listings:r.rows});}
-  catch(e){res.status(500).json({ok:false,error:e.message});}
+  try{const r=await dbQuery(`SELECT l.id,l.pet_id,l.price_amt,l.status,p.username,pc.name,pc.element,pc.image,up.level,up.rarity,100 AS seller_reputation
+    FROM pet_listings l JOIN user_pets up ON up.id=l.pet_id JOIN pioneers p ON p.id=l.pioneer_id JOIN pets_catalog pc ON pc.pet_code=up.pet_code
+    WHERE l.status='ACTIVE' ORDER BY l.created_at DESC`);
+    res.json({ok:true,count:r.rows.length,listings:r.rows});
+  }catch(e){res.status(500).json({ok:false,error:e.message});}
 });
 
-/* PI PAYMENT RECOVERY - intentionally unauthenticated because Pi calls the incomplete-payment callback before auth resolves. */
+/* EGG MARKET */
+app.post("/api/sell/egg",requirePiAuth,async(req,res)=>{
+  try{
+    const egg=await ownedEgg(req.piUser.uid,req),price=Number(req.body?.price_amt);
+    if(!price||price<=0||price>200)return res.status(400).json({ok:false,error:"Egg price must be between 1 and 200 AMT."});
+    if(["HATCHED","LISTED"].includes(egg.status))return res.status(400).json({ok:false,error:`Egg status is ${egg.status} and cannot be listed.`});
+    const existing=await dbQuery("SELECT id,status FROM egg_listings WHERE egg_id=$1 LIMIT 1",[egg.id]);
+    if(existing.rows.length&&existing.rows[0].status==="ACTIVE")return res.status(409).json({ok:false,error:"This egg is already listed for sale."});
+    await dbQuery(`INSERT INTO egg_listings(egg_id,pioneer_id,price_amt,status) VALUES($1,$2,$3,'ACTIVE')
+      ON CONFLICT(egg_id) DO UPDATE SET pioneer_id=EXCLUDED.pioneer_id,price_amt=EXCLUDED.price_amt,status='ACTIVE',updated_at=NOW()`,
+      [egg.id,req.pioneer.id,price]);
+    await dbQuery("UPDATE pet_eggs SET status='LISTED' WHERE id=$1",[egg.id]);
+    res.json({ok:true,message:`${egg.egg_code} is now listed for ${price} AMT.`});
+  }catch(e){console.error("sell egg:",e);res.status(400).json({ok:false,error:e.message});}
+});
+app.get("/api/market/eggs",async(req,res)=>{
+  try{
+    const r=await dbQuery(`SELECT l.id,l.egg_id,l.price_amt,l.status,p.username,e.egg_code,e.element,e.rarity,e.status AS egg_status,
+      c.name AS future_name,c.image AS future_image
+      FROM egg_listings l JOIN pet_eggs e ON e.id=l.egg_id JOIN pioneers p ON p.id=l.pioneer_id
+      JOIN pets_catalog c ON c.pet_code=e.future_pet_code
+      WHERE l.status='ACTIVE' ORDER BY l.created_at DESC`);
+    res.json({ok:true,count:r.rows.length,listings:r.rows});
+  }catch(e){res.status(500).json({ok:false,error:e.message});}
+});
+
+/* PI PAYMENT RECOVERY */
 app.post("/api/payments/pi/recover",async(req,res)=>{
   try{
     const body=req.body||{},dto=body.payment||{},id=String(body.payment_id||body.paymentId||dto.identifier||"").trim();
     if(!id)return res.status(400).json({ok:false,error:"payment_id is required."});
-
     const payment=await piFetch("/v2/payments/"+encodeURIComponent(id));
     let row=await dbQuery("SELECT * FROM pet_payments WHERE payment_id=$1 LIMIT 1",[id]);
-    const dbRow=row.rows[0]||null;
-    const uid=String(payment.user_uid||dto.user_uid||dbRow?.pi_uid||"").trim();
-    const meta=payment.metadata||dto.metadata||{};
-    const code=String(meta.pet_code||meta.petCode||dbRow?.pet_code||"").trim();
+    const dbRow=row.rows[0]||null,uid=String(payment.user_uid||dto.user_uid||dbRow?.pi_uid||"").trim(),meta=payment.metadata||dto.metadata||{},code=String(meta.pet_code||meta.petCode||dbRow?.pet_code||"").trim();
     if(!uid||!code)return res.status(400).json({ok:false,error:"Incomplete Pi payment is missing user_uid or pet_code."});
     if(payment.direction&&payment.direction!=="user_to_app")return res.status(400).json({ok:false,error:"Invalid payment direction."});
-
     const cat=await dbQuery("SELECT pet_code FROM pets_catalog WHERE pet_code=$1 LIMIT 1",[code]);
     if(!cat.rows.length)return res.status(404).json({ok:false,error:"Pet attached to payment was not found."});
-
     const expectedAmount=Number(dbRow?.amount||PET_PI_PRICE);
     if(Number(payment.amount)!==expectedAmount)return res.status(400).json({ok:false,error:"Payment amount does not match the stored pet price."});
-
     if(!dbRow){
       await dbQuery(`INSERT INTO pet_payments(payment_id,pi_uid,username,pet_code,currency,amount,status)
         VALUES($1,$2,'',$3,'PI',$4,'CREATED') ON CONFLICT(payment_id) DO NOTHING`,[id,uid,code,expectedAmount]);
       row=await dbQuery("SELECT * FROM pet_payments WHERE payment_id=$1 LIMIT 1",[id]);
     }
     if(row.rows[0].pi_uid!==uid)return res.status(403).json({ok:false,error:"Payment ownership mismatch."});
-
     const st=payment.status||{};
     if(st.cancelled===true||st.user_cancelled===true){
       await dbQuery("UPDATE pet_payments SET status='CANCELLED',updated_at=NOW() WHERE payment_id=$1",[id]);
       return res.json({ok:true,recovered:true,status:"CANCELLED",paymentId:id});
     }
-
-    let after=payment;
-    const txid=payment.transaction?.txid||dto.transaction?.txid||"";
-    if(!txid){
-      return res.status(409).json({ok:false,recovered:false,status:"PENDING",paymentId:id,message:"Payment has no blockchain transaction yet. Keep this payment open and try again after the Pi wallet finishes submitting it."});
-    }
-    if(payment.transaction && payment.transaction.verified===false){
-      return res.status(409).json({ok:false,recovered:false,status:"PENDING",paymentId:id,message:"Blockchain transaction is not verified yet."});
-    }
+    let after=payment;const txid=payment.transaction?.txid||dto.transaction?.txid||"";
+    if(!txid)return res.status(409).json({ok:false,recovered:false,status:"PENDING",paymentId:id,message:"Payment has no blockchain transaction yet."});
+    if(payment.transaction&&payment.transaction.verified===false)return res.status(409).json({ok:false,recovered:false,status:"PENDING",paymentId:id,message:"Blockchain transaction is not verified yet."});
     if(after.status?.developer_completed!==true){
       await piFetch("/v2/payments/"+encodeURIComponent(id)+"/complete",{method:"POST",body:JSON.stringify({txid})});
       after=await piFetch("/v2/payments/"+encodeURIComponent(id));
     }
     if(after.status?.developer_completed!==true)return res.status(409).json({ok:false,status:"NOT_COMPLETED",paymentId:id,message:"Pi payment is still not developer-completed."});
-
     const pet=await grantPet(uid,code,id);
     await dbQuery(`UPDATE pet_payments SET status='COMPLETED',transaction_id=$1,completed_at=NOW(),updated_at=NOW() WHERE payment_id=$2`,[txid,id]);
     res.json({ok:true,recovered:true,status:"COMPLETED",paymentId:id,transactionId:txid,pet});
   }catch(e){console.error("recover incomplete payment:",e);res.status(400).json({ok:false,error:e.message});}
 });
-/* NORMAL PI PAYMENT ROUTES */
+
 app.post("/api/payments/pi/prepare",requirePiAuth,async(req,res)=>{
   try{
     const {payment_id,pet_code}=req.body||{};if(!payment_id||!pet_code)return res.status(400).json({ok:false,error:"payment_id and pet_code are required."});
@@ -436,7 +514,7 @@ app.post("/api/payments/pi/prepare",requirePiAuth,async(req,res)=>{
 });
 app.post("/api/payments/pi/approve",requirePiAuth,async(req,res)=>{
   try{
-    const {payment_id}=req.body||{};const row=await dbQuery("SELECT * FROM pet_payments WHERE payment_id=$1 AND pi_uid=$2 LIMIT 1",[payment_id,req.piUser.uid]);
+    const {payment_id}=req.body||{},row=await dbQuery("SELECT * FROM pet_payments WHERE payment_id=$1 AND pi_uid=$2 LIMIT 1",[payment_id,req.piUser.uid]);
     if(!row.rows.length)return res.status(404).json({ok:false,error:"Payment intent not found."});
     const approved=await piFetch("/v2/payments/"+encodeURIComponent(payment_id)+"/approve",{method:"POST"});
     await dbQuery("UPDATE pet_payments SET status='APPROVED',updated_at=NOW() WHERE payment_id=$1",[payment_id]);
@@ -470,7 +548,7 @@ app.post("/api/payments/pi/callback",async(req,res)=>{
   }catch(e){res.status(400).json({ok:false,error:e.message});}
 });
 
-/* AMT */
+/* AMT VERIFIED TRANSFER */
 async function verifyAMTTransfer(txid,from,to,amount){
   const ops=await horizonGet("/operations?transaction_hash="+encodeURIComponent(txid)+"&limit=100");
   const op=(ops._embedded?.records||[]).find(x=>x.type==="payment"&&x.asset_type==="credit_alphanum4"&&x.asset_code===AMT_ASSET_CODE&&x.asset_issuer===AMT_ISSUER&&x.source_account===from&&x.to===to&&Number(x.amount)===Number(amount));
@@ -499,10 +577,13 @@ app.post("/api/payments/amt/complete",requirePiAuth,async(req,res)=>{
   }catch(e){res.status(400).json({ok:false,error:e.message});}
 });
 
-/* Development helper retained */
+/* DEVELOPMENT HELPER */
 app.post("/api/dev/give-pet",async(req,res)=>{
-  try{const {pi_uid,pet_code,username,wallet_address}=req.body||{};if(!pi_uid||!pet_code)return res.status(400).json({ok:false,error:"pi_uid and pet_code are required."});
-    await upsertPioneer(pi_uid,username,wallet_address);res.json({ok:true,message:"Pet added to Pioneer collection.",pet:await grantPet(pi_uid,pet_code)});
+  try{
+    const {pi_uid,pet_code,username,wallet_address}=req.body||{};
+    if(!pi_uid||!pet_code)return res.status(400).json({ok:false,error:"pi_uid and pet_code are required."});
+    await upsertPioneer(pi_uid,username,wallet_address);
+    res.json({ok:true,message:"Pet added to Pioneer collection.",pet:await grantPet(pi_uid,pet_code)});
   }catch(e){res.status(500).json({ok:false,error:e.message});}
 });
 
@@ -511,10 +592,18 @@ app.use((req,res)=>res.status(404).json({ok:false,error:"Endpoint not found.",pa
 async function startServer(){
   try{
     await initializeDatabase();await seedPetCatalog();
-    app.listen(PORT,()=>{console.log("======================================");console.log(" AMT PET MARKETPLACE — FIXED");console.log("======================================");
-      console.log(`Server running on port ${PORT}`);console.log(`Database configured: ${!!DATABASE_URL}`);
-      console.log(`Pi API configured: ${!!PI_API_KEY}`);console.log(`Pet catalog: ${PET_SEED.length} pets`);
-      console.log("Pi network: Testnet");console.log("Wallet sync + lock: enabled");console.log("Pending payment recovery: enabled");console.log("Battle: enabled");console.log("======================================");});
+    app.listen(PORT,()=>{console.log("======================================");
+      console.log(" AMT PET MARKETPLACE — EGG EDITION");
+      console.log("======================================");
+      console.log(`Server running on port ${PORT}`);
+      console.log(`Database configured: ${!!DATABASE_URL}`);
+      console.log(`Pi API configured: ${!!PI_API_KEY}`);
+      console.log(`Pet catalog: ${PET_SEED.length} pets`);
+      console.log("Pi network: Testnet");
+      console.log("Wallet sync + lock: enabled");
+      console.log("Egg + 24h incubator: enabled");
+      console.log("Battle: enabled");
+      console.log("======================================");});
   }catch(e){console.error("SERVER STARTUP ERROR:",e);process.exit(1);}
 }
 startServer();
