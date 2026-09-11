@@ -1,15 +1,12 @@
 {
-  "name": "amt-pet-marketplace",
-  "version": "1.0.0",
-  "description": "AMT Pet Marketplace Testnet Backend",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "engines": {
-    "node": ">=20"
-  },
+  "name": "amt-pet-marketplace-backend",
+  "version": "2.4.0",
+  "private": true,
+  "main": "server_FIXED_v7_egg_incubator_ready.js",
+  "scripts": {"start": "node server_FIXED_v7_egg_incubator_ready.js"},
+  "engines": {"node": ">=18"},
   "dependencies": {
+    "@stellar/stellar-sdk": "^14.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
