@@ -80,7 +80,7 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 .close{float:right;border:0;background:transparent;color:#9fb4c4;font-size:28px}.modalImg{width:100%;max-height:340px;object-fit:contain;background:#06101c;border-radius:14px;margin-top:5px}
 .footer{text-align:center;color:#5f7a8d;font-size:10px;padding:20px}.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#10283a;border:1px solid #37617d;color:#fff;padding:11px 14px;border-radius:12px;z-index:200;display:none;font-size:12px;max-width:90%}
 .publicGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px}.publicCard{background:#081724;border:1px solid var(--line);border-radius:14px;padding:10px}.publicCard img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px}.status{font-size:10px;color:var(--green);font-weight:900}
-.eggGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:11px}.eggCard{position:relative;overflow:hidden;border:1px solid #315572;border-radius:18px;background:linear-gradient(145deg,#18253e,#091522);padding:12px;box-shadow:0 10px 28px #0005}.eggArt{height:150px;border-radius:14px;background:radial-gradient(circle,#263c61,#08121e 72%);display:flex;align-items:center;justify-content:center;font-size:78px;position:relative}.eggArt:after{content:"";position:absolute;inset:22% 25%;border-radius:50%;box-shadow:0 0 35px #8cb8ff2b}.eggName{font-weight:1000;font-size:15px;margin-top:10px}.eggMeta{font-size:10px;color:var(--muted);margin-top:4px}.eggTimer{margin-top:8px;padding:8px;border-radius:10px;background:#06111b;border:1px solid #1b3a50;font-size:11px;font-weight:900;text-align:center}.eggStatus{color:var(--gold);font-weight:1000;font-size:10px}.eggActions{display:grid;gap:6px;margin-top:9px}.incubatorBanner{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border:1px solid #3d6280;border-radius:14px;background:linear-gradient(135deg,#102d47,#0b1827);margin-bottom:12px}.incubatorBanner b{font-size:14px}.incubatorBanner span{font-size:11px;color:var(--muted)}
+.eggGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:11px}.eggCard{position:relative;overflow:hidden;border:1px solid #315572;border-radius:18px;background:linear-gradient(145deg,#18253e,#091522);padding:12px;box-shadow:0 10px 28px #0005}.eggArt{height:150px;border-radius:14px;background:radial-gradient(circle,#263c61,#08121e 72%);display:flex;align-items:center;justify-content:center;font-size:78px;position:relative}.eggArt:after{content:"";position:absolute;inset:22% 25%;border-radius:50%;box-shadow:0 0 35px #8cb8ff2b}.eggName{font-weight:1000;font-size:15px;margin-top:10px}.eggMeta{font-size:10px;color:var(--muted);margin-top:4px}.eggTimer{margin-top:8px;padding:8px;border-radius:10px;background:#06111b;border:1px solid #1b3a50;font-size:11px;font-weight:900;text-align:center}.eggStatus{color:var(--gold);font-weight:1000;font-size:10px}.eggActions{display:grid;gap:6px;margin-top:9px}.incubatorBanner{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border:1px solid #3d6280;border-radius:14px;background:linear-gradient(135deg,#102d47,#0b1827);margin-bottom:12px}.incubatorBanner b{font-size:14px}.incubatorBanner span{font-size:11px;color:var(--muted)}
 .formGrid{display:grid;gap:8px}.formGrid input,.formGrid select{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:#071522;color:#fff}.small{font-size:10px;color:var(--muted)}
 
 /* Professional action chooser */
@@ -278,9 +278,9 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 </section>
 
 <section id="breeding" class="panel">
-  <div class="incubatorBanner"><div><b>🧪 24-HOUR INCUBATOR</b><br><span>Breed first. Get an Egg. Incubate it. Then hatch your next NFT pet.</span></div><span>🥚 → 🧪 → 🐣</span></div>
+  <div class="incubatorBanner" role="button" tabindex="0" onclick="openIncubator()" onkeydown="if(event.key==='Enter'||event.key===' ')openIncubator()"><div><b>🧪 24-HOUR INCUBATOR</b><br><span>Breed first. Get an Egg. Incubate it. Then hatch your next NFT pet.</span></div><span>🥚 → 🧪 → 🐣<br><small style="color:#35c9ff;font-weight:900">TAP TO OPEN</small></span></div>
   <div class="card"><div class="cardTitle">🧬 BREEDING LAB</div><p class="muted">Choose two different owned pets. Breeding creates a tradable Egg first — no instant pet generation.</p><div class="row"><span class="muted">Community breeding target</span><b style="color:var(--gold)">5 AMT</b></div><div class="small">Testnet note: the AMT wallet charge will be connected to the secure wallet flow before live charging. Breeding itself is already recorded server-side.</div><button class="action" style="margin-top:11px" onclick="breedPets()">🧬 BREED → CREATE EGG</button></div>
-  <div class="card"><div class="cardTitle">🥚 MY EGGS & INCUBATOR</div><div class="muted">Your eggs are stored server-side. Incubation is a 24-hour server timer and cannot be reset by refreshing the page.</div></div>
+  <div class="card"><div class="cardTitle">🥚 MY EGGS & INCUBATOR</div><div class="muted">Your eggs are stored server-side. Incubation is a 24-hour server timer and cannot be reset by refreshing the page.</div><button class="action" style="margin-top:11px" onclick="openIncubator()">🧪 OPEN INCUBATOR</button></div>
   <div id="myEggs" class="eggGrid"><div class="msg">Loading eggs...</div></div>
 </section>
 
@@ -494,6 +494,12 @@ function showEggCreated(egg){
       <button class="action gold" onclick="closeActionModal();sellEgg(${JSON.stringify(egg.id)})">💰 LIST EGG FOR SALE</button>
     </div>`);
 }
+function openIncubator(){
+  const tab=document.querySelector('.tab[data-panel="eggs"]');
+  showPanel('eggs',tab);
+  loadMyEggs();
+  setTimeout(()=>{const el=$('eggCollection');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});},80);
+}
 function formatCountdown(ms){
   if(ms<=0)return 'READY TO HATCH';
   const total=Math.floor(ms/1000),d=Math.floor(total/86400),h=Math.floor(total%86400/3600),m=Math.floor(total%3600/60),s=total%60;
@@ -520,7 +526,17 @@ async function loadMyEggs(){
   }catch(e){console.error('EGGS:',e);if($('myEggs'))$('myEggs').innerHTML='<div class="msg">Unable to load eggs.</div>';if($('eggCollection'))$('eggCollection').innerHTML='<div class="msg">Unable to load eggs.</div>'}
 }
 async function startIncubation(eggId){
-  try{const d=await apiPost('/api/eggs/incubate',{egg_id:eggId});toast(d.message||'Incubator started for 24 hours.');await loadMyEggs()}catch(e){toast(e.message||'Unable to start incubator.')}
+  if(!currentUser?.accessToken){toast('Please login with Pi first.');return}
+  const buttons=[...document.querySelectorAll('.eggActions button')];
+  buttons.forEach(b=>{if(b.textContent.includes('START INCUBATOR')){b.disabled=true;b.style.opacity='.65';b.textContent='🧪 STARTING...'}});
+  try{
+    const d=await apiPost('/api/eggs/incubate',{egg_id:eggId});
+    toast(d.message||'Incubator started for 24 hours.');
+    await loadMyEggs();
+  }catch(e){
+    toast(e.message||'Unable to start incubator.');
+    await loadMyEggs();
+  }
 }
 async function hatchEgg(eggId){
   try{const d=await apiPost('/api/eggs/hatch',{egg_id:eggId});toast((d.message||'Egg hatched!')+' '+(d.pet?.name||''));await loadMyEggs();await loadMyPets()}catch(e){toast(e.message||'Egg is not ready yet.')}
