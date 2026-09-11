@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>AMT Pet Marketplace</title>
+<title>AMT Pet Marketplace — Egg & Incubator</title>
 <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 
 <style>
@@ -39,7 +39,7 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 .filterLabel{font-size:11px;font-weight:1000;color:#8faec1;margin:2px 0 6px}
 
 .petGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:11px}
-.petCard{background:linear-gradient(#10263b,#091725);border:1px solid var(--line);border-radius:16px;overflow:hidden;position:relative;box-shadow:0 8px 25px #0003;transition:.2s}.petCard:hover{transform:translateY(-2px);border-color:#39799e}
+.petCard{background:linear-gradient(145deg,#122b42 0%,#081521 68%,#06101a 100%);border:1px solid #27516d;border-radius:19px;overflow:hidden;position:relative;box-shadow:0 12px 30px #0005,0 0 0 1px #ffffff05 inset;transition:.22s}.petCard:hover{transform:translateY(-4px);border-color:#45cfff;box-shadow:0 18px 36px #0007,0 0 25px #35c9ff12}.petCard .petPic{padding:7px;background:radial-gradient(circle at 50% 38%,#1a4160,#06101b 72%);object-fit:contain}.petVisual{position:relative;background:radial-gradient(circle at 50% 42%,#1c4563 0,#07121d 72%)}.rarityRibbon{position:absolute;right:8px;top:8px;padding:5px 8px;border-radius:999px;background:#06101ddd;border:1px solid #55748a;font-size:9px;font-weight:1000;letter-spacing:.7px}.petGlow{position:absolute;inset:auto 15% 6px;height:22px;background:#35c9ff1a;filter:blur(12px);border-radius:50%}.petStatsGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:9px 0}.petStatBox{padding:7px 5px;text-align:center;border:1px solid #1b3a50;background:#06111b;border-radius:9px}.petStatBox span{display:block;font-size:8px;color:#7895a8;font-weight:900}.petStatBox b{display:block;font-size:12px;margin-top:2px}.rarity-Common .rarityRibbon{border-color:#6b8392}.rarity-Uncommon .rarityRibbon{border-color:#54e39a;color:#54e39a}.rarity-Rare .rarityRibbon{border-color:#35c9ff;color:#35c9ff}.rarity-Epic .rarityRibbon{border-color:#c48cff;color:#d5a8ff}.rarity-Legendary .rarityRibbon{border-color:#ffd66b;color:#ffd66b}.rarity-Mythic .rarityRibbon{border-color:#ff7180;color:#ff9aa5}
 .petPic{display:block;width:100%;aspect-ratio:1/1.08;object-fit:cover;background:#07111d}.petBadge{position:absolute;top:7px;left:7px;background:#06101ddd;border:1px solid #4b718b;border-radius:99px;padding:5px 7px;font-size:9px;font-weight:900}
 .petBody{padding:9px}.petName{font-weight:1000;font-size:16px}.meta{font-size:10px;color:var(--muted);display:flex;justify-content:space-between;margin-top:3px}
 .stats{display:flex;gap:4px;flex-wrap:wrap;margin:8px 0}.stat{font-size:10px;background:#07111d;border:1px solid #1b354c;border-radius:7px;padding:5px}
@@ -54,6 +54,7 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 .close{float:right;border:0;background:transparent;color:#9fb4c4;font-size:28px}.modalImg{width:100%;max-height:340px;object-fit:contain;background:#06101c;border-radius:14px;margin-top:5px}
 .footer{text-align:center;color:#5f7a8d;font-size:10px;padding:20px}.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#10283a;border:1px solid #37617d;color:#fff;padding:11px 14px;border-radius:12px;z-index:200;display:none;font-size:12px;max-width:90%}
 .publicGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px}.publicCard{background:#081724;border:1px solid var(--line);border-radius:14px;padding:10px}.publicCard img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px}.status{font-size:10px;color:var(--green);font-weight:900}
+.eggGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:11px}.eggCard{position:relative;overflow:hidden;border:1px solid #315572;border-radius:18px;background:linear-gradient(145deg,#18253e,#091522);padding:12px;box-shadow:0 10px 28px #0005}.eggArt{height:150px;border-radius:14px;background:radial-gradient(circle,#263c61,#08121e 72%);display:flex;align-items:center;justify-content:center;font-size:78px;position:relative}.eggArt:after{content:"";position:absolute;inset:22% 25%;border-radius:50%;box-shadow:0 0 35px #8cb8ff2b}.eggName{font-weight:1000;font-size:15px;margin-top:10px}.eggMeta{font-size:10px;color:var(--muted);margin-top:4px}.eggTimer{margin-top:8px;padding:8px;border-radius:10px;background:#06111b;border:1px solid #1b3a50;font-size:11px;font-weight:900;text-align:center}.eggStatus{color:var(--gold);font-weight:1000;font-size:10px}.eggActions{display:grid;gap:6px;margin-top:9px}.incubatorBanner{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border:1px solid #3d6280;border-radius:14px;background:linear-gradient(135deg,#102d47,#0b1827);margin-bottom:12px}.incubatorBanner b{font-size:14px}.incubatorBanner span{font-size:11px;color:var(--muted)}
 .formGrid{display:grid;gap:8px}.formGrid input,.formGrid select{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:#071522;color:#fff}.small{font-size:10px;color:var(--muted)}
 
 /* Professional action chooser */
@@ -115,6 +116,7 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 <nav class="tabs">
   <button class="tab active" data-panel="market" onclick="showPanel('market',this)">🛒 MARKET</button>
   <button class="tab" data-panel="pets" onclick="showPanel('pets',this)">🐾 MY PETS</button>
+  <button class="tab" data-panel="eggs" onclick="showPanel('eggs',this);loadMyEggs()">🥚 EGGS</button>
   <button class="tab" data-panel="profile" onclick="showPanel('profile',this)">👤 MY PROFILE</button>
   <button class="tab" data-panel="care" onclick="showPanel('care',this)">❤️ CARE</button>
   <button class="tab" data-panel="battle" onclick="showPanel('battle',this)">⚔️ ARENA</button>
@@ -214,7 +216,15 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 </section>
 
 <section id="breeding" class="panel">
-  <div class="card"><div class="cardTitle">🧬 PET BREEDING</div><p class="muted">Pair two eligible pets to create a new pet. Breeding rules, cooldowns, fees and rarity inheritance will be enforced server-side.</p><button class="action" onclick="breedPets()">CHOOSE PARENTS</button></div>
+  <div class="incubatorBanner"><div><b>🧪 24-HOUR INCUBATOR</b><br><span>Breed first. Get an Egg. Incubate it. Then hatch your next NFT pet.</span></div><span>🥚 → 🧪 → 🐣</span></div>
+  <div class="card"><div class="cardTitle">🧬 BREEDING LAB</div><p class="muted">Choose two different owned pets. Breeding creates a tradable Egg first — no instant pet generation.</p><div class="row"><span class="muted">Community breeding target</span><b style="color:var(--gold)">5 AMT</b></div><div class="small">Testnet note: the AMT wallet charge will be connected to the secure wallet flow before live charging. Breeding itself is already recorded server-side.</div><button class="action" style="margin-top:11px" onclick="breedPets()">🧬 BREED → CREATE EGG</button></div>
+  <div class="card"><div class="cardTitle">🥚 MY EGGS & INCUBATOR</div><div class="muted">Your eggs are stored server-side. Incubation is a 24-hour server timer and cannot be reset by refreshing the page.</div></div>
+  <div id="myEggs" class="eggGrid"><div class="msg">Loading eggs...</div></div>
+</section>
+
+<section id="eggs" class="panel">
+  <div class="incubatorBanner"><div><b>🥚 EGG COLLECTION</b><br><span>Keep, incubate or list your eggs for the community marketplace.</span></div><span>24H HATCH</span></div>
+  <div id="eggCollection" class="eggGrid"><div class="msg">Loading eggs...</div></div>
 </section>
 
 <section id="trade" class="panel">
@@ -231,7 +241,7 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 </nav>
 
 <section id="public" class="panel">
-  <div class="card"><div class="cardTitle">🌐 PUBLIC PET SALES</div><div class="muted">All active public listings are visible to every Pioneer.</div></div>
+  <div class="card"><div class="cardTitle">🌐 PUBLIC SALES</div><div class="muted">All active public pet and egg listings are visible to every Pioneer.</div><div class="filterBar" style="margin-top:10px"><button class="filterBtn active" onclick="togglePublicMarket('pets',this)">🐾 PETS</button><button class="filterBtn" onclick="togglePublicMarket('eggs',this)">🥚 EGGS</button></div></div>
   <div id="publicListings" class="publicGrid"><div class="msg">Loading public listings...</div></div>
 </section>
 
@@ -249,7 +259,7 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
   <div id="stakes" class="card"><div class="muted">No stakes loaded.</div></div>
 </section>
 
-<div class="footer">AMT Pet Marketplace • Pi Testnet • Login first • Secure server-side ownership and AMT verification</div>
+<div class="footer">AMT Pet Marketplace • Pi Testnet • Egg NFT • 24-Hour Incubator • Community AMT</div>
 </main>
 </div>
 
@@ -316,6 +326,8 @@ function showPanel(id,btn){
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
   if(btn)btn.classList.add('active');
   if(id==='pets')loadMyPets();
+  if(id==='eggs'||id==='breeding')loadMyEggs();
+  if(id==='public')loadPublicListings();
   if(id==='profile')refreshWalletSync();
 }
 
@@ -375,7 +387,7 @@ async function choosePetAction(action){
   }catch(e){console.error('PET ACTION:',e);toast(e.message||'Pet action failed.')} 
 }
 
-/* Breeding */
+/* Breeding + Eggs */
 async function breedPets(){
   try{
     await loadMyPets();
@@ -402,10 +414,66 @@ function selectBreedParent(index,step,parent1){
   setTimeout(async()=>{
     try{
       const d=await apiPost('/api/pets/breed',{parent1_id:parent1.id,parent2_id:p.id});
-      toast((d.message||'Breeding completed.')+(d.pet?.name?' '+d.pet.name:''));
-      await loadMyPets();
+      const egg=d.egg||{};
+      toast((d.message||'Egg created successfully.')+' '+(egg.egg_code||''));
+      await loadMyPets();await loadMyEggs();
+      if(egg.id)showEggCreated(egg);
     }catch(e){toast(e.message||'Breeding failed.')}
   },50);
+}
+function showEggCreated(egg){
+  const rarity=egg.rarity||'Common', element=egg.element||'Unknown';
+  openActionModal('🥚 EGG CREATED',`Your new ${rarity} ${element} egg is ready.`,`
+    <div class="eggArt">🥚</div>
+    <div class="eggName">${esc(egg.egg_code||'AMT-EGG')}</div>
+    <div class="eggMeta">${esc(element)} • ${esc(rarity)} • Hatching time: 24 hours</div>
+    <div class="modalActions" style="margin-top:10px">
+      <button class="action" onclick="closeActionModal();showPanel('eggs',document.querySelector('[data-panel=eggs]'));loadMyEggs()">🥚 VIEW MY EGG</button>
+      <button class="action gold" onclick="closeActionModal();sellEgg(${JSON.stringify(egg.id)})">💰 LIST EGG FOR SALE</button>
+    </div>`);
+}
+function formatCountdown(ms){
+  if(ms<=0)return 'READY TO HATCH';
+  const total=Math.floor(ms/1000),d=Math.floor(total/86400),h=Math.floor(total%86400/3600),m=Math.floor(total%3600/60),s=total%60;
+  return (d?d+'d ':'')+String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+function eggCardHTML(e){
+  const status=e.status||'NEW';
+  const ready=Number(e.ready_in_ms||0)<=0 && (status==='READY'||status==='INCUBATING');
+  const timer=status==='NEW'?'NOT INCUBATING':ready?'READY TO HATCH':formatCountdown(Number(e.ready_in_ms||0));
+  let actions='';
+  if(status==='NEW')actions+=`<button class="action" onclick="startIncubation(${JSON.stringify(e.id)})">🧪 START INCUBATOR</button>`;
+  if(status==='READY'||ready)actions+=`<button class="action gold" onclick="hatchEgg(${JSON.stringify(e.id)})">🐣 HATCH EGG</button>`;
+  if(status==='NEW'||status==='INCUBATING'||status==='READY')actions+=`<button class="action dark" onclick="sellEgg(${JSON.stringify(e.id)})">💰 SELL EGG</button>`;
+  return `<article class="eggCard"><div class="eggArt">🥚<div class="petGlow"></div></div><div class="eggName">${esc(e.egg_code||'AMT EGG')}</div><div class="eggMeta">${esc(e.element||'Unknown')} • ${esc(e.rarity||'Common')}<br>Parents #${esc(e.parent1_id)} + #${esc(e.parent2_id)}</div><div class="eggTimer"><div class="eggStatus">${esc(status)}</div>${esc(timer)}</div><div class="eggActions">${actions}</div></article>`;
+}
+async function loadMyEggs(){
+  if(!currentUser?.accessToken)return;
+  try{
+    const r=await fetch(API+'/api/my-eggs',{headers:authHeaders(),cache:'no-store'}),d=await r.json().catch(()=>({}));
+    if(!r.ok)throw Error(d.error||'Unable to load eggs.');
+    const html=(d.eggs||[]).map(eggCardHTML).join('')||'<div class="msg">🥚 No eggs yet. Breed two pets to create your first egg.</div>';
+    if($('myEggs'))$('myEggs').innerHTML=html;
+    if($('eggCollection'))$('eggCollection').innerHTML=html;
+  }catch(e){console.error('EGGS:',e);if($('myEggs'))$('myEggs').innerHTML='<div class="msg">Unable to load eggs.</div>';if($('eggCollection'))$('eggCollection').innerHTML='<div class="msg">Unable to load eggs.</div>'}
+}
+async function startIncubation(eggId){
+  try{const d=await apiPost('/api/eggs/incubate',{egg_id:eggId});toast(d.message||'Incubator started for 24 hours.');await loadMyEggs()}catch(e){toast(e.message||'Unable to start incubator.')}
+}
+async function hatchEgg(eggId){
+  try{const d=await apiPost('/api/eggs/hatch',{egg_id:eggId});toast((d.message||'Egg hatched!')+' '+(d.pet?.name||''));await loadMyEggs();await loadMyPets()}catch(e){toast(e.message||'Egg is not ready yet.')}
+}
+async function sellEgg(eggId){
+  openActionModal('💰 LIST EGG FOR SALE','Community-first pricing keeps the marketplace accessible.',`
+    <div class="eggArt">🥚</div>
+    <label class="fieldLabel">AMT SALE PRICE</label>
+    <input id="eggSellPrice" class="modalInput" type="number" min="1" max="200" step="1" value="10" placeholder="Suggested: 5–50 AMT">
+    <div class="small" style="margin-top:6px">Suggested community range: 5–50 AMT depending on rarity. Maximum testnet listing price: 200 AMT.</div>
+    <div class="modalActions" style="margin-top:10px"><button class="action gold" onclick="submitEggSale(${JSON.stringify(eggId)})">LIST EGG</button><button class="action dark" onclick="closeActionModal()">CANCEL</button></div>`);
+}
+async function submitEggSale(eggId){
+  const price=Number($('eggSellPrice')?.value);if(!price||price<=0||price>200){toast('Use a community price from 1 to 200 AMT.');return}
+  try{const d=await apiPost('/api/sell/egg',{egg_id:eggId,price_amt:price});closeActionModal();toast(d.message||'Egg listed publicly.');await loadMyEggs();await loadPublicListings()}catch(e){toast(e.message||'Unable to list egg.')}
 }
 
 /* Trade */
@@ -441,7 +509,7 @@ async function sellPet(){
         <span class="petChoiceInfo"><b>${esc(p.name)}</b><span>${esc(p.element||'—')} • ${esc(p.rarity||'Common')} • Lv.${esc(p.level||1)}</span></span>
       </div>
       <label class="fieldLabel">AMT SALE PRICE</label>
-      <input id="sellPrice" class="modalInput" type="number" min="0.01" step="0.01" value="100" placeholder="AMT price">
+      <input id="sellPrice" class="modalInput" type="number" min="0.01" step="0.01" value="25" max="200" placeholder="Suggested: 10–100 AMT">
       <div class="modalActions">
         <button class="action gold" onclick="submitSell(${JSON.stringify(p.id)})">💰 LIST PET FOR SALE</button>
         <button class="action dark" onclick="closeActionModal()">CANCEL</button>
@@ -449,7 +517,7 @@ async function sellPet(){
   }catch(e){console.error('SELL:',e);toast(e.message||'Listing failed.')}
 }
 async function submitSell(petId){
-  const price=Number($('sellPrice')?.value);if(!price||price<=0){toast('Enter a valid AMT sale price.');return}
+  const price=Number($('sellPrice')?.value);if(!price||price<=0||price>200){toast('Use a community price from 1 to 200 AMT.');return}
   try{
     const d=await apiPost('/api/sell/list',{pet_id:petId,price_amt:price});
     closeActionModal();toast(d.message||'Pet listed successfully.');await loadPublicListings();
@@ -457,18 +525,14 @@ async function submitSell(petId){
 }
 
 /* Public listings */
+let publicMarketType='pets';
+function togglePublicMarket(type,btn){publicMarketType=type;document.querySelectorAll('#public .filterBtn').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active');loadPublicListings()}
 async function loadPublicListings(){
   try{
-    const r=await fetch(API+'/api/market/listings',{cache:'no-store'}),d=await r.json(),a=d.listings||[];
-    $('publicListings').innerHTML=a.length?a.map(x=>`
-      <div class="publicCard">
-        <img src="${img(x.image)}">
-        <b>${esc(x.name)}</b>
-        <div class="small">Seller: @${esc(x.username||'Pioneer')}</div>
-        <div class="small">⭐ Reputation ${x.seller_reputation}</div>
-        <div class="price">${x.price_amt} AMT</div>
-        <div class="status">🔒 ESCROW-READY LISTING</div>
-      </div>`).join(''):'<div class="msg">No public listings yet.</div>';
+    const endpoint=publicMarketType==='eggs'?'/api/market/eggs':'/api/market/listings';
+    const r=await fetch(API+endpoint,{cache:'no-store'}),d=await r.json();if(!r.ok)throw Error(d.error||'Unable to load public listings.');
+    const a=publicMarketType==='eggs'?(d.eggs||[]):(d.listings||[]);
+    $('publicListings').innerHTML=a.length?a.map(x=>publicMarketType==='eggs'?`<article class="publicCard"><div class="eggArt" style="height:130px">🥚</div><b>${esc(x.egg_code)}</b><div class="small">${esc(x.element)} • ${esc(x.rarity)} • Seller @${esc(x.username||'Pioneer')}</div><div class="price">${Number(x.price_amt)} AMT</div><button class="action gold" onclick="toast('Egg purchase will open the secure AMT wallet flow when direct wallet transfer is enabled.')">BUY EGG</button></article>`:`<article class="publicCard"><img src="${img(x.image)}" alt="${esc(x.name)}"><b>${esc(x.name)}</b><div class="small">${esc(x.element)} • ${esc(x.rarity)} • Lv.${esc(x.level)}<br>Seller @${esc(x.username||'Pioneer')}</div><div class="price">${Number(x.price_amt)} AMT</div><button class="action gold" onclick="toast('Pet purchase will use the secure AMT wallet flow.')">BUY PET</button></article>`).join(''):'<div class="msg">No active public listings yet.</div>';
   }catch(e){console.error('PUBLIC LISTINGS:',e);$('publicListings').innerHTML='<div class="msg">Unable to load public listings.</div>'}
 }
 
@@ -630,26 +694,17 @@ async function buyWithAMT(){
   try{
     const prep=await apiPost('/api/payments/amt/prepare',{pet_code:selectedPet.pet_code}),payment=prep.payment||prep;
     const amount=Number(payment.amount||100),receiver=payment.receiver||'';
-    $('amtBuyStatus').innerHTML='Send <b>'+amount+' '+esc(payment.asset_code||'AMT')+'</b> from your synchronized wallet to:<br><span class="walletBox" style="display:block;margin-top:6px">'+esc(receiver)+'</span><br>After the blockchain confirms, provide the transaction proof so the server can verify the exact AMT transfer.';
-    openActionModal('🟡 AMT ON-CHAIN PAYMENT','Complete the payment only after sending the exact AMT amount from your synchronized wallet.',`
-      <div class="successBox">Amount: <b>${amount} ${esc(payment.asset_code||'AMT')}</b><br>Receiver: <span style="word-break:break-all">${esc(receiver)}</span></div>
-      <label class="fieldLabel">CONFIRMED AMT TRANSACTION HASH</label>
-      <input id="amtTxidInput" class="modalInput" placeholder="Paste transaction hash">
-      <div class="modalActions">
-        <button class="action" onclick="submitAMTPayment(${JSON.stringify(payment.id||'')})">VERIFY AMT PAYMENT</button>
-        <button class="action dark" onclick="closeActionModal()">CANCEL</button>
-      </div>`);
-  }catch(e){console.error('AMT BUY:',e);$('amtBuyStatus').textContent='❌ '+e.message;toast(e.message)}
+    openActionModal('🪙 BUY WITH AMT',`Community price: ${amount} AMT`,`
+      <div class="successBox">Amount: <b>${amount} AMT</b><br>Receiver: <span style="word-break:break-all">${esc(receiver)}</span></div>
+      <div class="muted" style="margin-top:10px">The manual transaction-hash field has been removed from the customer experience. The next wallet step will use Pi Wallet signing/confirmation and automatic server verification.</div>
+      <button class="action gold" style="margin-top:12px" onclick="startDirectAMTWalletFlow(${JSON.stringify(payment.id||'')})">🪙 CONTINUE TO PI WALLET</button>
+      <button class="action dark" style="margin-top:8px" onclick="closeActionModal()">CANCEL</button>`);
+  }catch(e){console.error('AMT BUY:',e);toast(e.message)}
 }
-async function submitAMTPayment(paymentId){
-  const txid=$('amtTxidInput')?.value.trim();if(!txid){toast('Enter the confirmed AMT transaction hash.');return}
-  try{
-    $('amtBuyStatus').textContent='Verifying AMT transaction on-chain...';
-    const done=await apiPost('/api/payments/amt/complete',{payment_id:paymentId,txid});
-    if(done.status!=='COMPLETED')throw Error(done.error||'AMT purchase was not completed.');
-    closeActionModal();$('amtBuyStatus').textContent='✅ AMT purchase verified on-chain.';
-    const purchasedName=selectedPet.name;closeModal();toast(purchasedName+' purchased successfully with verified AMT.');await loadMyPets();await refreshWalletSync();
-  }catch(e){console.error('AMT COMPLETE:',e);toast(e.message)}
+async function startDirectAMTWalletFlow(paymentId){
+  // Intentionally guarded: do not fake a wallet API that the current Pi SDK documentation/runtime may not expose.
+  // This keeps AMT ownership secure while the exact Pi Wallet custom-token signing method is integrated.
+  closeActionModal();toast('Pi Wallet direct AMT signing is the next secure integration step. No transaction hash is required in the final flow.');
 }
 
 /* Logout */
@@ -726,7 +781,7 @@ function enterApp(){
   $('walletAddress').textContent=currentUser?.wallet_address||'Wallet address syncing...';
   const saved=localStorage.getItem('amtPetProfileImage');
   if(saved)$('avatar').innerHTML='<img class="avatar" src="'+esc(saved)+'" alt="Profile">';
-  loadMyPets();renderMarket();refreshWalletSync();loadProfileStats();
+  loadMyPets();loadMyEggs();renderMarket();refreshWalletSync();loadProfileStats();
 }
 
 /* Profile picture */
@@ -773,23 +828,23 @@ function syncElementButtons(){
     x.classList.toggle('active',x.dataset.element===value);
   });
 }
+function rarityClass(r){return 'rarity-'+String(r||'Common').replace(/[^A-Za-z]/g,'')}
 function renderMarket(){
   const s=($('q')?.value||'').toLowerCase().trim(),e=$('el')?.value||'All Elements',z=$('sort')?.value||'name';
   syncElementButtons();
   let a=pets.filter(p=>(!s||String(p.name).toLowerCase().includes(s)||String(p.pet_code).toLowerCase().includes(s))&&(e==='All Elements'||p.element===e));
   a.sort((x,y)=>z==='name'?String(x.name).localeCompare(String(y.name)):Number(y['base_'+z]||0)-Number(x['base_'+z]||0));
   $('grid').innerHTML=a.length?a.map(p=>`
-    <article class="petCard">
-      <span class="petBadge">${esc(p.element)} • ${esc(p.rarity)}</span>
-      <img class="petPic" src="${img(p.image)}" alt="${esc(p.name)}" loading="lazy">
+    <article class="petCard ${rarityClass(p.rarity)}">
+      <div class="petVisual"><span class="petBadge">${esc(p.element)}</span><span class="rarityRibbon">${esc(p.rarity||'Common').toUpperCase()}</span><img class="petPic" src="${img(p.image)}" alt="${esc(p.name)}" loading="lazy"><div class="petGlow"></div></div>
       <div class="petBody">
         <div class="petName">${esc(p.name)}</div>
         <div class="meta"><span>${esc(p.pet_code)}</span><span>Lv.1</span></div>
-        <div class="stats"><span class="stat">❤️ ${p.base_hp}</span><span class="stat">⚔️ ${p.base_atk}</span><span class="stat">🛡️ ${p.base_def}</span></div>
-        <div class="price">🟣 Price: ${Number(p.pi_price||p.price_pi||10)} Pi Testnet</div>
+        <div class="petStatsGrid"><div class="petStatBox"><span>❤️ HP</span><b>${p.base_hp}</b></div><div class="petStatBox"><span>⚔️ ATK</span><b>${p.base_atk}</b></div><div class="petStatBox"><span>🛡 DEF</span><b>${p.base_def}</b></div></div>
+        <div class="price">🪙 ${Number(p.amt_price||p.price_amt||100)} AMT • 🟣 ${Number(p.pi_price||p.price_pi||10)} Pi</div>
         <button class="action" onclick='openPet(${JSON.stringify(p)})'>VIEW PET</button>
-        <button class="action gold" style="margin-top:8px" onclick='quickBuyPet(${JSON.stringify(p)})'>🟣 BUY WITH PI</button>
-        <button class="action" style="margin-top:8px;border-color:rgba(255,210,70,.45);background:rgba(255,190,40,.12)" onclick='quickBuyAMT(${JSON.stringify(p)})'>🟡 BUY WITH AMT</button>
+        <button class="action gold" style="margin-top:7px" onclick='quickBuyPet(${JSON.stringify(p)})'>🟣 BUY WITH PI</button>
+        <button class="action dark" style="margin-top:7px" onclick='quickBuyAMT(${JSON.stringify(p)})'>🪙 BUY WITH AMT</button>
       </div>
     </article>`).join(''):'<div class="msg">No pets found.</div>';
 }
