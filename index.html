@@ -660,7 +660,7 @@ async function loadPublicListings(){
     const sellerWallet=x=>String(x.seller_wallet||'').trim();
     const shortWallet=w=>w?(w.slice(0,8)+'…'+w.slice(-6)):'Wallet pending';
     const sellerBlock=x=>`<div class="sellerBlock"><div class="sellerLine"><span>👤 Seller</span><b>@${esc(x.username||'Pioneer')}</b></div><div class="sellerLine"><span>🔐 Wallet</span><b>${esc(shortWallet(sellerWallet(x)))}</b></div>${sellerWallet(x)?`<button class="copyWalletBtn" onclick='copyText(${JSON.stringify(sellerWallet(x))})'>COPY WALLET</button>`:'<div class="small">Wallet address not yet synchronized.</div>'}</div>`;
-    $('publicListings').innerHTML=a.length?a.map(x=>publicMarketType==='eggs'?`<article class="publicCard"><div class="eggArt" style="height:130px">🥚</div><b>${esc(x.egg_code)}</b><div class="small">${esc(x.element)} • ${esc(x.rarity)}</div>${sellerBlock(x)}<div class="price">${Number(x.price_amt)} AMT</div><button class="action gold" onclick="openPublicBuy('egg',${JSON.stringify(x.id)},${JSON.stringify(x.price_amt)},${JSON.stringify(x.egg_code||'Egg')},${JSON.stringify(x.seller_wallet||'')})">BUY EGG</button></article>`:`<article class="publicCard"><img src="${img(x.image)}" alt="${esc(x.name)}"><b>${esc(x.name)}</b><div class="small">${esc(x.element)} • ${esc(x.rarity)} • Lv.${esc(x.level)}</div>${sellerBlock(x)}<div class="price">${Number(x.price_amt)} AMT</div><button class="action gold" onclick="openPublicBuy('pet',${JSON.stringify(x.id)},${JSON.stringify(x.price_amt)},${JSON.stringify(x.name||'Pet')},${JSON.stringify(x.seller_wallet||'')})">BUY PET</button></article>`).join(''):'<div class="msg">No active public listings yet.</div>';
+    $('publicListings').innerHTML=a.length?a.map(x=>publicMarketType==='eggs'?`<article class="publicCard"><div class="eggArt" style="height:130px">🥚</div><b>${esc(x.egg_code)}</b><div class="small">${esc(x.element)} • ${esc(x.rarity)}</div>${sellerBlock(x)}<div class="price">${Number(x.price_amt)} AMT</div><button class="action gold" onclick="openPublicBuy('egg',${JSON.stringify(x.id)},${JSON.stringify(x.price_amt)},${JSON.stringify(x.egg_code||'Egg')},${JSON.stringify(x.seller_wallet||'')})">BUY EGG</button></article>`:`<article class="publicCard"><img src="${img(x.image)}" alt="${esc(x.name)}"><b>${esc(x.name)}</b><div class="small">${esc(x.element)} • ${esc(x.rarity)} • Lv.${esc(x.level)}</div>${sellerBlock(x)}<div class="price">${Number(x.price_amt)} AMT</div><button class="action gold" onclick="openPublicBuy('pet',${JSON.stringify(x.id)},${JSON.stringify(x.price_amt)},${JSON.stringify(x.name||'Pet')},${JSON.stringify(x.seller_wallet||'')})">🪙 BUY WITH AMT</button></article>`).join(''):'<div class="msg">No active public listings yet.</div>';
   }catch(e){console.error('PUBLIC LISTINGS:',e);$('publicListings').innerHTML='<div class="msg">Unable to load public listings.</div>'}
 }
 
@@ -1065,6 +1065,39 @@ function renderMarket(){
 }
 function quickBuyPet(p){selectedPet=p;buyPetPrepared()}
 async function quickBuyAMT(p){selectedPet=p;await buyWithAMT()}
+
+/* DIRECT AMT BUY */
+async function buyWithAMT(){
+  if(!selectedPet){toast('Select a pet first.');return}
+  if(!currentUser?.accessToken){toast('Login with Pi first.');return}
+  const price=Number(selectedPet.amt_price||selectedPet.price_amt||100);
+  const petName=String(selectedPet.name||selectedPet.pet_code||'Pet');
+  const sellerWallet=String(selectedPet.seller_wallet||'').trim();
+  if(!sellerWallet){toast('Seller AMT wallet is not synchronized yet.');return}
+  openActionModal(
+    '🪙 BUY PET — AMT',
+    'Verified AMT marketplace purchase',
+    `<div class="msg"><b>${esc(petName)}</b><br><span class="price">${price} AMT</span><br><br><span class="small">Seller wallet: ${esc(sellerWallet.slice(0,8)+'…'+sellerWallet.slice(-6))}</span><br><br>Send exactly <b>${price} AMT</b> from your synchronized Pioneer wallet to the seller wallet. Then paste the successful transaction hash below. The server will verify the real Pi Testnet transaction before transferring ownership.</div><label class="fieldLabel">AMT TRANSACTION HASH</label><input id="publicBuyTxid" class="modalInput" placeholder="Successful AMT transaction hash" autocomplete="off"><div class="modalActions"><button class="action gold" onclick="completeDirectAMTBuy()">🔐 VERIFY & BUY</button><button class="action dark" onclick="closeActionModal()">CANCEL</button></div>`
+  );
+}
+
+async function completeDirectAMTBuy(){
+  const txid=String($('publicBuyTxid')?.value||'').trim();
+  if(!txid){toast('Enter the successful AMT transaction hash.');return}
+  const pet=selectedPet;
+  try{
+    toast('Verifying AMT transaction…');
+    const d=await apiPost('/api/market/buy-pet',{pet_id:Number(pet.id||pet.pet_id||0),listing_id:Number(pet.listing_id||0),txid});
+    closeActionModal();
+    toast(d.message||'AMT purchase completed successfully.');
+    await loadPublicListings();
+    await loadMyPets();
+    await refreshWalletSync();
+  }catch(e){
+    console.error('DIRECT AMT BUY:',e);
+    toast(e.message||'AMT purchase could not be verified.');
+  }
+}
 
 /* Pet details */
 function openPet(p){
