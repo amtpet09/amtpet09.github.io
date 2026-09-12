@@ -355,6 +355,8 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 
 <script>
 const API='https://amtpet09-github-io.onrender.com';
+const PI_SIGNIN_CLIENT_ID='lRnrmvPNXxd__XWGNYsnzkYVSas9LVPPPA_sEK_mN50';
+const PI_SIGNIN_REDIRECT_URI='https://amtpet09.github.io/';
 // Keep TRUE while this app is running in Pi Testnet/Sandbox. Change to FALSE only after the Pi Developer app is moved to production.
 const PI_SANDBOX=true;
 // TEMPORARY diagnostic fallback for the owner's Testnet wallet only. Never use a personal wallet as a shared production fallback.
@@ -798,40 +800,22 @@ async function refreshWalletSync(){
 async function requestWalletPermission(){
   if(!window.Pi){toast('Open AMT Pet Marketplace in Pi Browser.');return}
   try{
-    $('walletSyncStatus').textContent='REQUESTING WALLET ACCESS...';$('walletSyncStatus').style.color='#ffd66b';
     initPi();
-    const auth=await Pi.authenticate(['username','payments','wallet_address'],p=>{
-      console.log('Incomplete payment during wallet authorization:',p);
-      window.__amtIncompletePayment=p;window.__amtIncompletePaymentAt=Date.now();
+    if(typeof Pi.signIn!=='function')throw Error('Pi Sign-in is not available in this Pi Browser. Please update Pi Browser and try again.');
+    const state=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2));
+    sessionStorage.setItem('amt_pi_signin_state',state);
+    sessionStorage.setItem('amt_pi_signin_return','wallet');
+    $('walletSyncStatus').textContent='OPENING PI WALLET PERMISSION...';$('walletSyncStatus').style.color='#ffd66b';
+    Pi.signIn({
+      clientId:PI_SIGNIN_CLIENT_ID,
+      redirectUri:PI_SIGNIN_REDIRECT_URI,
+      scopes:['username','wallet_address'],
+      state
     });
-    if(!auth?.accessToken)throw Error('Pi authentication did not return an access token. Please login again in Pi Browser.');
-    const u=auth.user||{};
-    const sdkWallet=walletOf(u);
-    const oldWallet=String(currentUser?.wallet_address||'').trim().toUpperCase();
-    const savedWallet=savedWalletForCurrentUser();
-    const fallback=testWalletFallbackForCurrentUser();
-    const wallet=sdkWallet||oldWallet||savedWallet||fallback;
-
-    currentUser={...(currentUser||{}),uid:u.uid||currentUser?.uid||'',username:u.username||currentUser?.username||'Pioneer',accessToken:auth.accessToken||currentUser?.accessToken||''};
-    if(validWallet(wallet))saveWalletForCurrentUser(wallet);else currentUser.wallet_address='';
-    localStorage.setItem('amtPetPiUid',currentUser.uid);localStorage.setItem('amtPetPiUsername',currentUser.username);localStorage.setItem('amtPetPiAccessToken',currentUser.accessToken);
-
-    if(!validWallet(currentUser.wallet_address)){
-      const features=typeof Pi.nativeFeaturesList==='function'?Pi.nativeFeaturesList():[];
-      console.log('Pi native features:',features);
-      throw Error('Pi did not return wallet_address yet. If Pi shows a permission prompt, approve wallet_address, then tap AUTHORIZE WALLET again.');
-    }
-
-    await refreshWalletSync();
-    if(currentUser.accessToken)await recoverIncompletePayment();
-    if(sdkWallet)toast('Pi wallet_address permission is active. Wallet synchronized.');
-    else if(fallback)toast('Testnet diagnostic wallet loaded temporarily. We will replace it automatically when Pi returns your wallet.');
   }catch(e){
-    console.error('WALLET AUTH:',e);
-    if(!validWallet(currentUser?.wallet_address)){
-      $('walletSyncStatus').textContent='WALLET PERMISSION REQUIRED';$('walletSyncStatus').style.color='#ffd66b';
-    }
-    toast(e.message||'Wallet authorization failed.');
+    console.error('PI SIGN-IN WALLET:',e);
+    $('walletSyncStatus').textContent='WALLET PERMISSION REQUIRED';$('walletSyncStatus').style.color='#ffd66b';
+    toast(e.message||'Unable to open Pi wallet permission.');
   }
 }
 
@@ -852,6 +836,48 @@ async function startDirectAMTWalletFlow(paymentId){
   // Intentionally guarded: do not fake a wallet API that the current Pi SDK documentation/runtime may not expose.
   // This keeps AMT ownership secure while the exact Pi Wallet custom-token signing method is integrated.
   closeActionModal();toast('Pi Wallet direct AMT signing is the next secure integration step. No transaction hash is required in the final flow.');
+}
+
+/* Pi Sign-in callback — wallet_address authorization */
+async function handlePiSignInCallback(){
+  if(!window.location.hash || !window.location.hash.includes('access_token='))return false;
+  const params=new URLSearchParams(window.location.hash.slice(1));
+  const token=params.get('access_token')||'';
+  const returnedState=params.get('state')||'';
+  const expectedState=sessionStorage.getItem('amt_pi_signin_state')||'';
+  sessionStorage.removeItem('amt_pi_signin_state');
+  sessionStorage.removeItem('amt_pi_signin_return');
+  history.replaceState(null,'',window.location.pathname+window.location.search);
+  if(!token)throw Error('Pi Sign-in did not return an access token.');
+  if(expectedState && returnedState!==expectedState)throw Error('Pi Sign-in state verification failed.');
+
+  $('loginScreen').style.display='flex';$('app').style.display='none';
+  $('loginBtn').disabled=true;$('loginBtn').textContent='Authorizing Pi Wallet...';
+  showMarketplaceLoading('VERIFYING PIONEER WALLET...');
+  try{
+    const vr=await fetch(API+'/api/auth/verify',{method:'POST',headers:{Authorization:'Bearer '+token},cache:'no-store'});
+    const vd=await vr.json().catch(()=>({}));
+    if(!vr.ok)throw Error(vd.error||'Pi Sign-in verification failed.');
+    const wallet=String(vd.walletAddress||vd.wallet_address||vd.pioneer?.wallet_address||'').trim().toUpperCase();
+    if(!validWallet(wallet))throw Error('Pi Sign-in succeeded, but Pi did not return the Pioneer wallet_address. Make sure wallet_address was approved in Pi Browser.');
+
+    currentUser={uid:vd.uid||vd.pioneer?.pi_uid||'',username:vd.username||vd.pioneer?.username||'Pioneer',wallet_address:wallet,accessToken:token};
+    saveWalletForCurrentUser(wallet);
+    localStorage.setItem('amtPetPiUid',currentUser.uid);localStorage.setItem('amtPetPiUsername',currentUser.username);localStorage.setItem('amtPetPiAccessToken',currentUser.accessToken);
+    showMarketplaceLoading('SYNCHRONIZING PIONEER WALLET...');
+    await syncPioneer();
+    await refreshWalletSync();
+    showMarketplaceLoading('ENTERING AMT PET MARKETPLACE...');
+    await wait(700);
+    enterApp();
+    hideMarketplaceLoading();
+    toast('Wallet permission approved. Pioneer wallet synchronized.');
+    return true;
+  }catch(e){
+    hideMarketplaceLoading();
+    $('loginScreen').style.display='flex';$('app').style.display='none';$('loginBtn').disabled=false;$('loginBtn').textContent='🟣 LOGIN WITH PI';
+    throw e;
+  }
 }
 
 /* Logout */
@@ -1131,13 +1157,16 @@ function renderMyPets(list){
    The Pioneer must press LOGIN WITH PI before entering the marketplace.
    This avoids opening directly inside the marketplace and also prevents a
    stale localStorage session from being treated as a fresh login. */
-document.addEventListener('DOMContentLoaded',()=>{
+document.addEventListener('DOMContentLoaded',async()=>{
   currentUser=null;
   window.__amtIncompletePayment=null;
   $('app').style.display='none';
   $('loginScreen').style.display='flex';
   $('loginBtn').disabled=false;
   $('loginBtn').textContent='🟣 LOGIN WITH PI';
+  try{
+    if(await handlePiSignInCallback())return;
+  }catch(e){console.error('PI SIGN-IN CALLBACK:',e);toast(e.message||'Pi wallet authorization failed.');}
   load();
 });
 </script>
