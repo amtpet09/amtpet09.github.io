@@ -81,6 +81,8 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 .footer{text-align:center;color:#5f7a8d;font-size:10px;padding:20px}.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#10283a;border:1px solid #37617d;color:#fff;padding:11px 14px;border-radius:12px;z-index:200;display:none;font-size:12px;max-width:90%}
 .publicGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px}.publicCard{background:#081724;border:1px solid var(--line);border-radius:14px;padding:10px}.publicCard img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px}.status{font-size:10px;color:var(--green);font-weight:900}
 .eggGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:11px}.eggCard{position:relative;overflow:hidden;border:1px solid #315572;border-radius:18px;background:linear-gradient(145deg,#18253e,#091522);padding:12px;box-shadow:0 10px 28px #0005}.eggArt{height:150px;border-radius:14px;background:radial-gradient(circle,#263c61,#08121e 72%);display:flex;align-items:center;justify-content:center;font-size:78px;position:relative}.eggArt:after{content:"";position:absolute;inset:22% 25%;border-radius:50%;box-shadow:0 0 35px #8cb8ff2b}.eggName{font-weight:1000;font-size:15px;margin-top:10px}.eggMeta{font-size:10px;color:var(--muted);margin-top:4px}.eggTimer{margin-top:8px;padding:8px;border-radius:10px;background:#06111b;border:1px solid #1b3a50;font-size:11px;font-weight:900;text-align:center}.eggStatus{color:var(--gold);font-weight:1000;font-size:10px}.eggActions{display:grid;gap:6px;margin-top:9px}.incubatorBanner{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border:1px solid #3d6280;border-radius:14px;background:linear-gradient(135deg,#102d47,#0b1827);margin-bottom:12px}.incubatorBanner b{font-size:14px}.incubatorBanner span{font-size:11px;color:var(--muted)}
+.incubatorBannerClickable{cursor:pointer;transition:.2s}.incubatorBannerClickable:hover{border-color:var(--blue);box-shadow:0 8px 24px #0005}.incubatorBannerClickable:active{transform:scale(.99)}
+.incubatorControlCard{border-color:#3d6280;box-shadow:0 8px 28px #0004}
 .formGrid{display:grid;gap:8px}.formGrid input,.formGrid select{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:#071522;color:#fff}.small{font-size:10px;color:var(--muted)}
 
 /* Professional action chooser */
@@ -280,12 +282,12 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 <section id="breeding" class="panel">
   <div class="incubatorBanner"><div><b>🧪 24-HOUR INCUBATOR</b><br><span>Breed first. Get an Egg. Incubate it. Then hatch your next NFT pet.</span></div><span>🥚 → 🧪 → 🐣</span></div>
   <div class="card"><div class="cardTitle">🧬 BREEDING LAB</div><p class="muted">Choose two different owned pets. Breeding creates a tradable Egg first — no instant pet generation.</p><div class="row"><span class="muted">Community breeding target</span><b style="color:var(--gold)">5 AMT</b></div><div class="small">Testnet note: the AMT wallet charge will be connected to the secure wallet flow before live charging. Breeding itself is already recorded server-side.</div><button class="action" style="margin-top:11px" onclick="breedPets()">🧬 BREED → CREATE EGG</button></div>
-  <div class="card"><div class="cardTitle">🥚 MY EGGS & INCUBATOR <span class="status" style="float:right">READY TO USE</span></div><div class="muted">Your eggs are stored server-side. Tap <b>START INCUBATOR</b> to begin the 24-hour incubation. The timer is server-controlled and cannot be reset by refreshing the page.</div></div>
+  <div class="card incubatorControlCard"><div class="cardTitle">🥚 MY EGGS & INCUBATOR <span class="status" style="float:right">READY TO TEST</span></div><div class="muted">Your eggs are stored server-side. Use the button below to open the incubator and start the 24-hour server-controlled timer.</div><button type="button" class="action gold" style="margin-top:12px" onclick="openIncubator()">🧪 OPEN / START INCUBATOR</button></div>
   <div id="myEggs" class="eggGrid"><div class="msg">Loading eggs...</div></div>
 </section>
 
 <section id="eggs" class="panel">
-  <div class="incubatorBanner"><div><b>🥚 EGG COLLECTION</b><br><span>Keep, incubate or list your eggs for the community marketplace.</span></div><span>24H HATCH</span></div>
+  <div class="incubatorBanner incubatorBannerClickable" role="button" tabindex="0" onclick="openIncubator()" onkeydown="if(event.key==='Enter'||event.key===' ')openIncubator()"><div><b>🥚 EGG COLLECTION</b><br><span>Tap here to open your 24-hour incubator.</span></div><span>🧪 24H HATCH</span></div>
   <div id="eggCollection" class="eggGrid"><div class="msg">Loading eggs...</div></div>
 </section>
 
@@ -355,8 +357,6 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 
 <script>
 const API='https://amtpet09-github-io.onrender.com';
-const PI_SIGNIN_CLIENT_ID='lRnrmvPNXxd__XWGNYsnzkYVSas9LVPPPA_sEK_mN50';
-const PI_SIGNIN_REDIRECT_URI='https://amtpet09.github.io/';
 // Keep TRUE while this app is running in Pi Testnet/Sandbox. Change to FALSE only after the Pi Developer app is moved to production.
 const PI_SANDBOX=true;
 // TEMPORARY diagnostic fallback for the owner's Testnet wallet only. Never use a personal wallet as a shared production fallback.
@@ -516,13 +516,42 @@ async function loadMyEggs(){
   try{
     const r=await fetch(API+'/api/my-eggs',{headers:authHeaders(),cache:'no-store'}),d=await r.json().catch(()=>({}));
     if(!r.ok)throw Error(d.error||'Unable to load eggs.');
-    const html=(d.eggs||[]).map(eggCardHTML).join('')||'<div class="msg">🥚 No eggs yet. Breed two pets to create your first egg.</div>';
+    window.__myEggs=Array.isArray(d.eggs)?d.eggs:[]; const html=window.__myEggs.map(eggCardHTML).join('')||'<div class="msg">🥚 No eggs yet. Breed two pets to create your first egg.</div>';
     if($('myEggs'))$('myEggs').innerHTML=html;
     if($('eggCollection'))$('eggCollection').innerHTML=html;
   }catch(e){console.error('EGGS:',e);if($('myEggs'))$('myEggs').innerHTML='<div class="msg">Unable to load eggs.</div>';if($('eggCollection'))$('eggCollection').innerHTML='<div class="msg">Unable to load eggs.</div>'}
 }
+async function openIncubator(){
+  try{
+    await loadMyEggs();
+    const eggs=Array.isArray(window.__myEggs)?window.__myEggs:[];
+    const active=eggs.find(e=>e.status==='INCUBATING'||e.status==='READY');
+    if(active){
+      const status=active.status==='READY'?'READY TO HATCH':'INCUBATING';
+      openActionModal('🧪 24-HOUR INCUBATOR',`Egg ${esc(active.egg_code||'AMT EGG')} • ${status}`,`        <div class="eggArt">🥚</div>        <div class="eggName">${esc(active.egg_code||'AMT EGG')}</div>        <div class="eggMeta">${esc(active.element||'Unknown')} • ${esc(active.rarity||'Common')}</div>        <div class="eggTimer" style="margin-top:10px">${esc(active.status==='READY'?'READY TO HATCH':formatCountdown(Number(active.ready_in_ms||0)))}</div>        <div class="modalActions">${active.status==='READY'?`<button type="button" class="action gold" onclick="closeActionModal();hatchEgg(${JSON.stringify(active.id)})">🐣 HATCH EGG</button>`:`<button type="button" class="action dark" onclick="closeActionModal()">🧪 INCUBATOR RUNNING</button>`}</div>`);
+      return;
+    }
+    const fresh=eggs.filter(e=>e.status==='NEW');
+    if(!fresh.length){
+      openActionModal('🧪 24-HOUR INCUBATOR','No NEW egg is available yet.',`        <div class="eggArt">🥚</div>        <div class="muted" style="margin-top:10px">Breed two owned pets first. Your new egg will appear here, then you can start the 24-hour incubator.</div>        <div class="modalActions">          <button type="button" class="action gold" onclick="closeActionModal();showPanel('breeding',document.querySelector('[data-panel=breeding]'));breedPets()">🧬 BREED & CREATE EGG</button>          <button type="button" class="action dark" onclick="closeActionModal()">CLOSE</button>        </div>`);
+      return;
+    }
+    if(fresh.length===1){
+      closeActionModal();
+      await startIncubation(fresh[0].id);
+      return;
+    }
+    const body=fresh.map(e=>`<button type="button" class="petChoice" onclick="closeActionModal();startIncubation(${JSON.stringify(e.id)})"><div style="font-size:34px">🥚</div><div class="petChoiceInfo"><b>${esc(e.egg_code||'AMT EGG')}</b><span>${esc(e.element||'Unknown')} • ${esc(e.rarity||'Common')}</span></div><div class="choiceArrow">›</div></button>`).join('');
+    openActionModal('🧪 SELECT EGG TO INCUBATE','Choose one NEW egg to start the 24-hour incubator.',`<div class="actionChooser">${body}</div>`);
+  }catch(e){console.error('INCUBATOR:',e);toast(e.message||'Unable to open incubator.');}
+}
 async function startIncubation(eggId){
-  try{const d=await apiPost('/api/eggs/incubate',{egg_id:eggId});toast(d.message||'Incubator started for 24 hours.');await loadMyEggs()}catch(e){toast(e.message||'Unable to start incubator.')}
+  try{
+    if(!currentUser?.accessToken){toast('Please login with Pi first.');return}
+    const d=await apiPost('/api/eggs/incubate',{egg_id:eggId});
+    toast(d.message||'Incubator started for 24 hours.');
+    await loadMyEggs();
+  }catch(e){toast(e.message||'Unable to start incubator.')}
 }
 async function hatchEgg(eggId){
   try{const d=await apiPost('/api/eggs/hatch',{egg_id:eggId});toast((d.message||'Egg hatched!')+' '+(d.pet?.name||''));await loadMyEggs();await loadMyPets()}catch(e){toast(e.message||'Egg is not ready yet.')}
@@ -801,82 +830,30 @@ async function requestWalletPermission(){
   if(!window.Pi){toast('Open AMT Pet Marketplace in Pi Browser.');return}
   try{
     initPi();
-    if(typeof Pi.signIn!=='function')throw Error('Pi Sign-in is not available in this Pi Browser. Please update Pi Browser and try again.');
-    const state=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2));
-    sessionStorage.setItem('amt_pi_signin_state',state);
-    sessionStorage.setItem('amt_pi_signin_return','wallet');
-    $('walletSyncStatus').textContent='OPENING PI WALLET PERMISSION...';$('walletSyncStatus').style.color='#ffd66b';
-    Pi.signIn({
-      clientId:PI_SIGNIN_CLIENT_ID,
-      redirectUri:PI_SIGNIN_REDIRECT_URI,
-      scopes:['username','wallet_address'],
-      state
+    $('walletSyncStatus').textContent='REQUESTING PI WALLET ACCESS...';$('walletSyncStatus').style.color='#ffd66b';
+    const auth=await Pi.authenticate(['username','payments','wallet_address'],p=>{
+      console.log('Incomplete payment:',p);window.__amtIncompletePayment=p;
     });
+    const u=auth?.user||{};
+    const wallet=walletOf(u);
+    if(!auth?.accessToken)throw Error('Pi authentication did not return an access token.');
+    currentUser={uid:u.uid||currentUser?.uid||'',username:u.username||currentUser?.username||'Pioneer',wallet_address:'',accessToken:auth.accessToken};
+    if(validWallet(wallet)){
+      saveWalletForCurrentUser(wallet);
+      await syncPioneer();
+      await refreshWalletSync();
+      $('walletSyncStatus').textContent='WALLET AUTHORIZED & SYNCHRONIZED';$('walletSyncStatus').style.color='#54e39a';
+      toast('Pioneer wallet synchronized successfully.');
+    }else{
+      await syncPioneer();
+      await refreshWalletSync();
+      $('walletSyncStatus').textContent='WALLET PERMISSION STILL NOT ACTIVE';$('walletSyncStatus').style.color='#ff7180';
+      toast('Pi did not return wallet_address yet. Please use the Pi Browser app authorization again.');
+    }
   }catch(e){
-    console.error('PI SIGN-IN WALLET:',e);
-    $('walletSyncStatus').textContent='WALLET PERMISSION REQUIRED';$('walletSyncStatus').style.color='#ffd66b';
-    toast(e.message||'Unable to open Pi wallet permission.');
-  }
-}
-
-/* AMT buy */
-async function buyWithAMT(){
-  if(!selectedPet||!currentUser?.accessToken){toast('Login with Pi first and select a pet.');return}
-  try{
-    const prep=await apiPost('/api/payments/amt/prepare',{pet_code:selectedPet.pet_code}),payment=prep.payment||prep;
-    const amount=Number(payment.amount||100),receiver=payment.receiver||'';
-    openActionModal('🪙 BUY WITH AMT',`Community price: ${amount} AMT`,`
-      <div class="successBox">Amount: <b>${amount} AMT</b><br>Receiver: <span style="word-break:break-all">${esc(receiver)}</span></div>
-      <div class="muted" style="margin-top:10px">The manual transaction-hash field has been removed from the customer experience. The next wallet step will use Pi Wallet signing/confirmation and automatic server verification.</div>
-      <button class="action gold" style="margin-top:12px" onclick="startDirectAMTWalletFlow(${JSON.stringify(payment.id||'')})">🪙 CONTINUE TO PI WALLET</button>
-      <button class="action dark" style="margin-top:8px" onclick="closeActionModal()">CANCEL</button>`);
-  }catch(e){console.error('AMT BUY:',e);toast(e.message)}
-}
-async function startDirectAMTWalletFlow(paymentId){
-  // Intentionally guarded: do not fake a wallet API that the current Pi SDK documentation/runtime may not expose.
-  // This keeps AMT ownership secure while the exact Pi Wallet custom-token signing method is integrated.
-  closeActionModal();toast('Pi Wallet direct AMT signing is the next secure integration step. No transaction hash is required in the final flow.');
-}
-
-/* Pi Sign-in callback — wallet_address authorization */
-async function handlePiSignInCallback(){
-  if(!window.location.hash || !window.location.hash.includes('access_token='))return false;
-  const params=new URLSearchParams(window.location.hash.slice(1));
-  const token=params.get('access_token')||'';
-  const returnedState=params.get('state')||'';
-  const expectedState=sessionStorage.getItem('amt_pi_signin_state')||'';
-  sessionStorage.removeItem('amt_pi_signin_state');
-  sessionStorage.removeItem('amt_pi_signin_return');
-  history.replaceState(null,'',window.location.pathname+window.location.search);
-  if(!token)throw Error('Pi Sign-in did not return an access token.');
-  if(expectedState && returnedState!==expectedState)throw Error('Pi Sign-in state verification failed.');
-
-  $('loginScreen').style.display='flex';$('app').style.display='none';
-  $('loginBtn').disabled=true;$('loginBtn').textContent='Authorizing Pi Wallet...';
-  showMarketplaceLoading('VERIFYING PIONEER WALLET...');
-  try{
-    const vr=await fetch(API+'/api/auth/verify',{method:'POST',headers:{Authorization:'Bearer '+token},cache:'no-store'});
-    const vd=await vr.json().catch(()=>({}));
-    if(!vr.ok)throw Error(vd.error||'Pi Sign-in verification failed.');
-    const wallet=String(vd.walletAddress||vd.wallet_address||vd.pioneer?.wallet_address||'').trim().toUpperCase();
-    if(!validWallet(wallet))throw Error('Pi Sign-in succeeded, but Pi did not return the Pioneer wallet_address. Make sure wallet_address was approved in Pi Browser.');
-
-    currentUser={uid:vd.uid||vd.pioneer?.pi_uid||'',username:vd.username||vd.pioneer?.username||'Pioneer',wallet_address:wallet,accessToken:token};
-    saveWalletForCurrentUser(wallet);
-    localStorage.setItem('amtPetPiUid',currentUser.uid);localStorage.setItem('amtPetPiUsername',currentUser.username);localStorage.setItem('amtPetPiAccessToken',currentUser.accessToken);
-    showMarketplaceLoading('SYNCHRONIZING PIONEER WALLET...');
-    await syncPioneer();
-    await refreshWalletSync();
-    showMarketplaceLoading('ENTERING AMT PET MARKETPLACE...');
-    await wait(700);
-    enterApp();
-    hideMarketplaceLoading();
-    toast('Wallet permission approved. Pioneer wallet synchronized.');
-    return true;
-  }catch(e){
-    hideMarketplaceLoading();
-    $('loginScreen').style.display='flex';$('app').style.display='none';$('loginBtn').disabled=false;$('loginBtn').textContent='🟣 LOGIN WITH PI';
-    throw e;
+    console.error('WALLET AUTH:',e);
+    $('walletSyncStatus').textContent='WALLET AUTHORIZATION FAILED';$('walletSyncStatus').style.color='#ff7180';
+    toast(e.message||'Wallet authorization failed.');
   }
 }
 
@@ -1164,9 +1141,6 @@ document.addEventListener('DOMContentLoaded',async()=>{
   $('loginScreen').style.display='flex';
   $('loginBtn').disabled=false;
   $('loginBtn').textContent='🟣 LOGIN WITH PI';
-  try{
-    if(await handlePiSignInCallback())return;
-  }catch(e){console.error('PI SIGN-IN CALLBACK:',e);toast(e.message||'Pi wallet authorization failed.');}
   load();
 });
 </script>
