@@ -359,9 +359,6 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 const API='https://amtpet09-github-io.onrender.com';
 // Keep TRUE while this app is running in Pi Testnet/Sandbox. Change to FALSE only after the Pi Developer app is moved to production.
 const PI_SANDBOX=true;
-// TEMPORARY diagnostic fallback for the owner's Testnet wallet only. Never use a personal wallet as a shared production fallback.
-const DEBUG_TEST_WALLET_FALLBACK='GAVFYNEHSTW4P65DM75P4TYAC6PNO5A6LGSYSGEFNN3O7A23XHWABSBP';
-const DEBUG_TEST_USERNAME='utoy0913';
 let pets=[],selectedPet=null,currentUser=null;
 let piInitialized=false;
 const $=id=>document.getElementById(id);
@@ -522,36 +519,71 @@ async function loadMyEggs(){
   }catch(e){console.error('EGGS:',e);if($('myEggs'))$('myEggs').innerHTML='<div class="msg">Unable to load eggs.</div>';if($('eggCollection'))$('eggCollection').innerHTML='<div class="msg">Unable to load eggs.</div>'}
 }
 async function openIncubator(){
+  // Show immediate feedback first. Do not wait for the network before opening the incubator UI.
+  openActionModal('🧪 24-HOUR INCUBATOR','Checking your eggs…',`
+    <div class="eggArt">🥚</div>
+    <div class="eggName">INCUBATOR</div>
+    <div class="muted" style="margin-top:8px">Loading your server-side eggs. Please wait…</div>`);
   try{
+    if(!currentUser?.accessToken){
+      openActionModal('🧪 24-HOUR INCUBATOR','Pi login is required.',`
+        <div class="eggArt">🥚</div>
+        <div class="muted" style="margin-top:10px">Please login with Pi first so the incubator can read your eggs from the server.</div>
+        <div class="modalActions"><button type="button" class="action dark" onclick="closeActionModal()">CLOSE</button></div>`);
+      return;
+    }
     await loadMyEggs();
     const eggs=Array.isArray(window.__myEggs)?window.__myEggs:[];
     const active=eggs.find(e=>e.status==='INCUBATING'||e.status==='READY');
     if(active){
       const status=active.status==='READY'?'READY TO HATCH':'INCUBATING';
-      openActionModal('🧪 24-HOUR INCUBATOR',`Egg ${esc(active.egg_code||'AMT EGG')} • ${status}`,`        <div class="eggArt">🥚</div>        <div class="eggName">${esc(active.egg_code||'AMT EGG')}</div>        <div class="eggMeta">${esc(active.element||'Unknown')} • ${esc(active.rarity||'Common')}</div>        <div class="eggTimer" style="margin-top:10px">${esc(active.status==='READY'?'READY TO HATCH':formatCountdown(Number(active.ready_in_ms||0)))}</div>        <div class="modalActions">${active.status==='READY'?`<button type="button" class="action gold" onclick="closeActionModal();hatchEgg(${JSON.stringify(active.id)})">🐣 HATCH EGG</button>`:`<button type="button" class="action dark" onclick="closeActionModal()">🧪 INCUBATOR RUNNING</button>`}</div>`);
+      openActionModal('🧪 24-HOUR INCUBATOR',`Egg ${esc(active.egg_code||'AMT EGG')} • ${status}`,`
+        <div class="eggArt">🥚</div>
+        <div class="eggName">${esc(active.egg_code||'AMT EGG')}</div>
+        <div class="eggMeta">${esc(active.element||'Unknown')} • ${esc(active.rarity||'Common')}</div>
+        <div class="eggTimer" style="margin-top:10px">${esc(active.status==='READY'?'READY TO HATCH':formatCountdown(Number(active.ready_in_ms||0)))}</div>
+        <div class="modalActions">${active.status==='READY'?`<button type="button" class="action gold" onclick="closeActionModal();hatchEgg(${JSON.stringify(active.id)})">🐣 HATCH EGG</button>`:`<button type="button" class="action dark" onclick="closeActionModal()">🧪 INCUBATOR RUNNING</button>`}</div>`);
       return;
     }
     const fresh=eggs.filter(e=>e.status==='NEW');
     if(!fresh.length){
-      openActionModal('🧪 24-HOUR INCUBATOR','No NEW egg is available yet.',`        <div class="eggArt">🥚</div>        <div class="muted" style="margin-top:10px">Breed two owned pets first. Your new egg will appear here, then you can start the 24-hour incubator.</div>        <div class="modalActions">          <button type="button" class="action gold" onclick="closeActionModal();showPanel('breeding',document.querySelector('[data-panel=breeding]'));breedPets()">🧬 BREED & CREATE EGG</button>          <button type="button" class="action dark" onclick="closeActionModal()">CLOSE</button>        </div>`);
+      openActionModal('🧪 24-HOUR INCUBATOR','No NEW egg is available yet.',`
+        <div class="eggArt">🥚</div>
+        <div class="muted" style="margin-top:10px">Breed two owned pets first. Your new egg will appear here, then you can start the 24-hour incubator.</div>
+        <div class="modalActions">
+          <button type="button" class="action gold" onclick="closeActionModal();showPanel('breeding',document.querySelector('[data-panel=breeding]'));breedPets()">🧬 BREED & CREATE EGG</button>
+          <button type="button" class="action dark" onclick="closeActionModal()">CLOSE</button>
+        </div>`);
       return;
     }
     if(fresh.length===1){
-      closeActionModal();
       await startIncubation(fresh[0].id);
       return;
     }
-    const body=fresh.map(e=>`<button type="button" class="petChoice" onclick="closeActionModal();startIncubation(${JSON.stringify(e.id)})"><div style="font-size:34px">🥚</div><div class="petChoiceInfo"><b>${esc(e.egg_code||'AMT EGG')}</b><span>${esc(e.element||'Unknown')} • ${esc(e.rarity||'Common')}</span></div><div class="choiceArrow">›</div></button>`).join('');
+    const body=fresh.map(e=>`<button type="button" class="petChoice" onclick="startIncubation(${JSON.stringify(e.id)})"><div style="font-size:34px">🥚</div><div class="petChoiceInfo"><b>${esc(e.egg_code||'AMT EGG')}</b><span>${esc(e.element||'Unknown')} • ${esc(e.rarity||'Common')}</span></div><div class="choiceArrow">›</div></button>`).join('');
     openActionModal('🧪 SELECT EGG TO INCUBATE','Choose one NEW egg to start the 24-hour incubator.',`<div class="actionChooser">${body}</div>`);
-  }catch(e){console.error('INCUBATOR:',e);toast(e.message||'Unable to open incubator.');}
+  }catch(e){
+    console.error('INCUBATOR:',e);
+    openActionModal('🧪 INCUBATOR ERROR','The incubator could not load your eggs.',`
+      <div class="eggArt">⚠️</div>
+      <div class="muted" style="margin-top:10px">${esc(e.message||'Unable to open incubator.')}</div>
+      <div class="modalActions"><button type="button" class="action dark" onclick="closeActionModal()">CLOSE</button></div>`);
+  }
 }
 async function startIncubation(eggId){
+  const id=Number(eggId);
+  if(!id){toast('Invalid egg. Please refresh your Eggs tab.');return}
+  if(!currentUser?.accessToken){toast('Please login with Pi first.');return}
+  toast('🧪 Starting 24-hour incubator…');
   try{
-    if(!currentUser?.accessToken){toast('Please login with Pi first.');return}
-    const d=await apiPost('/api/eggs/incubate',{egg_id:eggId});
+    const d=await apiPost('/api/eggs/incubate',{egg_id:id});
     toast(d.message||'Incubator started for 24 hours.');
+    closeActionModal();
     await loadMyEggs();
-  }catch(e){toast(e.message||'Unable to start incubator.')}
+  }catch(e){
+    console.error('START INCUBATOR:',e);
+    toast(e.message||'Unable to start incubator.');
+  }
 }
 async function hatchEgg(eggId){
   try{const d=await apiPost('/api/eggs/hatch',{egg_id:eggId});toast((d.message||'Egg hatched!')+' '+(d.pet?.name||''));await loadMyEggs();await loadMyPets()}catch(e){toast(e.message||'Egg is not ready yet.')}
@@ -738,6 +770,9 @@ function initPi(){
     piInitialized=true;
   }
 }
+function piRuntimeInfo(){
+  try{const f=typeof Pi.nativeFeaturesList==='function'?Pi.nativeFeaturesList():null;console.log('Pi native features:',f);return f}catch(e){console.log('Pi native feature check failed:',e.message);return null}
+}
 function saveWalletForCurrentUser(wallet){
   const w=String(wallet||'').trim().toUpperCase();
   if(!validWallet(w))return false;
@@ -752,11 +787,6 @@ function savedWalletForCurrentUser(){
   if(!validWallet(w))return '';
   if(owner && currentUser?.uid && owner!==currentUser.uid)return '';
   return w;
-}
-function testWalletFallbackForCurrentUser(){
-  if(!DEBUG_TEST_WALLET_FALLBACK)return '';
-  if(String(currentUser?.username||'').toLowerCase()!==DEBUG_TEST_USERNAME.toLowerCase())return '';
-  return validWallet(DEBUG_TEST_WALLET_FALLBACK)?DEBUG_TEST_WALLET_FALLBACK:'';
 }
 
 /* Wallet sync - backend endpoints preserved */
@@ -810,7 +840,7 @@ async function refreshWalletSync(){
     $('walletAddress').textContent=shortAddress(currentUser.wallet_address);$('walletAddress').title=currentUser.wallet_address;
     $('piBalance').textContent=Number(d.pi_balance??d.piBalance??0).toFixed(8)+' PI';
     $('onChainAMT').textContent=Number(d.balance||0).toFixed(8)+' AMT';
-    const issuer=d.issuer||d.amt?.issuer||'Not configured';if($('amtIssuer')){$('amtIssuer').textContent=issuer;$('amtIssuer').title=issuer;}$('walletDiag').textContent=(currentUser.wallet_address===DEBUG_TEST_WALLET_FALLBACK&&String(currentUser.username||'').toLowerCase()===DEBUG_TEST_USERNAME.toLowerCase())?'Wallet source: TEMPORARY TESTNET DIAGNOSTIC FALLBACK':'Wallet source: Pi SDK / synchronized wallet';window.__amtWalletConfig=d;
+    const issuer=d.issuer||d.amt?.issuer||'Not configured';if($('amtIssuer')){$('amtIssuer').textContent=issuer;$('amtIssuer').title=issuer;}$('walletDiag').textContent='Wallet source: Pi SDK / synchronized wallet';window.__amtWalletConfig=d;
     saveWalletForCurrentUser(currentUser.wallet_address);
   }catch(e){
     console.error('WALLET SYNC ERROR:',e);
@@ -830,8 +860,9 @@ async function requestWalletPermission(){
   if(!window.Pi){toast('Open AMT Pet Marketplace in Pi Browser.');return}
   try{
     initPi();
+    piRuntimeInfo();
     $('walletSyncStatus').textContent='REQUESTING PI WALLET ACCESS...';$('walletSyncStatus').style.color='#ffd66b';
-    const auth=await Pi.authenticate(['username','payments','wallet_address'],p=>{
+    const auth=await Pi.authenticate(['username','wallet_address'],p=>{
       console.log('Incomplete payment:',p);window.__amtIncompletePayment=p;
     });
     const u=auth?.user||{};
@@ -883,9 +914,7 @@ function loginPi(){
         const saved=savedWalletForCurrentUser();
         if(validWallet(saved))saveWalletForCurrentUser(saved);
         else{
-          const fallback=testWalletFallbackForCurrentUser();
-          if(validWallet(fallback))saveWalletForCurrentUser(fallback);
-        }
+            }
       }
       localStorage.setItem('amtPetPiUid',currentUser.uid);localStorage.setItem('amtPetPiUsername',currentUser.username);localStorage.setItem('amtPetPiAccessToken',currentUser.accessToken);
       showMarketplaceLoading('VERIFYING PIONEER...');
