@@ -86,7 +86,7 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 .formGrid{display:grid;gap:8px}.formGrid input,.formGrid select{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:#071522;color:#fff}.small{font-size:10px;color:var(--muted)}
 
 /* Professional action chooser */
-.actionChooser{display:grid;gap:9px;margin-top:12px}.petChoice{display:flex;align-items:center;gap:10px;text-align:left;width:100%;padding:9px;background:#081724;border:1px solid #244965;border-radius:13px;color:#fff}.petChoice:hover{border-color:#35c9ff;background:#0c2133}.petChoice img{width:52px;height:52px;border-radius:10px;object-fit:cover;background:#06101c}.petChoiceInfo{min-width:0;flex:1}.petChoiceInfo b{display:block;font-size:13px}.petChoiceInfo span{display:block;color:var(--muted);font-size:10px;margin-top:3px}.choiceArrow{color:var(--blue);font-size:18px;font-weight:900}
+.actionChooser{display:grid;gap:9px;margin-top:12px}.petChoice{display:flex;align-items:center;gap:10px;text-align:left;width:100%;padding:9px;background:#081724;border:1px solid #244965;border-radius:13px;color:#fff;cursor:pointer;pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;position:relative;z-index:1}.petChoice:hover{border-color:#35c9ff;background:#0c2133}.petChoice img{width:52px;height:52px;border-radius:10px;object-fit:cover;background:#06101c}.petChoiceInfo{min-width:0;flex:1}.petChoiceInfo b{display:block;font-size:13px}.petChoiceInfo span{display:block;color:var(--muted);font-size:10px;margin-top:3px}.choiceArrow{color:var(--blue);font-size:18px;font-weight:900}
 
 .abilityPanel{margin-top:12px;padding:12px;border:1px solid #28536f;border-radius:14px;background:linear-gradient(145deg,#0a1d2d,#07131f)}
 .abilityTitle{font-size:13px;font-weight:1000;color:#fff;margin-bottom:9px}
@@ -282,7 +282,7 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
 <section id="breeding" class="panel">
   <div class="incubatorBanner"><div><b>🧪 24-HOUR INCUBATOR</b><br><span>Breed first. Get an Egg. Incubate it. Then hatch your next NFT pet.</span></div><span>🥚 → 🧪 → 🐣</span></div>
   <div class="card"><div class="cardTitle">🧬 BREEDING LAB</div><p class="muted">Choose two different owned pets. Breeding creates a tradable Egg first — no instant pet generation.</p><div class="row"><span class="muted">Community breeding target</span><b style="color:var(--gold)">5 AMT</b></div><div class="small">Testnet note: the AMT wallet charge will be connected to the secure wallet flow before live charging. Breeding itself is already recorded server-side.</div><button class="action" style="margin-top:11px" onclick="breedPets()">🧬 BREED → CREATE EGG</button></div>
-  <div class="card incubatorControlCard"><div class="cardTitle">🥚 MY EGGS & INCUBATOR <span class="status" style="float:right">READY TO TEST</span></div><div class="muted">Your eggs are stored server-side. Use the button below to open the incubator and start the 24-hour server-controlled timer.</div><button type="button" class="action gold" style="margin-top:12px" onclick="openIncubator()">🧪 OPEN / START INCUBATOR</button></div>
+  <div class="card incubatorControlCard"><div class="cardTitle">🥚 MY EGGS & INCUBATOR <span class="status" style="float:right">BUILD 2026-09-12-FIX2</span></div><div class="muted">Your eggs are stored server-side. Use the button below to open the incubator and start the 24-hour server-controlled timer.</div><button type="button" class="action gold" style="margin-top:12px" onclick="openIncubator()">🧪 OPEN / START INCUBATOR</button></div>
   <div id="myEggs" class="eggGrid"><div class="msg">Loading eggs...</div></div>
 </section>
 
@@ -503,7 +503,7 @@ function eggCardHTML(e){
   const ready=Number(e.ready_in_ms||0)<=0 && (status==='READY'||status==='INCUBATING');
   const timer=status==='NEW'?'NOT INCUBATING':ready?'READY TO HATCH':formatCountdown(Number(e.ready_in_ms||0));
   let actions='';
-  if(status==='NEW')actions+=`<button class="action" onclick="startIncubation(${JSON.stringify(e.id)})">🧪 START INCUBATOR</button>`;
+  if(status==='NEW')actions+=`<button type="button" class="action eggStartBtn" data-start-egg="${esc(e.id)}">🧪 START INCUBATOR</button>`;
   if(status==='READY'||ready)actions+=`<button class="action gold" onclick="hatchEgg(${JSON.stringify(e.id)})">🐣 HATCH EGG</button>`;
   if(status==='NEW'||status==='INCUBATING'||status==='READY')actions+=`<button class="action dark" onclick="sellEgg(${JSON.stringify(e.id)})">💰 SELL EGG</button>`;
   return `<article class="eggCard"><div class="eggArt">🥚<div class="petGlow"></div></div><div class="eggName">${esc(e.egg_code||'AMT EGG')}</div><div class="eggMeta">${esc(e.element||'Unknown')} • ${esc(e.rarity||'Common')}<br>Parents #${esc(e.parent1_id)} + #${esc(e.parent2_id)}</div><div class="eggTimer"><div class="eggStatus">${esc(status)}</div>${esc(timer)}</div><div class="eggActions">${actions}</div></article>`;
@@ -560,7 +560,7 @@ async function openIncubator(){
       await startIncubation(fresh[0].id);
       return;
     }
-    const body=fresh.map(e=>`<button type="button" class="petChoice" onclick="startIncubation(${JSON.stringify(e.id)})"><div style="font-size:34px">🥚</div><div class="petChoiceInfo"><b>${esc(e.egg_code||'AMT EGG')}</b><span>${esc(e.element||'Unknown')} • ${esc(e.rarity||'Common')}</span></div><div class="choiceArrow">›</div></button>`).join('');
+    const body=fresh.map(e=>`<button type="button" class="petChoice eggChoiceBtn" data-incubate-egg="${esc(e.id)}"><div style="font-size:34px">🥚</div><div class="petChoiceInfo"><b>${esc(e.egg_code||'AMT EGG')}</b><span>${esc(e.element||'Unknown')} • ${esc(e.rarity||'Common')}</span></div><div class="choiceArrow">›</div></button>`).join('');
     openActionModal('🧪 SELECT EGG TO INCUBATE','Choose one NEW egg to start the 24-hour incubator.',`<div class="actionChooser">${body}</div>`);
   }catch(e){
     console.error('INCUBATOR:',e);
@@ -570,21 +570,54 @@ async function openIncubator(){
       <div class="modalActions"><button type="button" class="action dark" onclick="closeActionModal()">CLOSE</button></div>`);
   }
 }
+let incubatorBusy=false;
 async function startIncubation(eggId){
   const id=Number(eggId);
-  if(!id){toast('Invalid egg. Please refresh your Eggs tab.');return}
+  if(!Number.isInteger(id)||id<=0){toast('Invalid egg. Please refresh your Eggs tab.');return}
   if(!currentUser?.accessToken){toast('Please login with Pi first.');return}
-  toast('🧪 Starting 24-hour incubator…');
+  if(incubatorBusy)return;
+  incubatorBusy=true;
+  openActionModal('🧪 STARTING INCUBATOR','Connecting to the server…',`
+    <div class="eggArt">🥚</div>
+    <div class="eggName">24-HOUR INCUBATOR</div>
+    <div class="muted" style="margin-top:8px">Your egg is being placed into the server-controlled incubator. Please wait…</div>`);
   try{
-    const d=await apiPost('/api/eggs/incubate',{egg_id:id});
-    toast(d.message||'Incubator started for 24 hours.');
-    closeActionModal();
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),12000);
+    let r,d;
+    try{
+      r=await fetch(API+'/api/eggs/incubate',{method:'POST',headers:authHeaders(),body:JSON.stringify({egg_id:id}),cache:'no-store',signal:controller.signal});
+      d=await r.json().catch(()=>({}));
+    }finally{clearTimeout(timer)}
+    if(!r.ok)throw Error(d.error||'Unable to start incubator.');
     await loadMyEggs();
+    const egg=(window.__myEggs||[]).find(x=>Number(x.id)===id);
+    openActionModal('🥚 INCUBATOR STARTED','Your egg is now incubating for 24 hours.',`
+      <div class="eggArt">🧪</div>
+      <div class="eggName">${esc(egg?.egg_code||'AMT EGG')}</div>
+      <div class="eggMeta">${esc(egg?.element||'Unknown')} • ${esc(egg?.rarity||'Common')}</div>
+      <div class="eggTimer" style="margin-top:10px">24:00:00 • INCUBATING</div>
+      <div class="modalActions"><button type="button" class="action dark" onclick="closeActionModal()">CLOSE</button></div>`);
   }catch(e){
     console.error('START INCUBATOR:',e);
-    toast(e.message||'Unable to start incubator.');
-  }
+    const msg=e.name==='AbortError'?'Server took too long to respond. Please try again.':(e.message||'Unable to start incubator.');
+    openActionModal('⚠️ INCUBATOR NOT STARTED','The server did not confirm the incubation.',`
+      <div class="eggArt">⚠️</div>
+      <div class="muted" style="margin-top:8px">${esc(msg)}</div>
+      <div class="modalActions"><button type="button" class="action gold" onclick="closeActionModal();startIncubation(${id})">TRY AGAIN</button><button type="button" class="action dark" onclick="closeActionModal()">CLOSE</button></div>`);
+  }finally{incubatorBusy=false}
 }
+
+/* Reliable mobile click routing for incubator controls.
+   This deliberately does not depend only on inline onclick handlers. */
+document.addEventListener('click',function(ev){
+  const start=ev.target.closest?.('[data-start-egg],[data-incubate-egg]');
+  if(!start)return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  const id=start.getAttribute('data-start-egg')||start.getAttribute('data-incubate-egg');
+  startIncubation(id);
+},true);
 async function hatchEgg(eggId){
   try{const d=await apiPost('/api/eggs/hatch',{egg_id:eggId});toast((d.message||'Egg hatched!')+' '+(d.pet?.name||''));await loadMyEggs();await loadMyPets()}catch(e){toast(e.message||'Egg is not ready yet.')}
 }
