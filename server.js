@@ -301,7 +301,7 @@ app.get("/api/wallet/onchain",requirePiAuth,async(req,res)=>{
       amt:{wallet,asset_code:AMT_ASSET_CODE,issuer:AMT_ISSUER,balance},pi:{wallet,balance:piBalance,asset_code:"Pi"}});
   }catch(e){res.status(400).json({ok:false,error:e.message});}
 });
-app.get("/api/wallet/config",(req,res)=>res.json({ok:true,asset_code:AMT_ASSET_CODE,issuer:AMT_ISSUER,receiver:AMT_RECEIVER,horizon:AMT_HORIZON_URL,network:"Pi Testnet"}));
+app.get("/api/wallet/config",(req,res)=>res.json({ok:true,asset_code:AMT_ASSET_CODE,horizon:AMT_HORIZON_URL,network:"Pi Testnet"}));
 
 async function care(req,res){
   try{const p=await findOwnedPet(req.piUser.uid,req);const r=await dbQuery("UPDATE user_pets SET hp=$1,updated_at=NOW() WHERE id=$2 RETURNING *",[p.base_hp,p.id]);
@@ -444,7 +444,7 @@ app.post("/api/sell/list",requirePiAuth,async(req,res)=>{
   }catch(e){console.error("sell list:",e);res.status(400).json({ok:false,error:e.message});}
 });
 app.get("/api/market/listings",async(req,res)=>{
-  try{const r=await dbQuery(`SELECT l.id,l.pet_id,l.price_amt,l.status,p.username,pc.name,pc.element,pc.image,up.level,up.rarity,100 AS seller_reputation
+  try{const r=await dbQuery(`SELECT l.id,l.pet_id,l.price_amt,l.status,l.created_at,p.username,p.wallet_address AS seller_wallet,pc.name,pc.element,pc.image,up.level,up.rarity,100 AS seller_reputation
     FROM pet_listings l JOIN user_pets up ON up.id=l.pet_id JOIN pioneers p ON p.id=l.pioneer_id JOIN pets_catalog pc ON pc.pet_code=up.pet_code
     WHERE l.status='ACTIVE' ORDER BY l.created_at DESC`);
     res.json({ok:true,count:r.rows.length,listings:r.rows});
@@ -468,13 +468,61 @@ app.post("/api/sell/egg",requirePiAuth,async(req,res)=>{
 });
 app.get("/api/market/eggs",async(req,res)=>{
   try{
-    const r=await dbQuery(`SELECT l.id,l.egg_id,l.price_amt,l.status,p.username,e.egg_code,e.element,e.rarity,e.status AS egg_status,
+    const r=await dbQuery(`SELECT l.id,l.egg_id,l.price_amt,l.status,l.created_at,p.username,p.wallet_address AS seller_wallet,e.egg_code,e.element,e.rarity,e.status AS egg_status,
       c.name AS future_name,c.image AS future_image
       FROM egg_listings l JOIN pet_eggs e ON e.id=l.egg_id JOIN pioneers p ON p.id=l.pioneer_id
       JOIN pets_catalog c ON c.pet_code=e.future_pet_code
       WHERE l.status='ACTIVE' ORDER BY l.created_at DESC`);
-    res.json({ok:true,count:r.rows.length,listings:r.rows});
+    res.json({ok:true,count:r.rows.length,listings:r.rows,eggs:r.rows});
   }catch(e){res.status(500).json({ok:false,error:e.message});}
+});
+
+/* PUBLIC MARKET PURCHASES — VERIFIED AMT ON-CHAIN */
+app.post("/api/market/buy-pet",requirePiAuth,async(req,res)=>{
+  const buyerUid=req.piUser.uid,txid=String(req.body?.txid||"").trim(),listingId=Number(req.body?.listing_id||req.body?.listingId||0);
+  if(!listingId||!txid)return res.status(400).json({ok:false,error:"listing_id and txid are required."});
+  const client=await pool.connect();
+  try{
+    await client.query("BEGIN");
+    const buyer=await client.query("SELECT id,pi_uid,wallet_address FROM pioneers WHERE pi_uid=$1 FOR UPDATE",[buyerUid]);
+    if(!buyer.rows.length)throw new Error("Pioneer account not found.");
+    const buyerWallet=String(buyer.rows[0].wallet_address||"").trim().toUpperCase();
+    if(!isPublicStellarAddress(buyerWallet))throw new Error("Sync your public Pi Testnet wallet first.");
+    const q=await client.query(`SELECT l.id,l.pet_id,l.price_amt,l.pioneer_id,l.status,p.pi_uid AS seller_uid,p.wallet_address AS seller_wallet,up.pioneer_id AS current_owner,up.pet_code,pc.name
+      FROM pet_listings l JOIN pioneers p ON p.id=l.pioneer_id JOIN user_pets up ON up.id=l.pet_id JOIN pets_catalog pc ON pc.pet_code=up.pet_code WHERE l.id=$1 FOR UPDATE`,[listingId]);
+    if(!q.rows.length)throw new Error("Pet listing not found."); const x=q.rows[0];
+    if(x.status!=="ACTIVE")throw new Error("This pet is no longer for sale.");
+    if(String(x.seller_uid)===String(buyerUid)||Number(x.current_owner)===Number(buyer.rows[0].id))throw new Error("You cannot buy your own pet listing.");
+    const sellerWallet=String(x.seller_wallet||"").trim().toUpperCase();
+    if(!isPublicStellarAddress(sellerWallet))throw new Error("Seller wallet is not synchronized yet.");
+    const used=await client.query("SELECT id FROM amt_payments WHERE txid=$1 LIMIT 1",[txid]); if(used.rows.length)throw new Error("This AMT transaction hash has already been used.");
+    await verifyAMTTransfer(txid,buyerWallet,sellerWallet,Number(x.price_amt));
+    await client.query(`INSERT INTO amt_payments(pi_uid,pet_code,amount,asset_code,receiver,txid,status,completed_at) VALUES($1,$2,$3,$4,$5,$6,'COMPLETED',NOW())`,[buyerUid,x.pet_code,Number(x.price_amt),AMT_ASSET_CODE,sellerWallet,txid]);
+    const moved=await client.query(`UPDATE user_pets SET pioneer_id=$1,updated_at=NOW() WHERE id=$2 AND pioneer_id=$3 RETURNING *`,[buyer.rows[0].id,x.pet_id,x.pioneer_id]);
+    if(!moved.rows.length)throw new Error("Pet ownership changed before purchase completed.");
+    await client.query(`UPDATE pet_listings SET status='SOLD',updated_at=NOW() WHERE id=$1`,[listingId]); await client.query("COMMIT");
+    res.json({ok:true,status:"COMPLETED",message:`${x.name} purchased successfully. Ownership has been transferred to your Pioneer account.`,transactionId:txid,pet:{...moved.rows[0],name:x.name}});
+  }catch(e){await client.query("ROLLBACK").catch(()=>{});console.error("public buy pet:",e);res.status(400).json({ok:false,error:e.message});} finally{client.release();}
+});
+app.post("/api/market/buy-egg",requirePiAuth,async(req,res)=>{
+  const buyerUid=req.piUser.uid,txid=String(req.body?.txid||"").trim(),listingId=Number(req.body?.listing_id||req.body?.listingId||0);
+  if(!listingId||!txid)return res.status(400).json({ok:false,error:"listing_id and txid are required."});
+  const client=await pool.connect();
+  try{
+    await client.query("BEGIN"); const buyer=await client.query("SELECT id,pi_uid,wallet_address FROM pioneers WHERE pi_uid=$1 FOR UPDATE",[buyerUid]);
+    if(!buyer.rows.length)throw new Error("Pioneer account not found."); const buyerWallet=String(buyer.rows[0].wallet_address||"").trim().toUpperCase();
+    if(!isPublicStellarAddress(buyerWallet))throw new Error("Sync your public Pi Testnet wallet first.");
+    const q=await client.query(`SELECT l.id,l.egg_id,l.price_amt,l.pioneer_id,l.status,e.egg_code,e.status AS egg_status,p.pi_uid AS seller_uid,p.wallet_address AS seller_wallet FROM egg_listings l JOIN pet_eggs e ON e.id=l.egg_id JOIN pioneers p ON p.id=l.pioneer_id WHERE l.id=$1 FOR UPDATE`,[listingId]);
+    if(!q.rows.length)throw new Error("Egg listing not found."); const x=q.rows[0]; if(x.status!=="ACTIVE")throw new Error("This egg is no longer for sale.");
+    if(String(x.seller_uid)===String(buyerUid)||Number(x.pioneer_id)===Number(buyer.rows[0].id))throw new Error("You cannot buy your own egg listing.");
+    const sellerWallet=String(x.seller_wallet||"").trim().toUpperCase(); if(!isPublicStellarAddress(sellerWallet))throw new Error("Seller wallet is not synchronized yet.");
+    const used=await client.query("SELECT id FROM amt_payments WHERE txid=$1 LIMIT 1",[txid]); if(used.rows.length)throw new Error("This AMT transaction hash has already been used.");
+    await verifyAMTTransfer(txid,buyerWallet,sellerWallet,Number(x.price_amt));
+    await client.query(`INSERT INTO amt_payments(pi_uid,pet_code,amount,asset_code,receiver,txid,status,completed_at) VALUES($1,(SELECT future_pet_code FROM pet_eggs WHERE id=$2),$3,$4,$5,$6,'COMPLETED',NOW())`,[buyerUid,x.egg_id,Number(x.price_amt),AMT_ASSET_CODE,sellerWallet,txid]);
+    const nextStatus=(x.egg_status==='INCUBATING'?'INCUBATING':'NEW'); await client.query(`UPDATE pet_eggs SET pioneer_id=$1,status=$2,updated_at=NOW() WHERE id=$3 AND pioneer_id=$4`,[buyer.rows[0].id,nextStatus,x.egg_id,x.pioneer_id]);
+    await client.query(`UPDATE egg_listings SET status='SOLD',updated_at=NOW() WHERE id=$1`,[listingId]); const moved=await client.query("SELECT id,egg_code,status,element,rarity,future_pet_code,hatch_ready_at FROM pet_eggs WHERE id=$1",[x.egg_id]);
+    await client.query("COMMIT"); res.json({ok:true,status:"COMPLETED",message:`${x.egg_code} purchased successfully. Ownership has been transferred to your Pioneer account.`,transactionId:txid,egg:moved.rows[0]||null});
+  }catch(e){await client.query("ROLLBACK").catch(()=>{});console.error("public buy egg:",e);res.status(400).json({ok:false,error:e.message});} finally{client.release();}
 });
 
 /* AMT TOKEN STORE — Pi Testnet -> on-chain AMT */
@@ -682,7 +730,7 @@ app.post("/api/payments/amt/prepare",requirePiAuth,async(req,res)=>{
     const {pet_code}=req.body||{},wallet=req.pioneer.wallet_address||"";
     if(!pet_code)return res.status(400).json({ok:false,error:"pet_code is required."});
     if(!isPublicStellarAddress(wallet))return res.status(400).json({ok:false,error:"Sync your public Pi Testnet wallet first."});
-    res.json({ok:true,pet_code,amount:Number(PET_AMT_PRICE),currency:AMT_ASSET_CODE,from_wallet:wallet,receiver:AMT_RECEIVER,issuer:AMT_ISSUER,horizon:AMT_HORIZON_URL,status:"READY_FOR_VERIFIED_AMT_TRANSFER"});
+    res.json({ok:true,pet_code,amount:Number(PET_AMT_PRICE),currency:AMT_ASSET_CODE,from_wallet:wallet,horizon:AMT_HORIZON_URL,network:"Pi Testnet",status:"READY_FOR_VERIFIED_AMT_TRANSFER"});
   }catch(e){res.status(400).json({ok:false,error:e.message});}
 });
 app.post("/api/payments/amt/complete",requirePiAuth,async(req,res)=>{
