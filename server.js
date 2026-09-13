@@ -1,1598 +1,1547 @@
-"use strict";
-
-/*
- * ============================================================
- * ALBERTO MARKETPLACE TOKEN (AMT)
- * PI TESTNET MINING BACKEND
- *
- * IMPORTANT:
- * - Existing AMT mining/ledger functions are preserved.
- * - Pi user authentication is verified server-side.
- * - Pi username is used as the referral identifier.
- * - Maximum direct referrals per Pioneer: 5.
- * - Referral rewards are NOT credited on Testnet.
- * - Referral activity is recorded for future Mainnet rules.
- * ============================================================
- */
+require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
-const crypto = require("crypto");
 const { Pool } = require("pg");
 
 const app = express();
+const PORT = process.env.PORT || 10000;
 
-const PORT = Number(process.env.PORT || 10000);
+const DATABASE_URL = process.env.DATABASE_URL || "";
+const PI_API_KEY = process.env.PI_API_KEY || "";
+const PI_API_BASE = "https://api.minepi.com";
+const PI_PAYMENT_CURRENCY = "Pi";
+const PET_PI_PRICE = "10";
+const PET_AMT_PRICE = "100";
 
-const PI_API_BASE = (
-  process.env.PI_API_BASE || "https://api.minepi.com"
-).trim().replace(/\/+$/, "");
+const AMT_ASSET_CODE = process.env.AMT_ASSET_CODE || "AMT";
+const AMT_ISSUER = process.env.AMT_ISSUER || "GCDV5VKFE4EPQFRPDDZN64RXZMH2T4EHP47PMZ7KJMILR5DQICONMFP5";
+const AMT_RECEIVER =
+  process.env.AMT_RECEIVER ||
+  process.env.AMT_DISTRIBUTOR ||
+  "GAVFYNEHSTW4P65DM75P4TYAC6PNO5A6LGSYSGEFNN3O7A23XHWABSBP";
+const AMT_HORIZON_URL =
+  process.env.AMT_HORIZON_URL || "https://api.testnet.minepi.com";
 
-const PI_API_KEY = (
-  process.env.PI_API_KEY || ""
-).trim();
-
-const AMT_MINING_RATE = Number(
-  process.env.AMT_MINING_RATE || "0.01"
-);
-
-const MINING_DURATION_SECONDS = 24 * 60 * 60;
-const MAXIMUM_BASE_REWARD = Number(
-  (AMT_MINING_RATE * 24).toFixed(8)
-);
-
-const MAX_DIRECT_REFERRALS = 5;
-
-/* Test Marketplace: private owner-only pet for Pi Testnet payment testing. */
-const MARKET_TEST_OWNER_PI_UID = (process.env.MARKET_TEST_OWNER_PI_UID || "").trim();
-const MARKET_TEST_OWNER_USERNAME = (process.env.MARKET_TEST_OWNER_USERNAME || "").trim().toLowerCase();
-const MARKET_TEST_PRICE_PI = Number(process.env.MARKET_TEST_PRICE_PI || "0.1");
-const MARKET_TEST_PRODUCT_ID = "amt-test-pet-001";
-
-if (!Number.isFinite(MARKET_TEST_PRICE_PI) || MARKET_TEST_PRICE_PI <= 0) {
-  console.error("MARKET_TEST_PRICE_PI must be a positive number.");
-  process.exit(1);
-}
-
-if (!Number.isFinite(AMT_MINING_RATE) || AMT_MINING_RATE < 0) {
-  console.error("AMT_MINING_RATE must be a valid non-negative number.");
-  process.exit(1);
-}
-
-if (!process.env.DATABASE_URL) {
-  console.error("DATABASE_URL is missing.");
-  process.exit(1);
-}
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
-
-app.use(cors({ origin: "*" }));
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
 app.use(express.json({ limit: "1mb" }));
 
-async function readJsonResponse(response) {
-  const text = await response.text();
-  if (!text) return null;
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { raw: text };
-  }
+let pool = null;
+if (DATABASE_URL) {
+  pool = new Pool({
+    connectionString: DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+  });
+  pool.on("error", err => console.error("PostgreSQL pool error:", err));
 }
 
-function sendError(res, status, error, code = null) {
-  const response = { success: false, error };
-  if (code) response.code = code;
-  return res.status(status).json(response);
+async function dbQuery(text, params = []) {
+  if (!pool) throw new Error("DATABASE_URL is not configured.");
+  return pool.query(text, params);
 }
+
+/* -------------------------------------------------------------------------- */
+/* PET CATALOG - same 70 pets, compact format                                 */
+/* -------------------------------------------------------------------------- */
+
+const PET_SEED = [
+  ["earth-01","Terrax","Earth","terrax.png",120,20,22],
+  ["earth-02","Rockhorn","Earth","rockhorn.png",125,19,24],
+  ["earth-03","Stonefist","Earth","stonefist.png",130,22,25],
+  ["earth-04","Earthdrake","Earth","earthdrake.png",128,23,23],
+  ["earth-05","Boulderlynx","Earth","boulderlynx.png",118,24,20],
+  ["earth-06","Terrapin","Earth","terrapin.png",140,16,28],
+  ["earth-07","Gravelpaw","Earth","gravelpaw.png",115,21,21],
+  ["earth-08","Pebblix","Earth","pebblix.png",110,18,20],
+  ["earth-09","Mountainhoof","Earth","mountainhoof.png",145,18,30],
+  ["earth-10","Terroscale","Earth","terroscale.png",135,25,24],
+
+  ["water-01","Aqualis","Water","aqualis.png",110,23,18],
+  ["water-02","Tideback","Water","tideback.png",135,18,27],
+  ["water-03","Oceanix","Water","oceanix.png",125,24,20],
+  ["water-04","Neptunox","Water","neptunox.png",130,27,21],
+  ["water-05","Jellyfin","Water","jellyfin.png",105,19,19],
+  ["water-06","Sharky","Water","sharky.png",120,29,17],
+  ["water-07","Seapony","Water","seapony.png",115,22,21],
+  ["water-08","Krakenling","Water","krakenling.png",140,26,23],
+  ["water-09","Riptide","Water","riptide.png",118,30,18],
+  ["water-10","Abyssal","Water","abyssal.png",145,28,25],
+
+  ["nature-01","Leaflyn","Nature","leaflyn.png",115,20,22],
+  ["nature-02","Treetle","Nature","treetle.png",130,18,27],
+  ["nature-03","Sylvann","Nature","sylvann.png",120,25,20],
+  ["nature-04","Verdira","Nature","verdira.png",118,23,23],
+  ["nature-05","Bloomtail","Nature","bloomtail.png",112,21,22],
+  ["nature-06","Groveon","Nature","groveon.png",128,22,25],
+  ["nature-07","Nutty","Nature","nutty.png",108,19,20],
+  ["nature-08","Flora","Nature","flora.png",110,26,19],
+  ["nature-09","Forestfang","Nature","forestfang.png",125,28,21],
+  ["nature-10","Everbloom","Nature","everbloom.png",138,25,26],
+
+  ["ice-01","Frostbite","Ice","frostbite.png",115,24,21],
+  ["ice-02","Glaciard","Ice","glaciard.png",130,20,27],
+  ["ice-03","Snowwing","Ice","snowwing.png",108,27,18],
+  ["ice-04","Frostdrake","Ice","frostdrake.png",135,28,24],
+  ["ice-05","Chillpengu","Ice","chillpengu.png",105,19,20],
+  ["ice-06","Frostwolf","Ice","frostwolf.png",125,30,21],
+  ["ice-07","Icetusk","Ice","icetusk.png",142,22,29],
+  ["ice-08","Frostseal","Ice","frostseal.png",120,21,25],
+  ["ice-09","Glacieron","Ice","glacieron.png",132,26,26],
+  ["ice-10","Frostbear","Ice","frostbear.png",150,24,31],
+
+  ["fire-01","Flammy","Fire","flammy.png",108,27,17],
+  ["fire-02","Pyroclaw","Fire","pyroclaw.png",115,30,18],
+  ["fire-03","Blazewing","Fire","blazewing.png",110,32,17],
+  ["fire-04","Infernox","Fire","infernox.png",128,31,21],
+  ["fire-05","Phoenixia","Fire","phoenixia.png",125,34,20],
+  ["fire-06","Magmortar","Fire","magmortar.png",145,28,28],
+  ["fire-07","Salamorra","Fire","salamorra.png",130,33,23],
+  ["fire-08","Emberhorn","Fire","emberhorn.png",120,29,22],
+  ["fire-09","Flamefang","Fire","flamefang.png",118,35,19],
+  ["fire-10","Pyromite","Fire","pyromite.png",135,32,25],
+
+  ["wind-01","Zephyrin","Wind","zephyrin.png",105,25,18],
+  ["wind-02","Skyflare","Wind","skyflare.png",110,29,17],
+  ["wind-03","Windrake","Wind","windrake.png",125,30,21],
+  ["wind-04","Aerolith","Wind","aerolith.png",115,26,22],
+  ["wind-05","Skywhisp","Wind","skywhisp.png",100,24,16],
+  ["wind-06","Stormtalon","Wind","stormtalon.png",120,34,19],
+  ["wind-07","Cloudstride","Wind","cloudstride.png",112,28,20],
+  ["wind-08","Breezeling","Wind","breezeling.png",102,23,18],
+  ["wind-09","Tornadope","Wind","tornadope.png",118,33,18],
+  ["wind-10","Zephyria","Wind","zephyria.png",130,31,23],
+
+  ["thunder-01","Voltix","Thunder","voltix.png",110,30,18],
+  ["thunder-02","Zephron","Thunder","zephron.png",115,28,19],
+  ["thunder-03","Stormee","Thunder","stormee.png",108,32,17],
+  ["thunder-04","Thunderdrake","Thunder","thunderdrake.png",130,35,23],
+  ["thunder-05","Sparkster","Thunder","sparkster.png",105,29,18],
+  ["thunder-06","Raihorn","Thunder","raihorn.png",140,27,30],
+  ["thunder-07","Voltlynx","Thunder","voltlynx.png",118,34,20],
+  ["thunder-08","Electrix","Thunder","electrix.png",112,31,19],
+  ["thunder-09","Skyshock","Thunder","skyshock.png",120,36,18],
+  ["thunder-10","Thunderix","Thunder","thunderix.png",135,38,24]
+].map(([code,name,element,image,hp,atk,def]) =>
+  ({ code, name, element, image, hp, atk, def })
+);
+
+/* -------------------------------------------------------------------------- */
+/* DATABASE                                                                    */
+/* -------------------------------------------------------------------------- */
 
 async function initializeDatabase() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS members (
-      id SERIAL PRIMARY KEY,
-      pi_uid TEXT UNIQUE NOT NULL,
-      username TEXT,
-      kyc_status TEXT NOT NULL DEFAULT 'UNVERIFIED'
-        CHECK (kyc_status IN ('UNVERIFIED','PENDING','VERIFIED','REJECTED')),
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
+  if (!pool) {
+    console.log("DATABASE_URL is not configured.");
+    return;
+  }
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS amt_wallets (
-      id SERIAL PRIMARY KEY,
-      member_id INTEGER UNIQUE NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-      wallet_status TEXT NOT NULL DEFAULT 'NOT_CONNECTED',
-      wallet_address TEXT UNIQUE,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
+  await dbQuery(`CREATE TABLE IF NOT EXISTS pioneers(
+    id BIGSERIAL PRIMARY KEY,
+    pi_uid TEXT UNIQUE NOT NULL,
+    username TEXT,
+    wallet_address TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );`);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS mining_sessions (
-      id SERIAL PRIMARY KEY,
-      member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-      started_at TIMESTAMPTZ NOT NULL,
-      ends_at TIMESTAMPTZ NOT NULL,
-      status TEXT NOT NULL DEFAULT 'ACTIVE'
-        CHECK (status IN ('ACTIVE','COMPLETED','CANCELLED')),
-      rate NUMERIC(30,8) NOT NULL,
-      claimed_amount NUMERIC(30,8) NOT NULL DEFAULT 0,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
+  await dbQuery(`CREATE TABLE IF NOT EXISTS pets_catalog(
+    id BIGSERIAL PRIMARY KEY,
+    pet_code TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    element TEXT NOT NULL,
+    rarity TEXT NOT NULL DEFAULT 'Common',
+    image TEXT NOT NULL,
+    base_hp INTEGER NOT NULL DEFAULT 100,
+    base_atk INTEGER NOT NULL DEFAULT 10,
+    base_def INTEGER NOT NULL DEFAULT 10,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );`);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS amt_ledger (
-      id SERIAL PRIMARY KEY,
-      member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-      amount NUMERIC(30,8) NOT NULL,
-      type TEXT NOT NULL,
-      reference TEXT UNIQUE NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
+  await dbQuery(`CREATE TABLE IF NOT EXISTS user_pets(
+    id BIGSERIAL PRIMARY KEY,
+    pioneer_id BIGINT NOT NULL REFERENCES pioneers(id) ON DELETE CASCADE,
+    pet_code TEXT NOT NULL REFERENCES pets_catalog(pet_code),
+    rarity TEXT NOT NULL DEFAULT 'Common',
+    level INTEGER NOT NULL DEFAULT 1,
+    xp BIGINT NOT NULL DEFAULT 0,
+    hp INTEGER NOT NULL DEFAULT 100,
+    atk INTEGER NOT NULL DEFAULT 10,
+    def INTEGER NOT NULL DEFAULT 10,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );`);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS referrals (
-      id SERIAL PRIMARY KEY,
-      referrer_member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-      referred_member_id INTEGER UNIQUE NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-      status TEXT NOT NULL DEFAULT 'ACTIVE'
-        CHECK (status IN ('ACTIVE','INACTIVE')),
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
+  await dbQuery(`CREATE TABLE IF NOT EXISTS pet_payments(
+    id BIGSERIAL PRIMARY KEY,
+    payment_id TEXT UNIQUE NOT NULL,
+    pi_uid TEXT NOT NULL,
+    username TEXT,
+    pet_code TEXT NOT NULL REFERENCES pets_catalog(pet_code),
+    currency TEXT NOT NULL,
+    amount NUMERIC(30,8) NOT NULL,
+    status TEXT NOT NULL DEFAULT 'CREATED',
+    transaction_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+  );`);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS security_circle (
-      id SERIAL PRIMARY KEY,
-      owner_member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-      member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-      status TEXT NOT NULL DEFAULT 'ACTIVE'
-        CHECK (status IN ('ACTIVE','INACTIVE')),
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE (owner_member_id, member_id)
-    );
-  `);
+  await dbQuery(`CREATE TABLE IF NOT EXISTS amt_payments(
+    id BIGSERIAL PRIMARY KEY,
+    pi_uid TEXT NOT NULL,
+    pet_code TEXT NOT NULL REFERENCES pets_catalog(pet_code),
+    amount NUMERIC(30,8) NOT NULL,
+    asset_code TEXT NOT NULL DEFAULT 'AMT',
+    receiver TEXT NOT NULL,
+    txid TEXT UNIQUE,
+    status TEXT NOT NULL DEFAULT 'PREPARED',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+  );`);
 
-  /* PRIVATE TEST MARKETPLACE PAYMENTS */
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS marketplace_payments (
-      id SERIAL PRIMARY KEY,
-      member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-      payment_id TEXT UNIQUE NOT NULL,
-      product_id TEXT NOT NULL,
-      amount NUMERIC(20,7) NOT NULL,
-      status TEXT NOT NULL DEFAULT 'CREATED',
-      transaction_id TEXT,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
+  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_pets_catalog_element
+    ON pets_catalog(element);`);
+  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_user_pets_pioneer
+    ON user_pets(pioneer_id);`);
+  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_pet_payments_uid
+    ON pet_payments(pi_uid);`);
+  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_amt_payments_uid
+    ON amt_payments(pi_uid);`);
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS marketplace_purchases (
-      id SERIAL PRIMARY KEY,
-      member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-      product_id TEXT NOT NULL,
-      payment_id TEXT UNIQUE NOT NULL,
-      transaction_id TEXT,
-      amount NUMERIC(20,7) NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
-
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_marketplace_payments_member
-    ON marketplace_payments(member_id, created_at DESC);
-  `);
-
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_marketplace_purchases_member
-    ON marketplace_purchases(member_id, created_at DESC);
-  `);
-
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_mining_member_status
-    ON mining_sessions(member_id, status);
-  `);
-
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_ledger_member
-    ON amt_ledger(member_id);
-  `);
-
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_referral_referrer
-    ON referrals(referrer_member_id);
-  `);
-
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_security_owner
-    ON security_circle(owner_member_id);
-  `);
-
-  console.log("AMT PostgreSQL database initialized.");
+  console.log("Database tables ready.");
 }
 
-async function verifyPiAccessToken(accessToken) {
-  if (!accessToken || typeof accessToken !== "string") {
-    const error = new Error("Missing Pi access token.");
-    error.statusCode = 400;
-    throw error;
-  }
+async function seedPetCatalog() {
+  if (!pool) return;
 
-  const endpoint = `${PI_API_BASE}/v2/me`;
-  let response;
-
-  try {
-    response = await fetch(endpoint, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/json"
-      }
-    });
-  } catch (error) {
-    console.error("Pi API connection error:", error.message);
-    const apiError = new Error("Unable to contact Pi Platform API.");
-    apiError.statusCode = 502;
-    throw apiError;
-  }
-
-  const data = await readJsonResponse(response);
-
-  if (!response.ok) {
-    const error = new Error(
-      `Pi access token verification failed: HTTP ${response.status}`
+  for (const pet of PET_SEED) {
+    await dbQuery(`INSERT INTO pets_catalog
+      (pet_code,name,element,rarity,image,base_hp,base_atk,base_def)
+      VALUES($1,$2,$3,'Common',$4,$5,$6,$7)
+      ON CONFLICT(pet_code) DO UPDATE SET
+        name=EXCLUDED.name,
+        element=EXCLUDED.element,
+        rarity=EXCLUDED.rarity,
+        image=EXCLUDED.image,
+        base_hp=EXCLUDED.base_hp,
+        base_atk=EXCLUDED.base_atk,
+        base_def=EXCLUDED.base_def`,
+      [pet.code,pet.name,pet.element,pet.image,pet.hp,pet.atk,pet.def]
     );
-    error.statusCode = response.status === 401 ? 401 : 502;
-    error.piStatus = response.status;
-    error.piResponse = data;
-    throw error;
   }
 
-  if (!data || typeof data.uid !== "string" || !data.uid) {
-    const error = new Error(
-      "Pi API response did not contain a valid UID."
-    );
-    error.statusCode = 502;
-    throw error;
-  }
-
-  return {
-    uid: data.uid,
-    username:
-      typeof data.username === "string" ? data.username : null,
-    credentials: data.credentials || null
-  };
+  console.log(`Pet catalog ready: ${PET_SEED.length} pets.`);
 }
 
-async function getAuthenticatedMember(accessToken) {
-  const piUser = await verifyPiAccessToken(accessToken);
-
-  const result = await pool.query(
-    `
-    INSERT INTO members (pi_uid, username)
-    VALUES ($1, $2)
-    ON CONFLICT (pi_uid)
-    DO UPDATE SET
-      username = EXCLUDED.username,
-      updated_at = NOW()
-    RETURNING id, pi_uid, username, kyc_status
-    `,
-    [piUser.uid, piUser.username]
-  );
-
-  const member = result.rows[0];
-
-  await pool.query(
-    `
-    INSERT INTO amt_wallets (member_id, wallet_status)
-    VALUES ($1, 'NOT_CONNECTED')
-    ON CONFLICT (member_id) DO NOTHING
-    `,
-    [member.id]
-  );
-
-  return member;
-}
-
-/*
- * ============================================================
- * HEALTH / ROOT
- * ============================================================
- */
-
-app.get("/api/health", async (req, res) => {
-  try {
-    await pool.query("SELECT 1");
-
-    return res.json({
-      success: true,
-      service: "AMT Backend",
-      network: "Pi Testnet",
-      database: "connected",
-      piApiBase: PI_API_BASE,
-      maxDirectReferrals: MAX_DIRECT_REFERRALS,
-      status: "healthy"
-    });
-  } catch (error) {
-    console.error("Database health error:", error.message);
-    return res.status(500).json({
-      success: false,
-      service: "AMT Backend",
-      network: "Pi Testnet",
-      database: "error",
-      status: "unhealthy"
-    });
-  }
-});
-
-app.get("/", (req, res) => {
-  return res.json({
-    app: "Alberto Marketplace Token",
-    symbol: "AMT",
-    network: "Pi Testnet",
-    environment: "TESTNET",
-    piApiBase: PI_API_BASE,
-    miningRate: `${AMT_MINING_RATE} AMT/hour`,
-    miningDuration: "24 hours",
-    maximumBaseReward: MAXIMUM_BASE_REWARD,
-    maxDirectReferrals: MAX_DIRECT_REFERRALS,
-    referralReward: "PENDING_FOR_MAINNET",
-    status: "ONLINE"
-  });
-});
-
-/*
- * ============================================================
- * AUTH / PROFILE / KYC / WALLET
- * ============================================================
- */
-
-app.post("/api/auth/verify", async (req, res) => {
-  try {
-    const { accessToken } = req.body || {};
-    const member = await getAuthenticatedMember(accessToken);
-
-    return res.json({
-      success: true,
-      user: {
-        uid: member.pi_uid,
-        username: member.username
-      },
-      kyc: { status: member.kyc_status }
-    });
-  } catch (error) {
-    console.error("Pi authentication verification error:", error.message);
-    return sendError(
-      res,
-      error.statusCode || 401,
-      "Pi account verification failed.",
-      error.piStatus ? `PI_HTTP_${error.piStatus}` : null
-    );
-  }
-});
-
-app.post("/api/profile", async (req, res) => {
-  try {
-    const { accessToken } = req.body || {};
-    const member = await getAuthenticatedMember(accessToken);
-
-    const walletResult = await pool.query(
-      `
-      SELECT wallet_status, wallet_address
-      FROM amt_wallets
-      WHERE member_id = $1
-      `,
-      [member.id]
-    );
-
-    const wallet = walletResult.rows[0] || null;
-
-    return res.json({
-      success: true,
-      profile: {
-        uid: member.pi_uid,
-        username: member.username,
-        kycStatus: member.kyc_status,
-        walletStatus: wallet?.wallet_status || "NOT_CONNECTED",
-        walletAddress: wallet?.wallet_address || null
-      }
-    });
-  } catch (error) {
-    console.error("Profile error:", error.message);
-    return sendError(
-      res,
-      error.statusCode || 401,
-      "Profile authentication failed."
-    );
-  }
-});
-
-app.post("/api/kyc/status", async (req, res) => {
-  try {
-    const { accessToken } = req.body || {};
-    const member = await getAuthenticatedMember(accessToken);
-
-    return res.json({
-      success: true,
-      kyc: {
-        status: member.kyc_status,
-        miningAllowed: true,
-        migrationEligible: member.kyc_status === "VERIFIED",
-        protectedTransactionsEligible: member.kyc_status === "VERIFIED"
-      }
-    });
-  } catch (error) {
-    console.error("KYC status error:", error.message);
-    return sendError(
-      res,
-      error.statusCode || 401,
-      "Unable to read KYC status."
-    );
-  }
-});
-
-app.post("/api/wallet", async (req, res) => {
-  try {
-    const { accessToken } = req.body || {};
-    const member = await getAuthenticatedMember(accessToken);
-
-    const balanceResult = await pool.query(
-      `
-      SELECT COALESCE(SUM(amount), 0) AS balance
-      FROM amt_ledger
-      WHERE member_id = $1
-      `,
-      [member.id]
-    );
-
-    const walletResult = await pool.query(
-      `
-      SELECT wallet_status, wallet_address
-      FROM amt_wallets
-      WHERE member_id = $1
-      `,
-      [member.id]
-    );
-
-    const balance = Number(balanceResult.rows[0].balance);
-    const wallet = walletResult.rows[0] || null;
-
-    return res.json({
-      success: true,
-      network: "Pi Testnet",
-      wallet: {
-        amt: Number(balance.toFixed(8)),
-        walletStatus: wallet?.wallet_status || "NOT_CONNECTED",
-        walletAddress: wallet?.wallet_address || null
-      }
-    });
-  } catch (error) {
-    console.error("Wallet error:", error.message);
-    return sendError(
-      res,
-      error.statusCode || 500,
-      "Could not load AMT wallet."
-    );
-  }
-});
-
-/*
- * ============================================================
- * MINING
- * Existing mining behavior is preserved.
- * ============================================================
- */
-
-app.post("/api/mining/start", async (req, res) => {
-  let client = null;
-  let transactionStarted = false;
-
-  try {
-    const { accessToken } = req.body || {};
-    const member = await getAuthenticatedMember(accessToken);
-
-    client = await pool.connect();
-    await client.query("BEGIN");
-    transactionStarted = true;
-
-    const active = await client.query(
-      `
-      SELECT *
-      FROM mining_sessions
-      WHERE member_id = $1
-      AND status = 'ACTIVE'
-      ORDER BY id DESC
-      LIMIT 1
-      FOR UPDATE
-      `,
-      [member.id]
-    );
-
-    if (active.rows.length > 0) {
-      await client.query("COMMIT");
-      transactionStarted = false;
-
-      const currentSession = active.rows[0];
-
-      return res.json({
-        success: true,
-        status: "ALREADY_MINING",
-        session: {
-          id: currentSession.id,
-          startedAt: currentSession.started_at,
-          endsAt: currentSession.ends_at,
-          rate: Number(currentSession.rate)
-        }
-      });
-    }
-
-    const startedAt = new Date();
-    const endsAt = new Date(
-      startedAt.getTime() + MINING_DURATION_SECONDS * 1000
-    );
-
-    const sessionResult = await client.query(
-      `
-      INSERT INTO mining_sessions
-      (member_id, started_at, ends_at, status, rate)
-      VALUES ($1, $2, $3, 'ACTIVE', $4)
-      RETURNING id, started_at, ends_at, rate
-      `,
-      [member.id, startedAt, endsAt, AMT_MINING_RATE]
-    );
-
-    await client.query("COMMIT");
-    transactionStarted = false;
-
-    const session = sessionResult.rows[0];
-
-    return res.json({
-      success: true,
-      status: "MINING_STARTED",
-      kycStatus: member.kyc_status,
-      session: {
-        id: session.id,
-        startedAt: session.started_at,
-        endsAt: session.ends_at,
-        rate: Number(session.rate),
-        maximumBaseReward: MAXIMUM_BASE_REWARD
-      }
-    });
-  } catch (error) {
-    if (client && transactionStarted) {
-      try {
-        await client.query("ROLLBACK");
-      } catch (rollbackError) {
-        console.error("Mining rollback error:", rollbackError.message);
-      }
-    }
-
-    console.error("Start mining error:", error.message);
-
-    return sendError(
-      res,
-      error.statusCode || 500,
-      "Could not start mining."
-    );
-  } finally {
-    if (client) client.release();
-  }
-});
-
-app.post("/api/mining/status", async (req, res) => {
-  try {
-    const { accessToken } = req.body || {};
-    const member = await getAuthenticatedMember(accessToken);
-
-    const result = await pool.query(
-      `
-      SELECT *
-      FROM mining_sessions
-      WHERE member_id = $1
-      AND status = 'ACTIVE'
-      ORDER BY id DESC
-      LIMIT 1
-      `,
-      [member.id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.json({
-        success: true,
-        mining: false,
-        message: "No active mining session."
-      });
-    }
-
-    const session = result.rows[0];
-    const now = Date.now();
-    const start = new Date(session.started_at).getTime();
-    const end = new Date(session.ends_at).getTime();
-    const current = Math.min(Math.max(now, start), end);
-    const elapsedSeconds = (current - start) / 1000;
-    const rate = Number(session.rate);
-
-    const earned = Math.min(
-      rate * (elapsedSeconds / 3600),
-      rate * 24
-    );
-
-    const completed = now >= end;
-
-    return res.json({
-      success: true,
-      mining: true,
-      completed,
-      session: {
-        id: session.id,
-        startedAt: session.started_at,
-        endsAt: session.ends_at,
-        rate,
-        earned: Number(earned.toFixed(8)),
-        maximumBaseReward: Number((rate * 24).toFixed(8)),
-        claimAvailable: completed
-      }
-    });
-  } catch (error) {
-    console.error("Mining status error:", error.message);
-    return sendError(
-      res,
-      error.statusCode || 500,
-      "Could not read mining status."
-    );
-  }
-});
-
-app.post("/api/mining/claim", async (req, res) => {
-  let client = null;
-  let transactionStarted = false;
-
-  try {
-    const { accessToken } = req.body || {};
-    const member = await getAuthenticatedMember(accessToken);
-
-    client = await pool.connect();
-    await client.query("BEGIN");
-    transactionStarted = true;
-
-    const result = await client.query(
-      `
-      SELECT *
-      FROM mining_sessions
-      WHERE member_id = $1
-      AND status = 'ACTIVE'
-      ORDER BY id DESC
-      LIMIT 1
-      FOR UPDATE
-      `,
-      [member.id]
-    );
-
-    if (result.rows.length === 0) {
-      await client.query("ROLLBACK");
-      transactionStarted = false;
-
-      return sendError(
-        res,
-        404,
-        "No active mining session.",
-        "NO_ACTIVE_SESSION"
-      );
-    }
-
-    const session = result.rows[0];
-    const now = Date.now();
-    const start = new Date(session.started_at).getTime();
-    const end = new Date(session.ends_at).getTime();
-
-    if (now < end) {
-      await client.query("ROLLBACK");
-      transactionStarted = false;
-
-      const remainingSeconds = Math.ceil((end - now) / 1000);
-
-      return res.status(403).json({
-        success: false,
-        code: "MINING_NOT_COMPLETE",
-        message:
-          "The 24-hour mining session must finish before the reward can be claimed.",
-        remainingSeconds
-      });
-    }
-
-    const rate = Number(session.rate);
-
-    const grossEarned = Math.min(
-      rate * 24,
-      MAXIMUM_BASE_REWARD
-    );
-
-    const claimable = Number(
-      (
-        grossEarned -
-        Number(session.claimed_amount)
-      ).toFixed(8)
-    );
-
-    if (claimable <= 0) {
-      await client.query("ROLLBACK");
-      transactionStarted = false;
-
-      return res.json({
-        success: true,
-        claimed: 0,
-        message: "No new AMT reward is available."
-      });
-    }
-
-    const reference =
-      `MINING-${session.id}-${crypto.randomBytes(8).toString("hex")}`;
-
-    await client.query(
-      `
-      INSERT INTO amt_ledger
-      (member_id, amount, type, reference)
-      VALUES ($1, $2, 'MINING_REWARD', $3)
-      `,
-      [member.id, claimable, reference]
-    );
-
-    const newClaimed = Number(
-      (
-        Number(session.claimed_amount) +
-        claimable
-      ).toFixed(8)
-    );
-
-    await client.query(
-      `
-      UPDATE mining_sessions
-      SET claimed_amount = $1,
-          status = 'COMPLETED'
-      WHERE id = $2
-      `,
-      [newClaimed, session.id]
-    );
-
-    await client.query("COMMIT");
-    transactionStarted = false;
-
-    return res.json({
-      success: true,
-      claimed: claimable,
-      sessionStatus: "COMPLETED",
-      message:
-        "AMT Testnet mining reward recorded in the ledger."
-    });
-  } catch (error) {
-    if (client && transactionStarted) {
-      try {
-        await client.query("ROLLBACK");
-      } catch (rollbackError) {
-        console.error("Claim rollback error:", rollbackError.message);
-      }
-    }
-
-    console.error("Claim reward error:", error.message);
-
-    return sendError(
-      res,
-      error.statusCode || 500,
-      "Could not record AMT mining reward."
-    );
-  } finally {
-    if (client) client.release();
-  }
-});
-
-/*
- * ============================================================
- * REFERRAL
- *
- * Pi username = referral identifier.
- * Maximum 5 direct referrals.
- * No Testnet reward is created.
- * ============================================================
- */
-
-app.post("/api/referral/auto-link", async (req, res) => {
-  let client = null;
-  let transactionStarted = false;
-
-  try {
-    const { accessToken, referralUsername } = req.body || {};
-
-    const member = await getAuthenticatedMember(accessToken);
-
-    const cleanUsername =
-      typeof referralUsername === "string"
-        ? referralUsername.trim()
-        : "";
-
-    if (!cleanUsername) {
-      return res.json({
-        success: true,
-        status: "NO_REFERRAL",
-        linked: false,
-        message: "No referral username was supplied."
-      });
-    }
-
-    if (
-      member.username &&
-      cleanUsername.toLowerCase() === member.username.toLowerCase()
-    ) {
-      return sendError(
-        res,
-        400,
-        "A member cannot refer themselves.",
-        "SELF_REFERRAL"
-      );
-    }
-
-    client = await pool.connect();
-    await client.query("BEGIN");
-    transactionStarted = true;
-
-    const referrerResult = await client.query(
-      `
-      SELECT id, pi_uid, username
-      FROM members
-      WHERE LOWER(username) = LOWER($1)
-      LIMIT 1
-      `,
-      [cleanUsername]
-    );
-
-    if (referrerResult.rows.length === 0) {
-      await client.query("ROLLBACK");
-      transactionStarted = false;
-
-      return res.json({
-        success: true,
-        status: "REFERRER_NOT_FOUND",
-        linked: false,
-        message:
-          "The referral Pioneer has not been registered in AMT yet."
-      });
-    }
-
-    const referrer = referrerResult.rows[0];
-
-    if (Number(referrer.id) === Number(member.id)) {
-      await client.query("ROLLBACK");
-      transactionStarted = false;
-
-      return sendError(
-        res,
-        400,
-        "A member cannot refer themselves.",
-        "SELF_REFERRAL"
-      );
-    }
-
-    const existing = await client.query(
-      `
-      SELECT id, referrer_member_id
-      FROM referrals
-      WHERE referred_member_id = $1
-      LIMIT 1
-      `,
-      [member.id]
-    );
-
-    if (existing.rows.length > 0) {
-      await client.query("COMMIT");
-      transactionStarted = false;
-
-      return res.json({
-        success: true,
-        status: "ALREADY_LINKED",
-        linked: false,
-        message: "This account already has a referral relationship."
-      });
-    }
-
-    const countResult = await client.query(
-      `
-      SELECT COUNT(*)::INTEGER AS count
-      FROM referrals
-      WHERE referrer_member_id = $1
-      AND status = 'ACTIVE'
-      `,
-      [referrer.id]
-    );
-
-    const referralCount = Number(countResult.rows[0].count);
-
-    if (referralCount >= MAX_DIRECT_REFERRALS) {
-      await client.query("COMMIT");
-      transactionStarted = false;
-
-      return res.json({
-        success: true,
-        status: "REFERRER_LIMIT_REACHED",
-        linked: false,
-        limit: MAX_DIRECT_REFERRALS,
-        message:
-          "This Pioneer already has the maximum number of direct referrals."
-      });
-    }
-
-    await client.query(
-      `
-      INSERT INTO referrals
-      (referrer_member_id, referred_member_id, status)
-      VALUES ($1, $2, 'ACTIVE')
-      `,
-      [referrer.id, member.id]
-    );
-
-    /*
-     * Automatically place the invited Pioneer in the
-     * referrer's AMT Security Circle.
-     */
-    await client.query(
-      `
-      INSERT INTO security_circle
-      (owner_member_id, member_id, status)
-      VALUES ($1, $2, 'ACTIVE')
-      ON CONFLICT (owner_member_id, member_id)
-      DO UPDATE SET status = 'ACTIVE'
-      `,
-      [referrer.id, member.id]
-    );
-
-    await client.query("COMMIT");
-    transactionStarted = false;
-
-    return res.json({
-      success: true,
-      status: "REFERRAL_LINKED",
-      linked: true,
-      referrer: {
-        username: referrer.username
-      },
-      securityCircleAdded: true,
-      referralCount: referralCount + 1,
-      maxDirectReferrals: MAX_DIRECT_REFERRALS,
-      rewardStatus: "PENDING_FOR_MAINNET",
-      message:
-        "Referral relationship recorded. No Testnet reward was created."
-    });
-  } catch (error) {
-    if (client && transactionStarted) {
-      try {
-        await client.query("ROLLBACK");
-      } catch (rollbackError) {
-        console.error(
-          "Referral rollback error:",
-          rollbackError.message
-        );
-      }
-    }
-
-    console.error("Referral auto-link error:", error.message);
-
-    return sendError(
-      res,
-      error.statusCode || 500,
-      "Could not create referral relationship."
-    );
-  } finally {
-    if (client) client.release();
-  }
-});
-
-/*
- * Compatibility endpoint.
- * Existing clients can still use a member ID if needed.
- */
-app.post("/api/referral/link", async (req, res) => {
-  try {
-    const { accessToken, referralMemberId } = req.body || {};
-
-    if (!referralMemberId) {
-      return sendError(
-        res,
-        400,
-        "referralMemberId is required."
-      );
-    }
-
-    const member = await getAuthenticatedMember(accessToken);
-
-    const referrer = await pool.query(
-      `
-      SELECT id, pi_uid, username
-      FROM members
-      WHERE id = $1
-      LIMIT 1
-      `,
-      [referralMemberId]
-    );
-
-    if (referrer.rows.length === 0) {
-      return sendError(
-        res,
-        404,
-        "Referral member not found."
-      );
-    }
-
-    if (Number(referrer.rows[0].id) === Number(member.id)) {
-      return sendError(
-        res,
-        400,
-        "A member cannot refer themselves."
-      );
-    }
-
-    const existing = await pool.query(
-      `
-      SELECT id
-      FROM referrals
-      WHERE referred_member_id = $1
-      LIMIT 1
-      `,
-      [member.id]
-    );
-
-    if (existing.rows.length > 0) {
-      return sendError(
-        res,
-        409,
-        "This account already has a referral relationship."
-      );
-    }
-
-    const countResult = await pool.query(
-      `
-      SELECT COUNT(*)::INTEGER AS count
-      FROM referrals
-      WHERE referrer_member_id = $1
-      AND status = 'ACTIVE'
-      `,
-      [referrer.rows[0].id]
-    );
-
-    if (
-      Number(countResult.rows[0].count) >=
-      MAX_DIRECT_REFERRALS
-    ) {
-      return sendError(
-        res,
-        409,
-        "This Pioneer already has the maximum number of direct referrals.",
-        "REFERRER_LIMIT_REACHED"
-      );
-    }
-
-    await pool.query(
-      `
-      INSERT INTO referrals
-      (referrer_member_id, referred_member_id)
-      VALUES ($1, $2)
-      `,
-      [referrer.rows[0].id, member.id]
-    );
-
-    await pool.query(
-      `
-      INSERT INTO security_circle
-      (owner_member_id, member_id)
-      VALUES ($1, $2)
-      ON CONFLICT (owner_member_id, member_id)
-      DO UPDATE SET status = 'ACTIVE'
-      `,
-      [referrer.rows[0].id, member.id]
-    );
-
-    return res.json({
-      success: true,
-      status: "REFERRAL_LINKED",
-      rewardStatus: "PENDING_FOR_MAINNET"
-    });
-  } catch (error) {
-    console.error("Referral error:", error.message);
-    return sendError(
-      res,
-      error.statusCode || 500,
-      "Could not create referral relationship."
-    );
-  }
-});
-
-/*
- * Referral dashboard:
- * returns the current user's Pi username, direct referrals,
- * active miners and future Mainnet reward status.
- */
-app.post("/api/referral/status", async (req, res) => {
-  try {
-    const { accessToken } = req.body || {};
-    const owner = await getAuthenticatedMember(accessToken);
-
-    const result = await pool.query(
-      `
-      SELECT
-        r.id,
-        r.status,
-        r.created_at,
-        m.username,
-        m.pi_uid,
-        EXISTS (
-          SELECT 1
-          FROM mining_sessions ms
-          WHERE ms.member_id = m.id
-          AND ms.status = 'ACTIVE'
-          AND ms.ends_at > NOW()
-        ) AS mining
-      FROM referrals r
-      JOIN members m
-        ON m.id = r.referred_member_id
-      WHERE r.referrer_member_id = $1
-      AND r.status = 'ACTIVE'
-      ORDER BY r.created_at ASC
-      `,
-      [owner.id]
-    );
-
-    const referrals = result.rows.map((row) => ({
-      username: row.username || "Pi Pioneer",
-      mining: Boolean(row.mining),
-      status: row.mining ? "MINING" : "NOT_MINING",
-      joinedAt: row.created_at
-    }));
-
-    return res.json({
-      success: true,
-      referral: {
-        username: owner.username || null,
-        maxDirectReferrals: MAX_DIRECT_REFERRALS,
-        count: referrals.length,
-        activeMiners: referrals.filter((r) => r.mining).length,
-        rewardStatus: "PENDING_FOR_MAINNET",
-        rewardMessage:
-          "Referral rewards are reserved for future Mainnet rules. No Testnet reward is credited.",
-        referrals
-      }
-    });
-  } catch (error) {
-    console.error("Referral status error:", error.message);
-    return sendError(
-      res,
-      error.statusCode || 500,
-      "Could not load referral status."
-    );
-  }
-});
-
-/*
- * ============================================================
- * SECURITY CIRCLE
- * ============================================================
- */
-
-app.post("/api/security-circle/add", async (req, res) => {
-  try {
-    const { accessToken, memberId } = req.body || {};
-
-    if (!memberId) {
-      return sendError(res, 400, "memberId is required.");
-    }
-
-    const owner = await getAuthenticatedMember(accessToken);
-
-    if (Number(memberId) === Number(owner.id)) {
-      return sendError(
-        res,
-        400,
-        "A member cannot add themselves to their Security Circle."
-      );
-    }
-
-    const target = await pool.query(
-      `
-      SELECT id
-      FROM members
-      WHERE id = $1
-      LIMIT 1
-      `,
-      [memberId]
-    );
-
-    if (target.rows.length === 0) {
-      return sendError(
-        res,
-        404,
-        "Security Circle member not found."
-      );
-    }
-
-    const countResult = await pool.query(
-      `
-      SELECT COUNT(*)::INTEGER AS count
-      FROM security_circle
-      WHERE owner_member_id = $1
-      AND status = 'ACTIVE'
-      `,
-      [owner.id]
-    );
-
-    if (
-      Number(countResult.rows[0].count) >=
-      MAX_DIRECT_REFERRALS
-    ) {
-      return sendError(
-        res,
-        409,
-        `Security Circle limit is ${MAX_DIRECT_REFERRALS} members.`,
-        "SECURITY_CIRCLE_LIMIT"
-      );
-    }
-
-    await pool.query(
-      `
-      INSERT INTO security_circle
-      (owner_member_id, member_id)
-      VALUES ($1, $2)
-      ON CONFLICT (owner_member_id, member_id)
-      DO UPDATE SET status = 'ACTIVE'
-      `,
-      [owner.id, memberId]
-    );
-
-    return res.json({
-      success: true,
-      status: "SECURITY_CIRCLE_ADDED",
-      message: "Security Circle member recorded."
-    });
-  } catch (error) {
-    console.error("Security Circle error:", error.message);
-    return sendError(
-      res,
-      error.statusCode || 500,
-      "Could not update Security Circle."
-    );
-  }
-});
-
-app.post("/api/security-circle/status", async (req, res) => {
-  try {
-    const { accessToken } = req.body || {};
-    const owner = await getAuthenticatedMember(accessToken);
-
-    const result = await pool.query(
-      `
-      SELECT
-        sc.member_id,
-        m.username,
-        m.kyc_status,
-        EXISTS (
-          SELECT 1
-          FROM mining_sessions ms
-          WHERE ms.member_id = m.id
-          AND ms.status = 'ACTIVE'
-          AND ms.ends_at > NOW()
-        ) AS mining
-      FROM security_circle sc
-      JOIN members m
-        ON m.id = sc.member_id
-      WHERE sc.owner_member_id = $1
-      AND sc.status = 'ACTIVE'
-      ORDER BY sc.id ASC
-      `,
-      [owner.id]
-    );
-
-    const members = result.rows.map((row) => ({
-      memberId: row.member_id,
-      username: row.username || "Pi Pioneer",
-      kycStatus: row.kyc_status,
-      mining: Boolean(row.mining),
-      status: row.mining ? "MINING" : "NOT_MINING"
-    }));
-
-    return res.json({
-      success: true,
-      securityCircle: {
-        enabled: members.length > 0,
-        count: members.length,
-        limit: MAX_DIRECT_REFERRALS,
-        members
-      }
-    });
-  } catch (error) {
-    console.error("Security Circle status error:", error.message);
-    return sendError(
-      res,
-      error.statusCode || 500,
-      "Could not load Security Circle."
-    );
-  }
-});
-
-/*
- * ============================================================
- * PRIVATE TEST MARKETPLACE + REAL PI TESTNET PAYMENT FLOW
- * ============================================================
- *
- * The single test pet is visible only to the configured owner.
- * The Pi payment is real Testnet Pi, not an AMT ledger simulation.
- * Set MARKET_TEST_OWNER_PI_UID (preferred) or
- * MARKET_TEST_OWNER_USERNAME in Render before testing.
- */
-
-function isMarketTestOwner(member) {
-  if (MARKET_TEST_OWNER_PI_UID) {
-    return member.pi_uid === MARKET_TEST_OWNER_PI_UID;
-  }
-  if (MARKET_TEST_OWNER_USERNAME) {
-    return String(member.username || "").toLowerCase() === MARKET_TEST_OWNER_USERNAME;
-  }
-  return false;
-}
-
-function requirePiServerKey() {
+/* -------------------------------------------------------------------------- */
+/* PI AUTH                                                                     */
+/* -------------------------------------------------------------------------- */
+
+async function piFetch(path, options = {}) {
   if (!PI_API_KEY) {
-    const error = new Error("PI_API_KEY is not configured on the AMT backend.");
-    error.statusCode = 503;
-    throw error;
+    throw new Error("PI_API_KEY is not configured on Render.");
   }
-}
 
-async function piServerRequest(path, method = "GET", body = undefined) {
-  requirePiServerKey();
-
-  const options = {
-    method,
+  const r = await fetch(PI_API_BASE + path, {
+    ...options,
     headers: {
-      Authorization: `Key ${PI_API_KEY}`,
-      Accept: "application/json"
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Authorization: "Key " + PI_API_KEY,
+      ...(options.headers || {})
     }
-  };
+  });
 
-  if (body !== undefined) {
-    options.headers["Content-Type"] = "application/json";
-    options.body = JSON.stringify(body);
-  }
-
-  let response;
+  const text = await r.text();
+  let data;
   try {
-    response = await fetch(`${PI_API_BASE}${path}`, options);
-  } catch (error) {
-    const apiError = new Error("Unable to contact Pi Payments API.");
-    apiError.statusCode = 502;
-    throw apiError;
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
   }
 
-  const data = await readJsonResponse(response);
-  if (!response.ok) {
-    const error = new Error(`Pi Payments API failed: HTTP ${response.status}`);
-    error.statusCode = response.status === 401 ? 502 : response.status;
-    error.piResponse = data;
-    throw error;
+  if (!r.ok) {
+    const err = new Error(
+      data?.error ||
+      data?.message ||
+      `Pi API HTTP ${r.status}`
+    );
+    err.status = r.status;
+    err.data = data;
+    throw err;
   }
 
   return data;
 }
 
-app.post("/api/market/test-product", async (req, res) => {
-  try {
-    const { accessToken } = req.body || {};
-    const member = await getAuthenticatedMember(accessToken);
+async function verifyPiAccessToken(token) {
+  if (!token) throw new Error("Missing Pi access token.");
+  if (!PI_API_KEY) throw new Error("PI_API_KEY is not configured.");
 
-    if (!isMarketTestOwner(member)) {
-      return res.status(403).json({
-        success: false,
-        code: "PRIVATE_TEST_MARKET",
-        message: "This private Test Buy item is not available for this account."
+  const r = await fetch(PI_API_BASE + "/v2/me", {
+    headers: {
+      Authorization: "Bearer " + token,
+      Accept: "application/json"
+    }
+  });
+
+  const text = await r.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = {};
+  }
+
+  if (!r.ok) {
+    throw new Error(
+      data?.error || data?.message || "Pi authentication verification failed."
+    );
+  }
+
+  return {
+    uid: data.uid || data.user?.uid || "",
+    username: data.username || data.user?.username || "",
+    wallet_address:
+      data.wallet_address ||
+      data.walletAddress ||
+      data.user?.wallet_address ||
+      data.user?.walletAddress ||
+      ""
+  };
+}
+
+async function upsertPioneer(pi_uid, username, wallet_address) {
+  const r = await dbQuery(`INSERT INTO pioneers
+      (pi_uid,username,wallet_address)
+      VALUES($1,$2,$3)
+      ON CONFLICT(pi_uid) DO UPDATE SET
+        username=COALESCE(NULLIF(EXCLUDED.username,''),pioneers.username),
+        wallet_address=COALESCE(NULLIF(EXCLUDED.wallet_address,''),pioneers.wallet_address),
+        updated_at=NOW()
+      RETURNING id,pi_uid,username,wallet_address,created_at,updated_at`,
+    [pi_uid, username || null, wallet_address || null]
+  );
+
+  return r.rows[0];
+}
+
+async function requirePiAuth(req, res, next) {
+  try {
+    let token = (req.headers.authorization || "")
+      .replace(/^Bearer\s+/i, "")
+      .trim();
+
+    /* Allows the existing frontend to send the Pi token in JSON too. */
+    if (!token) {
+      token = String(
+        req.body?.accessToken ||
+        req.body?.access_token ||
+        req.body?.piToken ||
+        ""
+      ).trim();
+    }
+
+    if (!token) {
+      return res.status(401).json({
+        ok: false,
+        error: "Pi authentication required."
       });
     }
 
-    const purchaseResult = await pool.query(
-      `SELECT payment_id, transaction_id, amount, created_at
-       FROM marketplace_purchases
-       WHERE member_id = $1 AND product_id = $2
-       ORDER BY id DESC LIMIT 10`,
-      [member.id, MARKET_TEST_PRODUCT_ID]
+    const piUser = await verifyPiAccessToken(token);
+
+    if (!piUser.uid) {
+      return res.status(401).json({
+        ok: false,
+        error: "Pi UID was not returned."
+      });
+    }
+
+    const pioneer = await upsertPioneer(
+      piUser.uid,
+      piUser.username,
+      piUser.wallet_address
     );
 
-    return res.json({
-      success: true,
-      network: "Pi Testnet",
-      privateTest: true,
-      product: {
-        id: MARKET_TEST_PRODUCT_ID,
-        name: "Alberto Test Pet",
-        description: "Private marketplace test item for the owner account.",
-        pricePi: MARKET_TEST_PRICE_PI,
-        currency: "Pi",
-        image: "🐾",
-        testOnly: true
-      },
-      purchases: purchaseResult.rows
+    req.piUser = piUser;
+    req.pioneer = pioneer;
+    req.piToken = token;
+    next();
+  } catch (e) {
+    console.error("Pi auth:", e.message);
+    return res.status(401).json({
+      ok: false,
+      error: e.message || "Pi authentication failed."
     });
-  } catch (error) {
-    console.error("Test marketplace product error:", error.message);
-    return sendError(res, error.statusCode || 500, "Could not load the private test product.");
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* WALLET                                                                      */
+/* -------------------------------------------------------------------------- */
+
+function isPublicStellarAddress(value) {
+  return typeof value === "string" &&
+    /^G[A-Z2-7]{55}$/.test(value.trim());
+}
+
+async function horizonGet(path) {
+  const r = await fetch(AMT_HORIZON_URL + path, {
+    headers: { Accept: "application/json" }
+  });
+
+  const text = await r.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = {};
+  }
+
+  if (!r.ok) {
+    const e = new Error(
+      data?.title ||
+      data?.detail ||
+      `Pi Testnet Horizon HTTP ${r.status}`
+    );
+    e.status = r.status;
+    throw e;
+  }
+
+  return data;
+}
+
+async function verifyAMTTransfer(txid, { from, to, amount }) {
+  if (!txid) throw new Error("AMT transaction hash is required.");
+
+  if (!isPublicStellarAddress(from)) {
+    throw new Error("No valid Pioneer wallet is synchronized.");
+  }
+
+  if (!isPublicStellarAddress(to)) {
+    throw new Error("AMT receiver is not configured correctly.");
+  }
+
+  const ops = await horizonGet(
+    "/operations?transaction_hash=" +
+    encodeURIComponent(txid) +
+    "&limit=100"
+  );
+
+  const wanted = Number(amount);
+
+  const op = (ops._embedded?.records || []).find(x =>
+    x.type === "payment" &&
+    x.asset_type === "credit_alphanum4" &&
+    x.asset_code === AMT_ASSET_CODE &&
+    x.asset_issuer === AMT_ISSUER &&
+    x.source_account === from &&
+    x.to === to &&
+    Number(x.amount) === wanted
+  );
+
+  if (!op) {
+    throw new Error(
+      "AMT transfer not found for this Pioneer wallet, receiver, asset, and amount."
+    );
+  }
+
+  const tx = await horizonGet(
+    "/transactions/" + encodeURIComponent(txid)
+  );
+
+  if (tx.successful !== true) {
+    throw new Error("AMT transaction is not successful on Pi Testnet.");
+  }
+
+  return {
+    txid,
+    operationId: op.id,
+    from,
+    to,
+    amount: wanted
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* PET HELPERS                                                                 */
+/* -------------------------------------------------------------------------- */
+
+async function grantPet(pi_uid, pet_code) {
+  const p = await dbQuery(`SELECT pet_code,name,element,rarity,image,
+      base_hp,base_atk,base_def
+      FROM pets_catalog WHERE pet_code=$1 LIMIT 1`, [pet_code]);
+
+  if (!p.rows.length) throw new Error("Pet not found.");
+
+  const pioneer = await dbQuery(
+    "SELECT id FROM pioneers WHERE pi_uid=$1 LIMIT 1",
+    [pi_uid]
+  );
+
+  if (!pioneer.rows.length) throw new Error("Pioneer not found.");
+
+  const pet = p.rows[0];
+  const pid = pioneer.rows[0].id;
+
+  const r = await dbQuery(`INSERT INTO user_pets
+      (pioneer_id,pet_code,rarity,level,xp,hp,atk,def)
+      VALUES($1,$2,'Common',1,0,$3,$4,$5)
+      RETURNING *`,
+    [pid, pet.pet_code, pet.base_hp, pet.base_atk, pet.base_def]
+  );
+
+  return {
+    ...r.rows[0],
+    name: pet.name,
+    element: pet.element,
+    image: pet.image
+  };
+}
+
+function getRequestedPetId(req) {
+  return req.body?.pet_id ||
+    req.body?.petId ||
+    req.body?.id ||
+    null;
+}
+
+function getRequestedPetCode(req) {
+  return req.body?.pet_code ||
+    req.body?.petCode ||
+    null;
+}
+
+async function findOwnedPet(pi_uid, req) {
+  const petId = getRequestedPetId(req);
+  const petCode = getRequestedPetCode(req);
+
+  if (!petId && !petCode) {
+    throw new Error("pet_id or pet_code is required.");
+  }
+
+  let r;
+
+  if (petId) {
+    r = await dbQuery(`SELECT
+        up.id,up.pet_code,up.level,up.xp,up.hp,up.atk,up.def,
+        pc.name,pc.element,pc.image,pc.base_hp,pc.base_atk,pc.base_def
+        FROM user_pets up
+        JOIN pioneers p ON p.id=up.pioneer_id
+        JOIN pets_catalog pc ON pc.pet_code=up.pet_code
+        WHERE up.id=$1 AND p.pi_uid=$2
+        LIMIT 1`,
+      [Number(petId), pi_uid]
+    );
+  } else {
+    r = await dbQuery(`SELECT
+        up.id,up.pet_code,up.level,up.xp,up.hp,up.atk,up.def,
+        pc.name,pc.element,pc.image,pc.base_hp,pc.base_atk,pc.base_def
+        FROM user_pets up
+        JOIN pioneers p ON p.id=up.pioneer_id
+        JOIN pets_catalog pc ON pc.pet_code=up.pet_code
+        WHERE up.pet_code=$1 AND p.pi_uid=$2
+        ORDER BY up.created_at DESC
+        LIMIT 1`,
+      [petCode, pi_uid]
+    );
+  }
+
+  if (!r.rows.length) {
+    throw new Error("Owned pet not found.");
+  }
+
+  return r.rows[0];
+}
+
+/* -------------------------------------------------------------------------- */
+/* CORE ROUTES                                                                 */
+/* -------------------------------------------------------------------------- */
+
+app.get("/", (req, res) => {
+  res.json({
+    ok: true,
+    app: "AMT Pet Marketplace",
+    version: "2.1.0",
+    network: "Pi Testnet",
+    status: "online"
+  });
+});
+
+app.get("/api/health", async (req, res) => {
+  let database = false;
+
+  if (pool) {
+    try {
+      await dbQuery("SELECT 1");
+      database = true;
+    } catch {}
+  }
+
+  res.json({
+    ok: true,
+    service: "amt-pet-marketplace",
+    databaseConfigured: !!DATABASE_URL,
+    databaseConnected: database,
+    piApiConfigured: !!PI_API_KEY,
+    petCount: PET_SEED.length,
+    prices: {
+      pi: PET_PI_PRICE,
+      amt: PET_AMT_PRICE
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+/* Catalog */
+app.get("/api/pets", async (req, res) => {
+  try {
+    const r = await dbQuery(`SELECT pet_code,name,element,rarity,image,
+        base_hp,base_atk,base_def
+        FROM pets_catalog
+        ORDER BY CASE element
+          WHEN 'Earth' THEN 1 WHEN 'Water' THEN 2 WHEN 'Nature' THEN 3
+          WHEN 'Ice' THEN 4 WHEN 'Fire' THEN 5 WHEN 'Wind' THEN 6
+          WHEN 'Thunder' THEN 7 ELSE 99 END,pet_code`);
+
+    res.json({ ok: true, count: r.rows.length, pets: r.rows });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({
+      ok: false,
+      error: "Unable to load pet catalog."
+    });
   }
 });
 
-app.post("/api/market/payment/approve", async (req, res) => {
+app.get("/api/pets/element/:element", async (req, res) => {
   try {
-    const { accessToken, paymentId } = req.body || {};
-    if (!paymentId || typeof paymentId !== "string") {
-      return sendError(res, 400, "paymentId is required.");
-    }
+    const r = await dbQuery(`SELECT pet_code,name,element,rarity,image,
+        base_hp,base_atk,base_def
+        FROM pets_catalog
+        WHERE LOWER(element)=LOWER($1)
+        ORDER BY pet_code`, [req.params.element]);
 
-    const member = await getAuthenticatedMember(accessToken);
-    if (!isMarketTestOwner(member)) {
-      return sendError(res, 403, "Private Test Buy is not available for this account.", "PRIVATE_TEST_MARKET");
-    }
-
-    const payment = await piServerRequest(`/v2/payments/${encodeURIComponent(paymentId)}`);
-    const amount = Number(payment?.amount);
-    const memo = String(payment?.memo || "");
-    const metadata = payment?.metadata || {};
-
-    if (!Number.isFinite(amount) || Math.abs(amount - MARKET_TEST_PRICE_PI) > 0.0000001) {
-      return sendError(res, 400, "Payment amount does not match the private test product.", "INVALID_AMOUNT");
-    }
-    if (metadata.productId !== MARKET_TEST_PRODUCT_ID) {
-      return sendError(res, 400, "Payment product does not match the private test product.", "INVALID_PRODUCT");
-    }
-    if (memo !== "Alberto Test Pet") {
-      return sendError(res, 400, "Payment memo does not match the private test product.", "INVALID_MEMO");
-    }
-
-    await pool.query(
-      `INSERT INTO marketplace_payments (member_id, payment_id, product_id, amount, status)
-       VALUES ($1, $2, $3, $4, 'APPROVAL_PENDING')
-       ON CONFLICT (payment_id) DO UPDATE SET updated_at = NOW()`,
-      [member.id, paymentId, MARKET_TEST_PRODUCT_ID, MARKET_TEST_PRICE_PI]
-    );
-
-    await piServerRequest(`/v2/payments/${encodeURIComponent(paymentId)}/approve`, "POST");
-
-    await pool.query(
-      `UPDATE marketplace_payments SET status = 'APPROVED', updated_at = NOW() WHERE payment_id = $1`,
-      [paymentId]
-    );
-
-    return res.json({ success: true, status: "APPROVED", paymentId });
-  } catch (error) {
-    console.error("Test marketplace approval error:", error.message);
-    return sendError(res, error.statusCode || 500, "Could not approve the Pi Testnet payment.", error.piResponse?.error?.code || null);
+    res.json({
+      ok: true,
+      element: req.params.element,
+      count: r.rows.length,
+      pets: r.rows
+    });
+  } catch (e) {
+    res.status(500).json({
+      ok: false,
+      error: "Unable to load pets."
+    });
   }
 });
 
-app.post("/api/market/payment/complete", async (req, res) => {
+app.get("/api/pets/:petCode", async (req, res) => {
   try {
-    const { accessToken, paymentId, txid } = req.body || {};
-    if (!paymentId || typeof paymentId !== "string" || !txid || typeof txid !== "string") {
-      return sendError(res, 400, "paymentId and txid are required.");
-    }
-
-    const member = await getAuthenticatedMember(accessToken);
-    if (!isMarketTestOwner(member)) {
-      return sendError(res, 403, "Private Test Buy is not available for this account.", "PRIVATE_TEST_MARKET");
-    }
-
-    const pending = await pool.query(
-      `SELECT id, member_id, product_id, amount, status
-       FROM marketplace_payments
-       WHERE payment_id = $1 AND member_id = $2
-       LIMIT 1`,
-      [paymentId, member.id]
+    const r = await dbQuery(`SELECT pet_code,name,element,rarity,image,
+        base_hp,base_atk,base_def
+        FROM pets_catalog WHERE pet_code=$1 LIMIT 1`,
+      [req.params.petCode]
     );
 
-    if (pending.rows.length === 0) {
-      return sendError(res, 404, "Payment session was not created by this account.", "PAYMENT_NOT_FOUND");
+    if (!r.rows.length) {
+      return res.status(404).json({
+        ok: false,
+        error: "Pet not found."
+      });
     }
 
-    const payment = pending.rows[0];
-    if (payment.product_id !== MARKET_TEST_PRODUCT_ID || Number(payment.amount) !== MARKET_TEST_PRICE_PI) {
-      return sendError(res, 400, "Stored payment does not match the test product.", "PAYMENT_MISMATCH");
-    }
-
-    if (payment.status === "COMPLETED") {
-      return res.json({ success: true, status: "COMPLETED", paymentId, txid });
-    }
-
-    const completion = await piServerRequest(
-      `/v2/payments/${encodeURIComponent(paymentId)}/complete`,
-      "POST",
-      { txid }
-    );
-
-    const verifiedTxid = String(completion?.transaction?.txid || completion?.transaction?.id || txid);
-
-    await pool.query(
-      `UPDATE marketplace_payments
-       SET status = 'COMPLETED', transaction_id = $1, updated_at = NOW()
-       WHERE payment_id = $2`,
-      [verifiedTxid, paymentId]
-    );
-
-    await pool.query(
-      `INSERT INTO marketplace_purchases
-       (member_id, product_id, payment_id, transaction_id, amount)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (payment_id) DO NOTHING`,
-      [member.id, MARKET_TEST_PRODUCT_ID, paymentId, verifiedTxid, MARKET_TEST_PRICE_PI]
-    );
-
-    return res.json({
-      success: true,
-      status: "COMPLETED",
-      paymentId,
-      transactionId: verifiedTxid,
-      product: "Alberto Test Pet",
-      network: "Pi Testnet"
+    res.json({ ok: true, pet: r.rows[0] });
+  } catch (e) {
+    res.status(500).json({
+      ok: false,
+      error: "Unable to load pet."
     });
-  } catch (error) {
-    console.error("Test marketplace completion error:", error.message);
-    return sendError(res, error.statusCode || 500, "Could not complete the Pi Testnet payment.", error.piResponse?.error?.code || null);
   }
+});
+
+/* Auth */
+app.post("/api/auth/verify", requirePiAuth, async (req, res) => {
+  res.json({
+    ok: true,
+    uid: req.piUser.uid,
+    username: req.piUser.username,
+    walletAddress: req.piUser.wallet_address || null,
+    wallet_address: req.piUser.wallet_address || null,
+    pioneer: req.pioneer
+  });
+});
+
+/* Wallet config */
+app.get("/api/wallet/config", (req, res) => {
+  res.json({
+    ok: true,
+    asset_code: AMT_ASSET_CODE,
+    issuer: AMT_ISSUER,
+    receiver: AMT_RECEIVER,
+    staking_receiver: AMT_RECEIVER,
+    horizon: AMT_HORIZON_URL,
+    network: "Pi Testnet"
+  });
 });
 
 /*
- * ============================================================
- * SERVER START
- * ============================================================
+ * Wallet synchronization.
+ * Supports both /api/wallet/bind and /api/wallet/sync so an existing
+ * frontend does not need to be rewritten.
  */
+async function walletBindHandler(req, res) {
+  try {
+    const wallet = String(
+      req.body?.wallet_address ||
+      req.body?.walletAddress ||
+      req.body?.address ||
+      req.piUser.wallet_address ||
+      ""
+    ).trim();
+
+    if (!isPublicStellarAddress(wallet)) {
+      return res.status(400).json({
+        ok: false,
+        error:
+          "Enter a valid public Pi Testnet wallet address starting with G and containing 56 characters."
+      });
+    }
+
+    const pioneer = await upsertPioneer(
+      req.piUser.uid,
+      req.piUser.username,
+      wallet
+    );
+
+    res.json({
+      ok: true,
+      synced: true,
+      uid: req.piUser.uid,
+      username: req.piUser.username,
+      wallet_address: pioneer.wallet_address,
+      walletAddress: pioneer.wallet_address,
+      network: "Pi Testnet",
+      message: "Public Pi Testnet wallet synchronized successfully."
+    });
+  } catch (e) {
+    console.error("wallet sync:", e);
+    res.status(400).json({
+      ok: false,
+      error: e.message || "Unable to synchronize wallet."
+    });
+  }
+}
+
+app.post("/api/wallet/bind", requirePiAuth, walletBindHandler);
+app.post("/api/wallet/sync", requirePiAuth, walletBindHandler);
+
+app.get("/api/wallet/sync", requirePiAuth, async (req, res) => {
+  try {
+    const wallet = req.pioneer.wallet_address || req.piUser.wallet_address || "";
+
+    if (!isPublicStellarAddress(wallet)) {
+      return res.status(400).json({
+        ok: false,
+        synced: false,
+        error: "No valid public Pi Testnet wallet is synchronized yet."
+      });
+    }
+
+    res.json({
+      ok: true,
+      synced: true,
+      uid: req.piUser.uid,
+      username: req.piUser.username,
+      wallet_address: wallet,
+      walletAddress: wallet,
+      network: "Pi Testnet"
+    });
+  } catch (e) {
+    res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
+app.get("/api/wallet/onchain", requirePiAuth, async (req, res) => {
+  try {
+    const wallet = req.pioneer.wallet_address || "";
+
+    if (!isPublicStellarAddress(wallet)) {
+      return res.status(400).json({
+        ok: false,
+        error: "No synchronized public Pi Testnet wallet address found for this Pioneer."
+      });
+    }
+
+    const account = await horizonGet(
+      "/accounts/" + encodeURIComponent(wallet)
+    );
+
+    const balances = Array.isArray(account.balances)
+      ? account.balances
+      : [];
+
+    const balance = balances
+      .filter(b =>
+        b.asset_type === "credit_alphanum4" &&
+        b.asset_code === AMT_ASSET_CODE &&
+        b.asset_issuer === AMT_ISSUER
+      )
+      .reduce((sum, b) => sum + Number(b.balance || 0), 0);
+
+    res.json({
+      ok: true,
+      pi_uid: req.piUser.uid,
+      username: req.piUser.username,
+      wallet_address: wallet,
+      walletAddress: wallet,
+      amt: {
+        wallet,
+        asset_code: AMT_ASSET_CODE,
+        issuer: AMT_ISSUER,
+        balance
+      }
+    });
+  } catch (e) {
+    res.status(400).json({
+      ok: false,
+      error: e.message
+    });
+  }
+});
+
+/* Pioneer */
+app.post("/api/pioneers", async (req, res) => {
+  try {
+    const { pi_uid, username, wallet_address } = req.body || {};
+
+    if (!pi_uid) {
+      return res.status(400).json({
+        ok: false,
+        error: "pi_uid is required."
+      });
+    }
+
+    const pioneer = await upsertPioneer(
+      pi_uid,
+      username,
+      wallet_address
+    );
+
+    res.json({ ok: true, pioneer });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({
+      ok: false,
+      error: "Unable to save Pioneer."
+    });
+  }
+});
+
+app.get("/api/pioneers/:pi_uid", async (req, res) => {
+  try {
+    const r = await dbQuery(`SELECT id,pi_uid,username,wallet_address,
+        created_at,updated_at
+        FROM pioneers WHERE pi_uid=$1 LIMIT 1`,
+      [req.params.pi_uid]
+    );
+
+    if (!r.rows.length) {
+      return res.status(404).json({
+        ok: false,
+        error: "Pioneer not found."
+      });
+    }
+
+    res.json({ ok: true, pioneer: r.rows[0] });
+  } catch (e) {
+    res.status(500).json({
+      ok: false,
+      error: "Unable to load Pioneer."
+    });
+  }
+});
+
+/* My pets */
+app.get("/api/my-pets/:pi_uid", async (req, res) => {
+  try {
+    const r = await dbQuery(`SELECT
+        up.id,up.pet_code,pc.name,pc.element,pc.image,up.rarity,
+        up.level,up.xp,up.hp,up.atk,up.def,up.created_at,up.updated_at
+        FROM user_pets up
+        JOIN pioneers p ON p.id=up.pioneer_id
+        JOIN pets_catalog pc ON pc.pet_code=up.pet_code
+        WHERE p.pi_uid=$1
+        ORDER BY up.created_at DESC`,
+      [req.params.pi_uid]
+    );
+
+    res.json({
+      ok: true,
+      count: r.rows.length,
+      pets: r.rows
+    });
+  } catch (e) {
+    res.status(500).json({
+      ok: false,
+      error: "Unable to load Pioneer pets."
+    });
+  }
+});
+
+/* -------------------------------------------------------------------------- */
+/* CARE + TRAIN - fixes "Endpoint not found"                                  */
+/* -------------------------------------------------------------------------- */
+
+async function carePetHandler(req, res) {
+  try {
+    const pet = await findOwnedPet(req.piUser.uid, req);
+
+    const r = await dbQuery(`UPDATE user_pets
+      SET hp=$1,updated_at=NOW()
+      WHERE id=$2
+      RETURNING id,pet_code,rarity,level,xp,hp,atk,def,updated_at`,
+      [pet.base_hp, pet.id]
+    );
+
+    res.json({
+      ok: true,
+      action: "CARE",
+      message: "Pet cared for successfully. HP restored.",
+      pet: {
+        ...r.rows[0],
+        name: pet.name,
+        element: pet.element,
+        image: pet.image,
+        max_hp: pet.base_hp
+      }
+    });
+  } catch (e) {
+    console.error("care:", e);
+    res.status(400).json({
+      ok: false,
+      error: e.message || "Unable to care for pet."
+    });
+  }
+}
+
+async function trainPetHandler(req, res) {
+  try {
+    const pet = await findOwnedPet(req.piUser.uid, req);
+
+    const XP_GAIN = 25;
+    const oldXp = Number(pet.xp || 0);
+    const oldLevel = Number(pet.level || 1);
+    const totalXp = oldXp + XP_GAIN;
+
+    /*
+     * 100 XP per level.
+     * Example: level 1 + 25 XP = level 1 / 25 XP.
+     * Level increases automatically whenever a 100 XP boundary is reached.
+     */
+    const newLevel = Math.max(1, Math.floor(totalXp / 100) + 1);
+    const levelUps = Math.max(0, newLevel - oldLevel);
+
+    const newAtk = Number(pet.atk) + (levelUps * 2);
+    const newDef = Number(pet.def) + (levelUps * 2);
+    const newMaxHp = Number(pet.base_hp) + (levelUps * 5);
+
+    const r = await dbQuery(`UPDATE user_pets
+      SET xp=$1,
+          level=$2,
+          atk=$3,
+          def=$4,
+          hp=LEAST(hp,$5),
+          updated_at=NOW()
+      WHERE id=$6
+      RETURNING id,pet_code,rarity,level,xp,hp,atk,def,updated_at`,
+      [totalXp,newLevel,newAtk,newDef,newMaxHp,pet.id]
+    );
+
+    res.json({
+      ok: true,
+      action: "TRAIN",
+      message: levelUps > 0
+        ? `Training complete. Pet reached Level ${newLevel}!`
+        : "Training complete. XP gained.",
+      xpGained: XP_GAIN,
+      levelUps,
+      pet: {
+        ...r.rows[0],
+        name: pet.name,
+        element: pet.element,
+        image: pet.image,
+        max_hp: newMaxHp
+      }
+    });
+  } catch (e) {
+    console.error("train:", e);
+    res.status(400).json({
+      ok: false,
+      error: e.message || "Unable to train pet."
+    });
+  }
+}
+
+/*
+ * Multiple compatible paths are intentionally provided.
+ * This prevents the current frontend from breaking if it calls one of
+ * the common names below.
+ */
+app.post("/api/care", requirePiAuth, carePetHandler);
+app.post("/api/care/pet", requirePiAuth, carePetHandler);
+app.post("/api/pets/care", requirePiAuth, carePetHandler);
+
+app.post("/api/train", requirePiAuth, trainPetHandler);
+app.post("/api/train/pet", requirePiAuth, trainPetHandler);
+app.post("/api/pets/train", requirePiAuth, trainPetHandler);
+
+/* -------------------------------------------------------------------------- */
+/* PI PAYMENTS                                                                 */
+/* -------------------------------------------------------------------------- */
+
+app.post("/api/payments/pi/prepare", requirePiAuth, async (req, res) => {
+  try {
+    const { payment_id, pet_code } = req.body || {};
+
+    if (!payment_id || !pet_code) {
+      return res.status(400).json({
+        ok: false,
+        error: "payment_id and pet_code are required."
+      });
+    }
+
+    const pet = await dbQuery(
+      "SELECT pet_code,name FROM pets_catalog WHERE pet_code=$1 LIMIT 1",
+      [pet_code]
+    );
+
+    if (!pet.rows.length) {
+      return res.status(404).json({
+        ok: false,
+        error: "Pet not found."
+      });
+    }
+
+    const payment = await piFetch(
+      "/v2/payments/" + encodeURIComponent(payment_id)
+    );
+
+    const amount = String(payment.amount ?? "");
+    const metadata = payment.metadata || {};
+
+    if (Number(amount) !== Number(PET_PI_PRICE)) {
+      return res.status(400).json({
+        ok: false,
+        error: `Payment amount must be ${PET_PI_PRICE} Pi Test.`
+      });
+    }
+
+    if (metadata.pet_code && metadata.pet_code !== pet_code) {
+      return res.status(400).json({
+        ok: false,
+        error: "Payment pet does not match."
+      });
+    }
+
+    await dbQuery(`INSERT INTO pet_payments
+      (payment_id,pi_uid,username,pet_code,currency,amount,status)
+      VALUES($1,$2,$3,$4,'PI',$5,'CREATED')
+      ON CONFLICT(payment_id) DO UPDATE SET
+        pet_code=EXCLUDED.pet_code,
+        updated_at=NOW()`,
+      [
+        payment_id,
+        req.piUser.uid,
+        req.piUser.username,
+        pet_code,
+        Number(PET_PI_PRICE)
+      ]
+    );
+
+    res.json({
+      ok: true,
+      paymentId: payment_id,
+      pet_code,
+      amount: Number(PET_PI_PRICE),
+      currency: PI_PAYMENT_CURRENCY,
+      status: "CREATED"
+    });
+  } catch (e) {
+    console.error("prepare pi:", e);
+    res.status(400).json({
+      ok: false,
+      error: e.message || "Unable to prepare Pi payment."
+    });
+  }
+});
+
+app.post("/api/payments/pi/approve", requirePiAuth, async (req, res) => {
+  try {
+    const { payment_id, pet_code } = req.body || {};
+
+    if (!payment_id || !pet_code) {
+      return res.status(400).json({
+        ok: false,
+        error: "payment_id and pet_code are required."
+      });
+    }
+
+    const row = await dbQuery(
+      `SELECT * FROM pet_payments
+       WHERE payment_id=$1 AND pi_uid=$2 LIMIT 1`,
+      [payment_id, req.piUser.uid]
+    );
+
+    if (!row.rows.length) {
+      return res.status(404).json({
+        ok: false,
+        error: "Payment intent not found. Prepare it first."
+      });
+    }
+
+    const payment = await piFetch(
+      "/v2/payments/" + encodeURIComponent(payment_id)
+    );
+
+    if (Number(payment.amount) !== Number(PET_PI_PRICE)) {
+      return res.status(400).json({
+        ok: false,
+        error: `Payment amount is not ${PET_PI_PRICE} Pi Test.`
+      });
+    }
+
+    const approved = await piFetch(
+      "/v2/payments/" + encodeURIComponent(payment_id) + "/approve",
+      { method: "POST" }
+    );
+
+    await dbQuery(
+      `UPDATE pet_payments
+       SET status='APPROVED',updated_at=NOW()
+       WHERE payment_id=$1`,
+      [payment_id]
+    );
+
+    res.json({
+      ok: true,
+      paymentId: payment_id,
+      status: "APPROVED",
+      pi: approved
+    });
+  } catch (e) {
+    console.error("approve pi:", e);
+    res.status(400).json({
+      ok: false,
+      error: e.message || "Pi approval failed."
+    });
+  }
+});
+
+app.post("/api/payments/pi/complete", requirePiAuth, async (req, res) => {
+  try {
+    const { payment_id, pet_code, txid } = req.body || {};
+
+    if (!payment_id || !pet_code) {
+      return res.status(400).json({
+        ok: false,
+        error: "payment_id and pet_code are required."
+      });
+    }
+
+    const row = await dbQuery(
+      `SELECT * FROM pet_payments
+       WHERE payment_id=$1 AND pi_uid=$2 LIMIT 1`,
+      [payment_id, req.piUser.uid]
+    );
+
+    if (!row.rows.length) {
+      return res.status(404).json({
+        ok: false,
+        error: "Payment intent not found."
+      });
+    }
+
+    if (row.rows[0].status === "COMPLETED") {
+      return res.json({
+        ok: true,
+        status: "COMPLETED",
+        message: "Payment already completed; pet ownership already granted."
+      });
+    }
+
+    const payment = await piFetch(
+      "/v2/payments/" + encodeURIComponent(payment_id)
+    );
+
+    const transactionId =
+      txid ||
+      payment.transaction?.txid ||
+      payment.txid ||
+      "";
+
+    const status = payment.status || {};
+
+    if (!transactionId) {
+      return res.status(409).json({
+        ok: false,
+        error: "Pi transaction ID is not available yet. Please wait for the blockchain transaction."
+      });
+    }
+
+    if (status.cancelled === true || status.cancelled === 1) {
+      return res.status(409).json({
+        ok: false,
+        error: "Pi payment was cancelled."
+      });
+    }
+
+    const completed = await piFetch(
+      "/v2/payments/" + encodeURIComponent(payment_id) + "/complete",
+      {
+        method: "POST",
+        body: JSON.stringify({ txid: transactionId })
+      }
+    );
+
+    const pet = await grantPet(req.piUser.uid, pet_code);
+
+    await dbQuery(`UPDATE pet_payments
+      SET status='COMPLETED',
+          transaction_id=$1,
+          completed_at=NOW(),
+          updated_at=NOW()
+      WHERE payment_id=$2`,
+      [transactionId, payment_id]
+    );
+
+    res.json({
+      ok: true,
+      status: "COMPLETED",
+      paymentId: payment_id,
+      transactionId,
+      pi: completed,
+      pet
+    });
+  } catch (e) {
+    console.error("complete pi:", e);
+    res.status(400).json({
+      ok: false,
+      error: e.message || "Pi completion verification failed."
+    });
+  }
+});
+
+app.post("/api/payments/pi/callback", async (req, res) => {
+  try {
+    const { payment_id, txid } = req.body || {};
+
+    if (!payment_id) {
+      return res.status(400).json({
+        ok: false,
+        error: "payment_id is required."
+      });
+    }
+
+    const payment = await piFetch(
+      "/v2/payments/" + encodeURIComponent(payment_id)
+    );
+
+    const row = await dbQuery(
+      "SELECT * FROM pet_payments WHERE payment_id=$1 LIMIT 1",
+      [payment_id]
+    );
+
+    if (!row.rows.length) {
+      return res.status(404).json({
+        ok: false,
+        error: "Payment intent not found."
+      });
+    }
+
+    if (row.rows[0].status !== "COMPLETED") {
+      const transactionId =
+        txid ||
+        payment.transaction?.txid ||
+        payment.txid ||
+        "";
+
+      const status = payment.status || {};
+
+      if (status.cancelled === true || status.cancelled === 1) {
+        return res.status(409).json({
+          ok: false,
+          error: "Pi payment was cancelled."
+        });
+      }
+
+      if (transactionId) {
+        await piFetch(
+          "/v2/payments/" + encodeURIComponent(payment_id) + "/complete",
+          {
+            method: "POST",
+            body: JSON.stringify({ txid: transactionId })
+          }
+        );
+
+        const pet = await grantPet(
+          row.rows[0].pi_uid,
+          row.rows[0].pet_code
+        );
+
+        await dbQuery(`UPDATE pet_payments
+          SET status='COMPLETED',
+              transaction_id=$1,
+              completed_at=NOW(),
+              updated_at=NOW()
+          WHERE payment_id=$2`,
+          [transactionId, payment_id]
+        );
+
+        return res.json({
+          ok: true,
+          status: "COMPLETED",
+          pet
+        });
+      }
+    }
+
+    res.json({
+      ok: true,
+      status: row.rows[0].status
+    });
+  } catch (e) {
+    console.error("callback:", e);
+    res.status(400).json({
+      ok: false,
+      error: e.message || "Callback verification failed."
+    });
+  }
+});
+
+/* -------------------------------------------------------------------------- */
+/* AMT PAYMENTS                                                                */
+/* -------------------------------------------------------------------------- */
+
+app.post("/api/payments/amt/prepare", requirePiAuth, async (req, res) => {
+  try {
+    const { pet_code } = req.body || {};
+
+    if (!pet_code) {
+      return res.status(400).json({
+        ok: false,
+        error: "pet_code is required."
+      });
+    }
+
+    const pet = await dbQuery(
+      "SELECT pet_code,name FROM pets_catalog WHERE pet_code=$1 LIMIT 1",
+      [pet_code]
+    );
+
+    if (!pet.rows.length) {
+      return res.status(404).json({
+        ok: false,
+        error: "Pet not found."
+      });
+    }
+
+    const wallet = req.pioneer.wallet_address || "";
+
+    if (!isPublicStellarAddress(wallet)) {
+      return res.status(400).json({
+        ok: false,
+        error: "Sync your public Pi Testnet wallet first."
+      });
+    }
+
+    res.json({
+      ok: true,
+      pet_code,
+      amount: Number(PET_AMT_PRICE),
+      currency: AMT_ASSET_CODE,
+      from_wallet: wallet,
+      receiver: AMT_RECEIVER,
+      issuer: AMT_ISSUER,
+      horizon: AMT_HORIZON_URL,
+      status: "READY_FOR_VERIFIED_AMT_TRANSFER",
+      message:
+        "Send the exact AMT amount to the receiver, then submit the transaction hash. Ownership is granted only after server-side on-chain verification."
+    });
+  } catch (e) {
+    res.status(400).json({
+      ok: false,
+      error: e.message
+    });
+  }
+});
+
+app.post("/api/payments/amt/complete", requirePiAuth, async (req, res) => {
+  try {
+    const { pet_code, txid } = req.body || {};
+
+    if (!pet_code || !txid) {
+      return res.status(400).json({
+        ok: false,
+        error: "pet_code and txid are required."
+      });
+    }
+
+    const pet = await dbQuery(
+      "SELECT pet_code,name FROM pets_catalog WHERE pet_code=$1 LIMIT 1",
+      [pet_code]
+    );
+
+    if (!pet.rows.length) {
+      return res.status(404).json({
+        ok: false,
+        error: "Pet not found."
+      });
+    }
+
+    const wallet = req.pioneer.wallet_address || "";
+
+    if (!isPublicStellarAddress(wallet)) {
+      return res.status(400).json({
+        ok: false,
+        error: "Sync your public Pi Testnet wallet first."
+      });
+    }
+
+    const used = await dbQuery(
+      "SELECT id,pi_uid,pet_code FROM amt_payments WHERE txid=$1 LIMIT 1",
+      [txid]
+    );
+
+    if (used.rows.length) {
+      return res.status(409).json({
+        ok: false,
+        error: "This AMT transaction hash has already been used."
+      });
+    }
+
+    const verified = await verifyAMTTransfer(
+      String(txid).trim(),
+      {
+        from: wallet,
+        to: AMT_RECEIVER,
+        amount: Number(PET_AMT_PRICE)
+      }
+    );
+
+    await dbQuery(`INSERT INTO amt_payments
+      (pi_uid,pet_code,amount,asset_code,receiver,txid,status,completed_at)
+      VALUES($1,$2,$3,$4,$5,$6,'COMPLETED',NOW())`,
+      [
+        req.piUser.uid,
+        pet_code,
+        Number(PET_AMT_PRICE),
+        AMT_ASSET_CODE,
+        AMT_RECEIVER,
+        verified.txid
+      ]
+    );
+
+    const petRow = await grantPet(req.piUser.uid, pet_code);
+
+    res.json({
+      ok: true,
+      status: "COMPLETED",
+      transactionId: verified.txid,
+      pet: petRow
+    });
+  } catch (e) {
+    console.error("complete amt:", e);
+    res.status(400).json({
+      ok: false,
+      error: e.message || "AMT transfer verification failed."
+    });
+  }
+});
+
+/* Development helper */
+app.post("/api/dev/give-pet", async (req, res) => {
+  try {
+    const {
+      pi_uid,
+      pet_code,
+      username,
+      wallet_address
+    } = req.body || {};
+
+    if (!pi_uid || !pet_code) {
+      return res.status(400).json({
+        ok: false,
+        error: "pi_uid and pet_code are required."
+      });
+    }
+
+    await upsertPioneer(
+      pi_uid,
+      username,
+      wallet_address
+    );
+
+    const pet = await grantPet(pi_uid, pet_code);
+
+    res.json({
+      ok: true,
+      message: "Pet added to Pioneer collection.",
+      pet
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({
+      ok: false,
+      error: "Unable to give pet."
+    });
+  }
+});
+
+/* -------------------------------------------------------------------------- */
+/* 404                                                                        */
+/* -------------------------------------------------------------------------- */
+
+app.use((req, res) => {
+  res.status(404).json({
+    ok: false,
+    error: "Endpoint not found.",
+    path: req.originalUrl
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* START                                                                       */
+/* -------------------------------------------------------------------------- */
 
 async function startServer() {
   try {
     await initializeDatabase();
+    await seedPetCatalog();
 
     app.listen(PORT, () => {
-      console.log("==========================================");
-      console.log("Alberto Marketplace Token (AMT)");
-      console.log("Pi Testnet Mining Backend");
-      console.log("Server running on port:", PORT);
-      console.log("Pi API:", PI_API_BASE);
-      console.log("Pi /me endpoint:", `${PI_API_BASE}/v2/me`);
-      console.log(
-        "PI_API_KEY configured:",
-        PI_API_KEY ? "YES" : "NO"
-      );
-      console.log(
-        "AMT mining rate:",
-        AMT_MINING_RATE,
-        "AMT/hour"
-      );
-      console.log("Mining duration:", "24 hours");
-      console.log(
-        "Maximum base reward:",
-        MAXIMUM_BASE_REWARD,
-        "AMT/session"
-      );
-      console.log(
-        "Maximum direct referrals:",
-        MAX_DIRECT_REFERRALS
-      );
-      console.log(
-        "Referral reward:",
-        "PENDING_FOR_MAINNET"
-      );
-      console.log("KYC required for mining:", "NO");
-      console.log("==========================================");
+      console.log("======================================");
+      console.log("       AMT PET MARKETPLACE");
+      console.log("======================================");
+      console.log(`Server running on port ${PORT}`);
+      console.log(`Database configured: ${!!DATABASE_URL}`);
+      console.log(`Pi API key configured: ${!!PI_API_KEY}`);
+      console.log(`Pet catalog: ${PET_SEED.length} pets`);
+      console.log("Pi network: Testnet");
+      console.log("Pet Pi price: " + PET_PI_PRICE);
+      console.log("Pet AMT price: " + PET_AMT_PRICE);
+      console.log("Care endpoints: /api/care, /api/care/pet, /api/pets/care");
+      console.log("Train endpoints: /api/train, /api/train/pet, /api/pets/train");
+      console.log("Wallet endpoints: /api/wallet/bind, /api/wallet/sync");
+      console.log("======================================");
     });
-  } catch (error) {
-    console.error("Server startup failed:", error.message);
+  } catch (e) {
+    console.error("SERVER STARTUP ERROR:", e);
     process.exit(1);
   }
 }
