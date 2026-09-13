@@ -251,7 +251,7 @@ button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!impo
       <button class="action" style="margin-top:0;flex:1" onclick="refreshWalletSync()">🔄 SYNC / REFRESH WALLET</button>
       <button class="action dark" style="margin-top:0;flex:1" onclick="requestWalletPermission()">🔐 AUTHORIZE WALLET</button>
     </div>
-    <div class="muted" style="margin-top:9px">The wallet is verified through the Pi session and the AMT balance is read from the configured Pi Testnet chain. Never enter a private key or secret key in this app.</div><div id="walletDiag" class="small" style="margin-top:7px">Wallet source: Pi SDK</div>
+    <div class="muted" style="margin-top:9px">The wallet is verified through the Pi session and the AMT balance is read from the configured Pi Testnet chain. Never enter a private key or secret key in this app.</div><div id="walletDiag" class="small" style="margin-top:7px">Wallet source: Pi SDK</div><div id="walletHelp" class="small" style="margin-top:7px">If wallet address is missing, use AUTHORIZE WALLET inside Pi Browser first.</div>
   </div>
 
   <div class="profileGrid">
@@ -626,27 +626,75 @@ async function submitTrade(petId){
 /* Sell */
 async function sellPet(){
   try{
+    if(!currentUser?.accessToken){toast('Login with Pi first.');return}
     const p=await chooseOwnedPet('💰 Choose Pet to Sell','Select the pet you want to list publicly.');
     if(!p)return;
+
     openActionModal('💰 List Pet for Sale',`Selling ${p.name} • choose your AMT price.`,`
       <div class="petChoice" style="cursor:default">
         <img src="${img(p.image)}" alt="${esc(p.name)}">
-        <span class="petChoiceInfo"><b>${esc(p.name)}</b><span>${esc(p.element||'—')} • ${esc(p.rarity||'Common')} • Lv.${esc(p.level||1)}</span></span>
+        <span class="petChoiceInfo">
+          <b>${esc(p.name)}</b>
+          <span>${esc(p.element||'—')} • ${esc(p.rarity||'Common')} • Lv.${esc(p.level||1)}</span>
+        </span>
       </div>
       <label class="fieldLabel">AMT SALE PRICE</label>
-      <input id="sellPrice" class="modalInput" type="number" min="0.01" step="0.01" value="25" max="200" placeholder="Suggested: 10–100 AMT">
+      <input id="sellPrice" class="modalInput" type="number" min="1" step="1" value="25" max="200" inputmode="decimal" placeholder="1–200 AMT">
+      <div class="small" style="margin-top:6px">Maximum listing price: 200 AMT.</div>
       <div class="modalActions">
-        <button class="action gold" onclick="submitSell(${JSON.stringify(p.id)})">💰 LIST PET FOR SALE</button>
-        <button class="action dark" onclick="closeActionModal()">CANCEL</button>
+        <button id="submitSellBtn" type="button" class="action gold" onclick="submitSell(${JSON.stringify(p.id)})">💰 LIST PET FOR SALE</button>
+        <button type="button" class="action dark" onclick="closeActionModal()">CANCEL</button>
       </div>`);
-  }catch(e){console.error('SELL:',e);toast(e.message||'Listing failed.')}
+  }catch(e){
+    console.error('SELL:',e);
+    toast(e.message||'Listing failed.');
+  }
 }
+
 async function submitSell(petId){
-  const price=Number($('sellPrice')?.value);if(!price||price<=0||price>200){toast('Use a community price from 1 to 200 AMT.');return}
+  const id=Number(petId);
+  const price=Number($('sellPrice')?.value);
+  const btn=$('submitSellBtn');
+
+  if(!currentUser?.accessToken){
+    toast('Your Pi login session is missing. Login again.');
+    return;
+  }
+  if(!Number.isInteger(id)||id<=0){
+    toast('Invalid pet ID. Please close this window and choose the pet again.');
+    return;
+  }
+  if(!Number.isFinite(price)||price<1||price>200){
+    toast('Use a community price from 1 to 200 AMT.');
+    return;
+  }
+
+  if(btn){
+    btn.disabled=true;
+    btn.textContent='⏳ LISTING PET...';
+  }
+
   try{
-    const d=await apiPost('/api/sell/list',{pet_id:petId,price_amt:price});
-    closeActionModal();toast(d.message||'Pet listed successfully.');await loadPublicListings();
-  }catch(e){toast(e.message||'Listing failed.')}
+    const d=await apiPost('/api/sell/list',{pet_id:id,petId:id,price_amt:price});
+    closeActionModal();
+    toast(d.message||'Pet listed successfully.');
+    await loadMyPets();
+    await loadPublicListings();
+  }catch(e){
+    console.error('SELL LIST ERROR:',e);
+    if(btn){
+      btn.disabled=false;
+      btn.textContent='💰 LIST PET FOR SALE';
+    }
+    openActionModal('❌ LISTING FAILED','The server rejected the listing.',`
+      <div class="msg" style="padding:18px 8px">
+        <b>${esc(e.message||'Listing failed.')}</b>
+        <div class="small" style="margin-top:8px">Check that the pet is still owned by you and is not already listed.</div>
+      </div>
+      <div class="modalActions">
+        <button type="button" class="action dark" onclick="closeActionModal()">CLOSE</button>
+      </div>`);
+  }
 }
 
 /* Public listings */
@@ -657,10 +705,10 @@ async function loadPublicListings(){
     const endpoint=publicMarketType==='eggs'?'/api/market/eggs':'/api/market/listings';
     const r=await fetch(API+endpoint,{cache:'no-store'}),d=await r.json();if(!r.ok)throw Error(d.error||'Unable to load public listings.');
     const a=publicMarketType==='eggs'?(d.listings||d.eggs||[]):(d.listings||[]);
-    const sellerWallet=x=>String(x.seller_wallet||'').trim();
-    const shortWallet=w=>w?(w.slice(0,8)+'…'+w.slice(-6)):'Wallet pending';
-    const sellerBlock=x=>`<div class="sellerBlock"><div class="sellerLine"><span>👤 Seller</span><b>@${esc(x.username||'Pioneer')}</b></div><div class="sellerLine"><span>🔐 Wallet</span><b>${esc(shortWallet(sellerWallet(x)))}</b></div>${sellerWallet(x)?`<button class="copyWalletBtn" onclick='copyText(${JSON.stringify(sellerWallet(x))})'>COPY WALLET</button>`:'<div class="small">Wallet address not yet synchronized.</div>'}</div>`;
-    $('publicListings').innerHTML=a.length?a.map(x=>publicMarketType==='eggs'?`<article class="publicCard"><div class="eggArt" style="height:130px">🥚</div><b>${esc(x.egg_code)}</b><div class="small">${esc(x.element)} • ${esc(x.rarity)}</div>${sellerBlock(x)}<div class="price">${Number(x.price_amt)} AMT</div><button class="action gold" onclick="openPublicBuy('egg',${JSON.stringify(x.id)},${JSON.stringify(x.price_amt)},${JSON.stringify(x.egg_code||'Egg')},${JSON.stringify(x.seller_wallet||'')})">BUY EGG</button></article>`:`<article class="publicCard"><img src="${img(x.image)}" alt="${esc(x.name)}"><b>${esc(x.name)}</b><div class="small">${esc(x.element)} • ${esc(x.rarity)} • Lv.${esc(x.level)}</div>${sellerBlock(x)}<div class="price">${Number(x.price_amt)} AMT</div><button class="action gold" onclick="openPublicBuy('pet',${JSON.stringify(x.id)},${JSON.stringify(x.price_amt)},${JSON.stringify(x.name||'Pet')},${JSON.stringify(x.seller_wallet||'')})">🪙 BUY WITH AMT</button></article>`).join(''):'<div class="msg">No active public listings yet.</div>';
+    const sellerWallet=x=>String(x.seller_wallet||x.sellerWallet||'').trim().toUpperCase();
+    const shortWallet=w=>w?(w.slice(0,8)+'…'+w.slice(-6)):'Server-verified wallet';
+    const sellerBlock=x=>`<div class="sellerBlock"><div class="sellerLine"><span>👤 Seller</span><b>@${esc(x.username||'Pioneer')}</b></div><div class="sellerLine"><span>🔐 Wallet</span><b>${esc(shortWallet(sellerWallet(x)))}</b></div>${sellerWallet(x)?`<button class="copyWalletBtn" onclick='copyText(${JSON.stringify(sellerWallet(x))})'>COPY WALLET</button>`:'<div class="small">Seller wallet is kept server-side until purchase verification.</div>'}</div>`;
+    $('publicListings').innerHTML=a.length?a.map(x=>publicMarketType==='eggs'?`<article class="publicCard"><div class="eggArt" style="height:130px">🥚</div><b>${esc(x.egg_code)}</b><div class="small">${esc(x.element)} • ${esc(x.rarity)}</div>${sellerBlock(x)}<div class="price">${Number(x.price_amt)} AMT</div><button class="action gold" onclick="openPublicBuy('egg',${JSON.stringify(x.id)},${JSON.stringify(x.price_amt)},${JSON.stringify(x.egg_code||'Egg')},${JSON.stringify(x.seller_wallet||'')})">BUY EGG</button></article>`:`<article class="publicCard"><img src="${img(x.image)}" alt="${esc(x.name)}"><b>${esc(x.name)}</b><div class="small">${esc(x.element)} • ${esc(x.rarity)} • Lv.${esc(x.level)}</div>${sellerBlock(x)}<div class="price">${Number(x.price_amt)} AMT</div><button class="action gold" onclick="openPublicBuy('pet',${JSON.stringify(x.id)},${JSON.stringify(x.price_amt)},${JSON.stringify(x.name||'Pet')},${JSON.stringify(x.seller_wallet||'')})">BUY PET</button></article>`).join(''):'<div class="msg">No active public listings yet.</div>';
   }catch(e){console.error('PUBLIC LISTINGS:',e);$('publicListings').innerHTML='<div class="msg">Unable to load public listings.</div>'}
 }
 
@@ -776,7 +824,18 @@ async function retryAMTStore(paymentId){
 
 /* Pi / wallet helpers */
 function validWallet(x){return /^G[A-Z2-7]{55}$/.test(String(x||'').trim().toUpperCase())}
-function walletOf(u){return String(u?.wallet_address||u?.walletAddress||'').trim().toUpperCase()}
+function walletOf(u){
+  const x=u||{};
+  return String(
+    x.wallet_address||
+    x.walletAddress||
+    x.user?.wallet_address||
+    x.user?.walletAddress||
+    x.pioneer?.wallet_address||
+    x.pioneer?.walletAddress||
+    ''
+  ).trim().toUpperCase();
+}
 function initPi(){
   if(!window.Pi)throw Error('Open AMT Pet Marketplace in Pi Browser.');
   if(!piInitialized){
@@ -812,20 +871,29 @@ async function refreshWalletSync(){
   try{
     $('walletSyncStatus').textContent='SYNCING...';$('walletSyncStatus').style.color='#ffd66b';
 
-    // First verify the Pi session on the backend. Some Pi SDK responses expose only uid/username
-    // even when wallet_address consent is available; the backend /me verification is the source of truth.
+    // Re-read the authenticated Pi session first. This is important for other Pioneers:
+    // each login/token is checked against its own Pi UID, never against the previous user's wallet.
     let backendWallet='';
-    const verifyFirst=await fetch(API+'/api/auth/verify',{method:'POST',headers:authHeaders(),cache:'no-store'});
-    const verifyFirstData=await verifyFirst.json().catch(()=>({}));
-    if(verifyFirst.ok){
-      backendWallet=walletOf(verifyFirstData)||walletOf(verifyFirstData.pioneer)||walletOf(verifyFirstData.user);
+    const refreshFirst=await fetch(API+'/api/wallet/refresh',{method:'POST',headers:authHeaders(),cache:'no-store'});
+    const refreshFirstData=await refreshFirst.json().catch(()=>({}));
+    if(refreshFirst.ok){
+      backendWallet=walletOf(refreshFirstData);
       if(backendWallet)saveWalletForCurrentUser(backendWallet);
-      if(verifyFirstData.username)currentUser.username=verifyFirstData.username;
-      if(verifyFirstData.uid)currentUser.uid=verifyFirstData.uid;
+      if(refreshFirstData.username)currentUser.username=refreshFirstData.username;
+      if(refreshFirstData.uid)currentUser.uid=refreshFirstData.uid;
+    }else{
+      // Fall back to the normal auth verification so existing sessions still work.
+      const verifyFirst=await fetch(API+'/api/auth/verify',{method:'POST',headers:authHeaders(),cache:'no-store'});
+      const verifyFirstData=await verifyFirst.json().catch(()=>({}));
+      if(verifyFirst.ok){
+        backendWallet=walletOf(verifyFirstData)||walletOf(verifyFirstData.pioneer)||walletOf(verifyFirstData.user);
+        if(backendWallet)saveWalletForCurrentUser(backendWallet);
+        if(verifyFirstData.username)currentUser.username=verifyFirstData.username;
+        if(verifyFirstData.uid)currentUser.uid=verifyFirstData.uid;
+      }
     }
 
-    // IMPORTANT: never send an empty wallet to the backend. Use SDK wallet, then backend wallet,
-    // then a wallet already locked to this Pioneer.
+    // IMPORTANT: never use another pioneer's wallet. The local fallback is locked to currentUser.uid.
     const candidate=walletOf(currentUser)||backendWallet||savedWalletForCurrentUser();
     if(!validWallet(candidate)){
       $('walletSyncStatus').textContent='WALLET PERMISSION REQUIRED';$('walletSyncStatus').style.color='#ffd66b';
@@ -854,7 +922,7 @@ async function refreshWalletSync(){
     $('walletAddress').textContent=shortAddress(currentUser.wallet_address);$('walletAddress').title=currentUser.wallet_address;
     $('piBalance').textContent=Number(d.pi_balance??d.piBalance??0).toFixed(8)+' PI';
     $('onChainAMT').textContent=Number(d.balance||0).toFixed(8)+' AMT';
-    const issuer=d.issuer||d.amt?.issuer||'Not configured';if($('amtIssuer')){$('amtIssuer').textContent=issuer;$('amtIssuer').title=issuer;}$('walletDiag').textContent='Wallet source: Pi SDK / synchronized wallet';window.__amtWalletConfig=d;
+    const issuer=d.issuer||d.amt?.issuer||'Not configured';if($('amtIssuer')){$('amtIssuer').textContent=issuer;$('amtIssuer').title=issuer;}$('walletDiag').textContent='Wallet source: Pi authenticated session / synchronized by Pioneer UID';window.__amtWalletConfig=d;
     saveWalletForCurrentUser(currentUser.wallet_address);
   }catch(e){
     console.error('WALLET SYNC ERROR:',e);
@@ -876,7 +944,7 @@ async function requestWalletPermission(){
     initPi();
     piRuntimeInfo();
     $('walletSyncStatus').textContent='REQUESTING PI WALLET ACCESS...';$('walletSyncStatus').style.color='#ffd66b';
-    const auth=await Pi.authenticate(['username','wallet_address'],p=>{
+    const auth=await Pi.authenticate(['username','payments','wallet_address'],p=>{
       console.log('Incomplete payment:',p);window.__amtIncompletePayment=p;
     });
     const u=auth?.user||{};
@@ -893,7 +961,7 @@ async function requestWalletPermission(){
       await syncPioneer();
       await refreshWalletSync();
       $('walletSyncStatus').textContent='WALLET PERMISSION STILL NOT ACTIVE';$('walletSyncStatus').style.color='#ff7180';
-      toast('Pi did not return wallet_address yet. Please use the Pi Browser app authorization again.');
+      toast('Pi did not return wallet_address. Tap AUTHORIZE WALLET in Pi Browser and approve wallet access.');
     }
   }catch(e){
     console.error('WALLET AUTH:',e);
@@ -982,7 +1050,7 @@ async function syncPioneer(){
     if(r.ok){
       const d=await r.json().catch(()=>({}));
       const wallet=d.walletAddress||d.wallet_address||d.address||'';
-      if(/^G[A-Za-z0-9]{55}$/.test(wallet)){currentUser.wallet_address=wallet;localStorage.setItem('amtPetPiWallet',wallet)}
+      if(validWallet(wallet)){saveWalletForCurrentUser(wallet)}
       if(d.username)currentUser.username=d.username;if(d.uid)currentUser.uid=d.uid;
     }
   }catch(e){console.log('Optional backend sync:',e)}
@@ -1065,39 +1133,6 @@ function renderMarket(){
 }
 function quickBuyPet(p){selectedPet=p;buyPetPrepared()}
 async function quickBuyAMT(p){selectedPet=p;await buyWithAMT()}
-
-/* DIRECT AMT BUY */
-async function buyWithAMT(){
-  if(!selectedPet){toast('Select a pet first.');return}
-  if(!currentUser?.accessToken){toast('Login with Pi first.');return}
-  const price=Number(selectedPet.amt_price||selectedPet.price_amt||100);
-  const petName=String(selectedPet.name||selectedPet.pet_code||'Pet');
-  const sellerWallet=String(selectedPet.seller_wallet||'').trim();
-  if(!sellerWallet){toast('Seller AMT wallet is not synchronized yet.');return}
-  openActionModal(
-    '🪙 BUY PET — AMT',
-    'Verified AMT marketplace purchase',
-    `<div class="msg"><b>${esc(petName)}</b><br><span class="price">${price} AMT</span><br><br><span class="small">Seller wallet: ${esc(sellerWallet.slice(0,8)+'…'+sellerWallet.slice(-6))}</span><br><br>Send exactly <b>${price} AMT</b> from your synchronized Pioneer wallet to the seller wallet. Then paste the successful transaction hash below. The server will verify the real Pi Testnet transaction before transferring ownership.</div><label class="fieldLabel">AMT TRANSACTION HASH</label><input id="publicBuyTxid" class="modalInput" placeholder="Successful AMT transaction hash" autocomplete="off"><div class="modalActions"><button class="action gold" onclick="completeDirectAMTBuy()">🔐 VERIFY & BUY</button><button class="action dark" onclick="closeActionModal()">CANCEL</button></div>`
-  );
-}
-
-async function completeDirectAMTBuy(){
-  const txid=String($('publicBuyTxid')?.value||'').trim();
-  if(!txid){toast('Enter the successful AMT transaction hash.');return}
-  const pet=selectedPet;
-  try{
-    toast('Verifying AMT transaction…');
-    const d=await apiPost('/api/market/buy-pet',{pet_id:Number(pet.id||pet.pet_id||0),listing_id:Number(pet.listing_id||0),txid});
-    closeActionModal();
-    toast(d.message||'AMT purchase completed successfully.');
-    await loadPublicListings();
-    await loadMyPets();
-    await refreshWalletSync();
-  }catch(e){
-    console.error('DIRECT AMT BUY:',e);
-    toast(e.message||'AMT purchase could not be verified.');
-  }
-}
 
 /* Pet details */
 function openPet(p){
