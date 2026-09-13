@@ -1049,12 +1049,12 @@ async function syncPioneer(){
     const r=await fetch(API+'/api/auth/verify',{method:'POST',headers:authHeaders(),cache:'no-store'});
     if(r.ok){
       const d=await r.json().catch(()=>({}));
-      const wallet=d.walletAddress||d.wallet_address||d.address||'';
+      const wallet=walletOf(d)||walletOf(d.pioneer)||walletOf(d.user);
       if(validWallet(wallet)){saveWalletForCurrentUser(wallet)}
       if(d.username)currentUser.username=d.username;if(d.uid)currentUser.uid=d.uid;
     }
   }catch(e){console.log('Optional backend sync:',e)}
-  localStorage.setItem('amtPetPiWallet',currentUser?.wallet_address||'');
+  if(validWallet(currentUser?.wallet_address)) saveWalletForCurrentUser(currentUser.wallet_address);
 }
 
 /* Enter app */
