@@ -564,7 +564,7 @@ function card(p,index){
    PI LOGIN GATE
    Marketplace stays locked until Pi authentication succeeds.
 --------------------------------------------------------------------------- */
-const PI_API_BASE = localStorage.getItem("AMT_API_BASE") || "https://amtpet09.onrender.com";
+const PI_API_BASE = localStorage.getItem("AMT_API_BASE") || "https://amtpet09-github-io.onrender.com";
 const piGate = document.getElementById("piGate");
 const piStatus = document.getElementById("piStatus");
 const piLogin = document.getElementById("piLogin");
@@ -671,7 +671,7 @@ piLogin.addEventListener("click",startPiLogin);
 
 /* Login starts only after the Pioneer taps LOGIN WITH PI. */
 
-const API_BASE = localStorage.getItem("AMT_API_BASE") || "https://amtpet09.onrender.com";
+const API_BASE = localStorage.getItem("AMT_API_BASE") || "https://amtpet09-github-io.onrender.com";
 async function loadServerCatalog(){
   try{
     const r=await fetch(API_BASE+"/api/pets");
