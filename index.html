@@ -131,7 +131,7 @@ button:disabled{cursor:not-allowed;opacity:.55}
 .badge{right:7px;border:1px solid #b88ccf;color:#f1e8f5}
 .element{left:7px;border:1px solid #47758a;color:#d3fbff}
 .common-tag{
-  position:absolute;left:7px;bottom:7px;padding:4px 7px;border-radius:7px;
+  display:none;position:absolute;left:7px;bottom:7px;padding:4px 7px;border-radius:7px;
   background:#05030ad9;border:1px solid #9a78a8;color:#eee5f2;font-size:8px;font-weight:900
 }
 .card-body{padding:9px}
@@ -181,6 +181,19 @@ button:disabled{cursor:not-allowed;opacity:.55}
 }
 .roadmap span.current{border-color:#b34dff;color:#fff;background:#32104d}
 .profile-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.feature-nav{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:9px}
+.feature-btn{border:1px solid #542276;background:#0d0615;color:#e8dff0;border-radius:10px;padding:9px 5px;font-size:9px;font-weight:900}
+.feature-btn.active,.feature-btn:hover{border-color:#b84dff;background:#2a1040;color:#fff}
+.feature-panel{display:none;margin-top:8px;padding:10px;border:1px solid #3e1a57;border-radius:11px;background:#09050e}
+.feature-panel.show{display:block}
+.feature-panel h3{font-size:13px;margin-bottom:4px}
+.feature-panel p{font-size:9px;line-height:1.45;color:#9d8eaa}
+.feature-list{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:7px}
+.feature-item{padding:8px;border:1px solid #321542;border-radius:9px;background:#0d0614}
+.feature-item b{display:block;color:#dca8ff;font-size:10px;margin-bottom:3px}
+.feature-item span{font-size:8px;color:#93849d}
+.feature-empty{padding:12px;text-align:center;border:1px dashed #4a2a61;border-radius:9px;color:#8f8198;font-size:9px;margin-top:7px}
+
 .modal{
   position:fixed;inset:0;z-index:100;display:none;align-items:flex-end;justify-content:center;
   padding:8px;background:#000c;backdrop-filter:blur(8px)
@@ -229,13 +242,13 @@ button:disabled{cursor:not-allowed;opacity:.55}
 @media(max-width:980px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:720px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:560px){
-  .header{padding:8px}.brand-mark{width:38px;height:38px;flex-basis:38px;font-size:20px}
+  .header{padding:7px}.brand-mark{width:36px;height:36px;flex-basis:36px;font-size:19px}
   .brand h1{font-size:16px}.brand p{font-size:9px}.nav button{padding:7px 8px;font-size:10px}
   .balance{font-size:9px;padding:7px 8px}.wrap{padding:8px 7px 35px}
   .hero{padding:17px 13px}.hero h2{font-size:28px}
-  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
-  .pet-img-wrap{min-height:0}.card-body{padding:8px}.card h3{font-size:12px}
-  .btn{font-size:9px;padding:7px 3px}.profile-grid{grid-template-columns:1fr 1fr}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  .pet-img-wrap{min-height:0;aspect-ratio:5/6}.card-body{padding:7px}.card h3{font-size:12px}
+  .btn{font-size:9px;padding:6px 3px}.profile-grid{grid-template-columns:1fr 1fr}
   .modal{padding:0}.modal-box{border-radius:18px 18px 0 0}
   .modal-content{grid-template-columns:120px 1fr;gap:10px;padding:11px}
   .modal-content h2{font-size:20px}.big-stats{grid-template-columns:repeat(2,1fr)}
@@ -274,10 +287,17 @@ button:disabled{cursor:not-allowed;opacity:.55}
   </section>
   <div class="topbar">
     <div>
-      <div class="topbar-title">🐾 Starter Pet Collection</div>
+      <div class="topbar-title">🐾 70 Common Starter Pets</div>
       <div class="topbar-sub">Choose a Common pet and build its story.</div>
     </div>
     <div class="status-dot">● TESTNET</div>
+  </div>
+
+  <div class="feature-shortcuts" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:9px">
+    <button class="feature-btn" onclick="toggleProfile();openFeature('myPets')">🐾 My Pets</button>
+    <button class="feature-btn" onclick="toggleProfile();openFeature('breeding')">🧬 Breeding</button>
+    <button class="feature-btn" onclick="toggleProfile();openFeature('incubator')">🥚 Incubator</button>
+    <button class="feature-btn" onclick="toggleProfile();openFeature('sell')">🏪 Public Sell</button>
   </div>
 
   <section id="profilePanel" class="profile-panel">
@@ -299,9 +319,52 @@ button:disabled{cursor:not-allowed;opacity:.55}
         <span class="current">Common • Lv.1</span><span>Rare</span><span>Epic</span><span>Legendary</span><span>Mythic</span>
       </div>
     </div>
+    <div class="feature-nav">
+      <button class="feature-btn active" data-feature="myPets">🐾 My Pets</button>
+      <button class="feature-btn" data-feature="breeding">🧬 Breeding</button>
+      <button class="feature-btn" data-feature="incubator">🥚 Egg Incubator</button>
+      <button class="feature-btn" data-feature="sell">🏪 Public Sell</button>
+    </div>
+
+    <div id="myPets" class="feature-panel show">
+      <h3>🐾 My Pets</h3>
+      <p>Your purchased/minted pets belong to your Pioneer profile. All new pets start <b>Common • Level 1</b>.</p>
+      <div id="myPetsList" class="feature-list">
+        <div class="feature-empty" style="grid-column:1/-1">Login with Pi to load your owned pets.</div>
+      </div>
+    </div>
+
+    <div id="breeding" class="feature-panel">
+      <h3>🧬 Pet Breeding</h3>
+      <p>Select two eligible owned pets to prepare a breeding pair. Breeding rules can be connected to the backend without changing the 70-pet starter catalog.</p>
+      <div class="feature-list">
+        <div class="feature-item"><b>Parent A</b><span>Select from My Pets</span></div>
+        <div class="feature-item"><b>Parent B</b><span>Select from My Pets</span></div>
+      </div>
+      <button class="btn primary" style="margin-top:7px;width:100%" onclick="openFeature('breeding')">🧬 Prepare Breeding Pair</button>
+    </div>
+
+    <div id="incubator" class="feature-panel">
+      <h3>🥚 Egg Incubator</h3>
+      <p>Eggs will hatch through an incubation timer. This panel keeps the feature visible now and is ready for the real egg/hatching backend.</p>
+      <div class="feature-list">
+        <div class="feature-item"><b>🥚 Empty Slot</b><span>No egg incubating</span></div>
+        <div class="feature-item"><b>⏱️ Hatch Timer</b><span>Waiting for an egg</span></div>
+      </div>
+      <button class="btn primary" style="margin-top:7px;width:100%" onclick="alert('Egg Incubator is ready. The actual egg record and hatch timer will be connected to the pet backend.')">🥚 Open Incubator</button>
+    </div>
+
+    <div id="sell" class="feature-panel">
+      <h3>🏪 Public Sell</h3>
+      <p>List a Pioneer-owned pet for public sale. The marketplace will only sell pets that are actually owned by the logged-in Pioneer.</p>
+      <div id="sellList" class="feature-list">
+        <div class="feature-empty" style="grid-column:1/-1">Login with Pi to load pets eligible for public sale.</div>
+      </div>
+      <button class="btn primary" style="margin-top:7px;width:100%" onclick="alert('Public Sell UI restored. The verified listing/payment endpoint will be connected before real sales are enabled.')">🏪 Create Public Listing</button>
+    </div>
+
     <div class="profile-actions">
-      <button class="btn primary" onclick="alert('Your owned pets and real progression will appear here once the pet ownership endpoints are connected.')">🐾 My Pets</button>
-      <button class="btn" onclick="alert('Battle progression will use the Pioneer-owned pet and verified backend rewards.')">⚔️ Battle</button>
+      <button class="btn primary" onclick="alert('Battle module remains available for the Pioneer pet progression system.')">⚔️ Pet Battle</button>
     </div>
   </section>
 
@@ -385,7 +448,7 @@ function card(p,index){
         onclick="event.stopPropagation();openModal(${index})"
         onerror="this.parentElement.innerHTML='<div style=&quot;height:100%;display:grid;place-items:center;color:#8e789d;padding:12px;text-align:center;font-size:10px&quot;>Image not found<br>${p.file}</div>'">
       <span class="element">${elementIcon(p.element)} ${p.element}</span>
-      <span class="badge">${p.rarity}</span><span class="common-tag">Lv. 1 • Common</span>
+      <span class="badge">${p.rarity}</span>
     </div>
     <div class="card-body">
       <div class="kicker">PET #${String(index+1).padStart(3,"0")}</div>
@@ -454,6 +517,51 @@ function buyPet(i){
   alert("Buy button is unavailable.");
 }
 
+
+function openFeature(id){
+  const panel=document.getElementById("profilePanel");
+  if(!panel.classList.contains("show")) panel.classList.add("show");
+  document.querySelectorAll(".feature-panel").forEach(x=>x.classList.remove("show"));
+  document.querySelectorAll(".feature-btn[data-feature]").forEach(x=>x.classList.remove("active"));
+  const target=document.getElementById(id);
+  if(target) target.classList.add("show");
+  const btn=document.querySelector(`.feature-btn[data-feature="${id}"]`);
+  if(btn) btn.classList.add("active");
+  if(panel) panel.scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+document.querySelectorAll(".feature-btn[data-feature]").forEach(btn=>{
+  btn.addEventListener("click",()=>openFeature(btn.dataset.feature));
+});
+
+async function loadMyPets(){
+  const uid=localStorage.getItem("pi_uid") || localStorage.getItem("piUserId");
+  const username=localStorage.getItem("piUser");
+  const list=document.getElementById("myPetsList");
+  const sell=document.getElementById("sellList");
+  if(!list || !sell) return;
+  if(!uid){
+    list.innerHTML='<div class="feature-empty" style="grid-column:1/-1">Login with Pi to load your owned pets.</div>';
+    sell.innerHTML='<div class="feature-empty" style="grid-column:1/-1">Login with Pi to load pets eligible for public sale.</div>';
+    return;
+  }
+  try{
+    const r=await fetch(API_BASE+"/api/my-pets/"+encodeURIComponent(uid));
+    const d=await r.json();
+    if(!d.ok || !Array.isArray(d.pets)) throw new Error("Unable to load owned pets");
+    document.getElementById("petOwned").textContent=d.count||d.pets.length;
+    if(!d.pets.length){
+      list.innerHTML='<div class="feature-empty" style="grid-column:1/-1">No owned pets yet. Buy or mint a Common starter pet first.</div>';
+      sell.innerHTML='<div class="feature-empty" style="grid-column:1/-1">No owned pets available for public sale.</div>';
+      return;
+    }
+    list.innerHTML=d.pets.map(p=>`<div class="feature-item"><b>🐾 ${p.name}</b><span>Lv. ${p.level||1} • ${p.rarity||"Common"} • ${p.element}</span></div>`).join("");
+    sell.innerHTML=d.pets.map(p=>`<div class="feature-item"><b>🏪 ${p.name}</b><span>Lv. ${p.level||1} • ${p.rarity||"Common"}<br>Ready for listing review</span></div>`).join("");
+  }catch(e){
+    console.log("My pets endpoint unavailable:",e);
+  }
+}
+
 function toggleProfile(){
   const panel=document.getElementById("profilePanel");
   panel.classList.toggle("show");
@@ -491,6 +599,7 @@ document.getElementById("searchInput").addEventListener("input",render);
 refreshBalance();
 render();
 loadServerCatalog();
+loadMyPets();
 </script>
 
 <!-- IMPORTANT: keep your existing payment/backend file -->
