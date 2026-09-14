@@ -12,6 +12,12 @@
     if (window.Pi && typeof Pi.init === "function") {
       Pi.init({ version: "2.0", sandbox: true });
       window.__PI_READY__ = true;
+      document.addEventListener("DOMContentLoaded", function(){
+        var b=document.getElementById("piLogin");
+        if(b) b.classList.add("show");
+        var s=document.getElementById("piStatus");
+        if(s) s.textContent="Ready — tap LOGIN WITH PI";
+      });
     }
   } catch (e) {
     console.error("Pi SDK init failed:", e);
@@ -335,7 +341,7 @@ body.app-locked>header,body.app-locked>main,body.app-locked>.modal{visibility:hi
     <h1>AMT PETS</h1>
     <div class="sub">Marketplace • Battle • Collect</div>
     <div class="pi-loader" id="piLoader"></div>
-    <div class="pi-status" id="piStatus">Connecting to Pi...</div>
+    <div class="pi-status" id="piStatus">Ready — tap LOGIN WITH PI</div>
     <button class="pi-login" id="piLogin" type="button">🔐 LOGIN WITH PI</button>
     <div class="pi-small">Secure Pioneer authentication. Your Pi access token is sent to the AMT backend for verification.</div>
   </div>
@@ -587,13 +593,24 @@ async function verifyPiSession(auth){
   localStorage.setItem("piUserId",user.uid || "");
   localStorage.setItem("piUser",user.username || "");
 
-  const r=await fetch(PI_API_BASE+"/api/auth/verify",{
-    method:"POST",
-    headers:{
-      "Content-Type":"application/json",
-      "Authorization":"Bearer "+token
-    }
-  });
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),15000);
+  let r;
+  try{
+    r=await fetch(PI_API_BASE+"/api/auth/verify",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "Authorization":"Bearer "+token
+      },
+      signal:controller.signal
+    });
+  }catch(err){
+    if(err.name==="AbortError") throw new Error("AMT backend took too long to respond. Please try LOGIN WITH PI again.");
+    throw new Error("Could not reach the AMT backend. Please try again.");
+  }finally{
+    clearTimeout(timeout);
+  }
   const d=await r.json().catch(()=>({}));
   if(!r.ok || !d.ok) throw new Error(d.error || "AMT backend could not verify Pi login.");
 
@@ -615,6 +632,8 @@ async function verifyPiSession(auth){
 }
 
 async function startPiLogin(){
+  const loginButton=document.getElementById("piLogin");
+  if(loginButton) loginButton.classList.add("show");
   try{
     if(!window.Pi || typeof Pi.init!=="function" || typeof Pi.authenticate!=="function"){
       throw new Error("Pi SDK is not available. Please open AMT Pets inside Pi Browser.");
