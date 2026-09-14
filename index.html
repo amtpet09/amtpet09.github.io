@@ -5,6 +5,18 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>AMT Pet Marketplace • 70 Pets</title>
 <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+<script>
+  /* Pi SDK must be initialized before authenticate() is called. */
+  window.__PI_READY__ = false;
+  try {
+    if (window.Pi && typeof Pi.init === "function") {
+      Pi.init({ version: "2.0", sandbox: true });
+      window.__PI_READY__ = true;
+    }
+  } catch (e) {
+    console.error("Pi SDK init failed:", e);
+  }
+</script>
 
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -578,8 +590,17 @@ async function verifyPiSession(auth){
 
 async function startPiLogin(){
   try{
-    if(!window.Pi || typeof Pi.authenticate!=="function"){
-      throw new Error("Pi SDK is not available. Open this app inside Pi Browser.");
+    if(!window.Pi || typeof Pi.init!=="function" || typeof Pi.authenticate!=="function"){
+      throw new Error("Pi SDK is not available. Please open AMT Pets inside Pi Browser.");
+    }
+
+    if(!window.__PI_READY__){
+      try{
+        Pi.init({version:"2.0",sandbox:true});
+        window.__PI_READY__=true;
+      }catch(err){
+        throw new Error("Pi SDK could not initialize. Please reopen this page in Pi Browser.");
+      }
     }
 
     setPiStatus("Opening Pi authentication...");
@@ -603,8 +624,7 @@ async function startPiLogin(){
 
 piLogin.addEventListener("click",startPiLogin);
 
-/* Start automatically. If Pi requires a user action, the Login button appears. */
-setTimeout(startPiLogin,350);
+/* Login starts only after the Pioneer taps LOGIN WITH PI. */
 
 const API_BASE = localStorage.getItem("AMT_API_BASE") || "https://amtpet09.onrender.com";
 async function loadServerCatalog(){
