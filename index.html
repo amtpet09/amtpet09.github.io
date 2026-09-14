@@ -257,10 +257,63 @@ button:disabled{cursor:not-allowed;opacity:.55}
   .nav button{display:none}.balance{display:none}
   .card h3{font-size:11px}.card-meta{display:block}.price{display:block;margin-top:3px}
 }
+
+/* Pi authentication splash / loading gate */
+#piGate{
+  position:fixed;inset:0;z-index:9999;display:grid;place-items:center;
+  padding:22px;background:
+    radial-gradient(circle at 50% 20%,#5b1aa0 0,transparent 34%),
+    linear-gradient(160deg,#08020e,#020106 72%);
+  transition:opacity .35s ease,visibility .35s ease;
+}
+#piGate.hide{opacity:0;visibility:hidden;pointer-events:none}
+.pi-gate-card{
+  width:min(390px,92vw);text-align:center;padding:28px 20px 22px;
+  border:1px solid #7432a8;border-radius:24px;
+  background:linear-gradient(155deg,#180927,#09040f);
+  box-shadow:0 18px 70px #000b,0 0 45px #9d3cff25;
+}
+.pi-logo{
+  width:72px;height:72px;margin:0 auto 13px;border-radius:22px;
+  display:grid;place-items:center;font-size:38px;
+  background:radial-gradient(circle at 35% 25%,#d66cff,#7b22c9 50%,#190a28);
+  border:1px solid #d06cff;box-shadow:0 0 30px #a52dff66;
+}
+.pi-gate-card h1{font-size:25px;letter-spacing:.3px}
+.pi-gate-card .sub{font-size:11px;color:#b8a6c3;margin-top:6px}
+.pi-loader{
+  width:42px;height:42px;margin:19px auto 12px;border-radius:50%;
+  border:3px solid #3a194f;border-top-color:#c45bff;
+  animation:piSpin .8s linear infinite;
+}
+@keyframes piSpin{to{transform:rotate(360deg)}}
+.pi-status{font-size:11px;color:#d9cce0;min-height:16px}
+.pi-login{
+  display:none;width:100%;margin-top:16px;padding:12px 14px;border:0;
+  border-radius:12px;background:linear-gradient(135deg,#7421db,#b238f4);
+  color:#fff;font-weight:900;font-size:13px;box-shadow:0 8px 24px #8e32d94a;
+}
+.pi-login.show{display:block}
+.pi-small{font-size:8px;color:#776b81;margin-top:12px;line-height:1.4}
+body.app-locked>header,body.app-locked>main,body.app-locked>.modal{visibility:hidden}
+
 </style>
 </head>
 
-<body>
+<body class="app-locked">
+
+<div id="piGate">
+  <div class="pi-gate-card">
+    <div class="pi-logo">🐾</div>
+    <h1>AMT PETS</h1>
+    <div class="sub">Marketplace • Battle • Collect</div>
+    <div class="pi-loader" id="piLoader"></div>
+    <div class="pi-status" id="piStatus">Connecting to Pi...</div>
+    <button class="pi-login" id="piLogin" type="button">🔐 LOGIN WITH PI</button>
+    <div class="pi-small">Secure Pioneer authentication. Your Pi access token is sent to the AMT backend for verification.</div>
+  </div>
+</div>
+
 <header class="header">
   <div class="brand">
     <div class="brand-mark">🐾</div>
@@ -462,6 +515,97 @@ function card(p,index){
   </article>`;
 }
 
+
+/* --------------------------------------------------------------------------
+   PI LOGIN GATE
+   Marketplace stays locked until Pi authentication succeeds.
+--------------------------------------------------------------------------- */
+const PI_API_BASE = localStorage.getItem("AMT_API_BASE") || "https://amtpet09.onrender.com";
+const piGate = document.getElementById("piGate");
+const piStatus = document.getElementById("piStatus");
+const piLogin = document.getElementById("piLogin");
+const piLoader = document.getElementById("piLoader");
+
+function setPiStatus(message, showButton=false){
+  if(piStatus) piStatus.textContent=message;
+  if(piLoader) piLoader.style.display=showButton?"none":"block";
+  if(piLogin) piLogin.classList.toggle("show",showButton);
+}
+
+function enterMarketplace(){
+  document.body.classList.remove("app-locked");
+  setTimeout(()=>piGate && piGate.classList.add("hide"),50);
+  refreshBalance();
+  loadMyPets();
+}
+
+async function verifyPiSession(auth){
+  const token=auth?.accessToken || auth?.access_token || "";
+  const user=auth?.user || {};
+  if(!token) throw new Error("Pi access token was not returned.");
+
+  localStorage.setItem("piToken",token);
+  localStorage.setItem("pi_uid",user.uid || "");
+  localStorage.setItem("piUserId",user.uid || "");
+  localStorage.setItem("piUser",user.username || "");
+
+  const r=await fetch(PI_API_BASE+"/api/auth/verify",{
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "Authorization":"Bearer "+token
+    }
+  });
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok || !d.ok) throw new Error(d.error || "AMT backend could not verify Pi login.");
+
+  const uid=d.uid || user.uid || "";
+  const username=d.username || user.username || "";
+  const wallet=d.walletAddress || d.wallet_address || "";
+
+  if(uid) {
+    localStorage.setItem("pi_uid",uid);
+    localStorage.setItem("piUserId",uid);
+  }
+  if(username) localStorage.setItem("piUser",username);
+  if(wallet) {
+    localStorage.setItem("piWalletAddress",wallet);
+    localStorage.setItem("walletAddress",wallet);
+  }
+
+  return d;
+}
+
+async function startPiLogin(){
+  try{
+    if(!window.Pi || typeof Pi.authenticate!=="function"){
+      throw new Error("Pi SDK is not available. Open this app inside Pi Browser.");
+    }
+
+    setPiStatus("Opening Pi authentication...");
+    const auth=await Pi.authenticate(
+      ["username","payments"],
+      function(payment){
+        console.log("Incomplete Pi payment:",payment);
+      }
+    );
+
+    setPiStatus("Verifying your Pioneer account...");
+    await verifyPiSession(auth);
+
+    setPiStatus("Loading AMT Pet Marketplace...");
+    enterMarketplace();
+  }catch(e){
+    console.error("Pi login:",e);
+    setPiStatus(e.message || "Pi login failed. Please try again.",true);
+  }
+}
+
+piLogin.addEventListener("click",startPiLogin);
+
+/* Start automatically. If Pi requires a user action, the Login button appears. */
+setTimeout(startPiLogin,350);
+
 const API_BASE = localStorage.getItem("AMT_API_BASE") || "https://amtpet09.onrender.com";
 async function loadServerCatalog(){
   try{
@@ -599,7 +743,6 @@ document.getElementById("searchInput").addEventListener("input",render);
 refreshBalance();
 render();
 loadServerCatalog();
-loadMyPets();
 </script>
 
 <!-- IMPORTANT: keep your existing payment/backend file -->
