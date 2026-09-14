@@ -1,419 +1,398 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>AMT Pet Marketplace — Egg & Incubator</title>
+<title>AMT Pet Marketplace • 70 Pets</title>
 <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 
 <style>
+*{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#06101c;--p:#0b1b2b;--p2:#102a40;--line:#244965;
-  --text:#eff8ff;--muted:#91a9bd;--blue:#35c9ff;--gold:#ffd66b;
-  --green:#54e39a;--red:#ff7180
+  --bg:#07040d;--panel:#10081a;--panel2:#160b23;--line:#6f27ad;
+  --purple:#b04cff;--text:#fff;--muted:#9d8eaa;--green:#a5ff52;
+  --gold:#ffd45a;--danger:#ff6b8a;
 }
-*{box-sizing:border-box}
-html,body{margin:0;min-height:100%;background:radial-gradient(circle at top,#163a55 0,#06101c 48%,#02060b 100%);color:var(--text);font-family:Arial,sans-serif}
-button,input,select{font:inherit}button{cursor:pointer}.hidden{display:none!important}
-#loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:22px}
-.login-card{width:min(470px,100%);background:linear-gradient(145deg,#102a40,#071321);border:1px solid #315a77;border-radius:28px;padding:28px 20px;box-shadow:0 20px 70px #0009;text-align:center}
-.logo{font-size:24px;font-weight:1000;letter-spacing:1px}.logo span{color:var(--blue)}
-.logoMark{width:88px;height:88px;border-radius:25px;margin:25px auto 16px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0ca8e0,#4169ff);font-size:28px;font-weight:1000;box-shadow:0 0 35px #1daeff55}
-.login-card h1{font-size:30px;margin:10px 0 8px}.login-card p{color:var(--muted);line-height:1.55;margin:0 auto 18px}
-.testnet{display:inline-block;padding:7px 11px;border:1px solid #315a77;border-radius:99px;color:var(--blue);font-size:11px;font-weight:900;background:#071725}
-.loginBtn{width:100%;padding:15px;border:0;border-radius:14px;color:#fff;font-weight:1000;background:linear-gradient(135deg,#12a9df,#4169ff);font-size:15px;margin-top:8px}
-#app{display:none}
+html{scroll-behavior:smooth}
+body{
+  min-height:100vh;background:
+  radial-gradient(circle at 50% -10%,#32105a 0,#10061a 34%,#07040d 75%);
+  color:var(--text);font-family:Arial,Helvetica,sans-serif;
+}
+button,input{font:inherit}button{cursor:pointer}
+button:disabled{cursor:not-allowed;opacity:.55}
+.header{
+  position:sticky;top:0;z-index:30;display:flex;align-items:center;
+  justify-content:space-between;gap:10px;padding:9px 12px;
+  background:rgba(7,4,13,.94);border-bottom:1px solid #57218b;
+  backdrop-filter:blur(14px);
+}
+.brand{display:flex;align-items:center;gap:9px;min-width:0}
+.brand-mark{
+  width:42px;height:42px;flex:0 0 42px;border-radius:13px;
+  display:grid;place-items:center;font-size:23px;
+  background:linear-gradient(145deg,#3a1260,#160a24);
+  border:1px solid #a347ff;box-shadow:0 0 18px #9c3fff33;
+}
+.brand h1{font-size:18px;line-height:1.05;white-space:nowrap}
+.brand p{font-size:10px;color:#bda8c9;margin-top:3px}
+.nav{display:flex;align-items:center;gap:6px}
+.nav button,.profile-btn{
+  border:1px solid #8234c7;background:#11081c;color:#fff;
+  border-radius:11px;padding:8px 10px;font-size:11px;font-weight:800;
+}
+.nav button:hover{background:#241039;border-color:#b34dff}
+.balance{
+  display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:11px;
+  border:1px solid #5d7d2e;background:#101a0a;color:#c9ffa2;font-size:11px;font-weight:900;
+}
+.wrap{width:min(1120px,100%);margin:auto;padding:12px 10px 45px}
 
-#marketLoading{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;overflow:hidden;background:radial-gradient(circle at 50% 42%,#123b5b 0,#071827 38%,#02070d 78%,#010307 100%);}
-#marketLoading.show{display:flex;}
-.loadingCore{position:relative;text-align:center;width:min(92vw,520px);padding:30px 20px}
-.waveTitle{margin:0;font-size:clamp(25px,7vw,46px);font-weight:1000;color:var(--blue)}
-.loadingBar{height:5px;width:min(330px,80vw);margin:24px auto 10px;border-radius:99px;background:#102b3e;overflow:hidden;}
-.loadingBar span{display:block;height:100%;width:100%;background:linear-gradient(90deg,#12a9df,#4169ff,#ffd66b);}
-.loadingStage{color:#d8ebf7;font-size:11px;font-weight:900;}
+/* compact marketplace top */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:11px 12px;margin-bottom:10px;border:1px solid #54207c;
+  border-radius:15px;background:rgba(16,8,26,.82);
+}
+.topbar-title{font-size:17px;font-weight:900}
+.topbar-sub{font-size:10px;color:var(--muted);margin-top:3px}
+.status-dot{color:var(--green);font-size:10px;font-weight:800}
 
-.top{position:sticky;top:0;z-index:50;background:#06101cf0;backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
-.nav{max-width:1180px;margin:auto;padding:12px 14px;display:flex;align-items:center;gap:10px}.brand{font-weight:1000;font-size:18px}.brand span{color:var(--blue)}
-.navUser{margin-left:auto;color:var(--muted);font-size:12px}.logout{border:1px solid var(--line);background:#0b1c2b;color:#fff;border-radius:10px;padding:9px 11px;font-weight:800}
-.wrap{max-width:1180px;margin:auto;padding:14px}
-.tabs{display:flex;gap:7px;overflow:auto;padding:8px 0 13px;position:sticky;top:57px;z-index:30;background:#06101cf0}
-.tab{white-space:nowrap;border:1px solid var(--line);background:#0a1a29;color:#b9ccdb;border-radius:11px;padding:10px 12px;font-size:11px;font-weight:900}.tab.active{background:linear-gradient(135deg,#118fc3,#4169ff);color:#fff;border-color:transparent}
-.panel{display:none}.panel.active{display:block}
+/* search + filters */
+.search{
+  display:flex;align-items:center;gap:8px;margin:0 0 8px;
+  background:#0b0612;border:1px solid #4e1d78;border-radius:13px;padding:2px 11px;
+}
+.search span{font-size:17px}
+.search input{width:100%;border:0;outline:0;background:transparent;color:#fff;padding:10px 3px;font-size:13px}
+.search input::placeholder{color:#75677e}
+.filters{
+  display:flex;gap:6px;overflow-x:auto;padding:2px 1px 8px;
+  scrollbar-width:none
+}
+.filters::-webkit-scrollbar{display:none}
+.filter{
+  flex:0 0 auto;border:1px solid #54207b;background:#10071a;color:#cbbbd5;
+  border-radius:999px;padding:7px 10px;font-size:11px;font-weight:800;
+}
+.filter.active,.filter:hover{color:#fff;border-color:#b04cff;background:#321050;box-shadow:0 0 12px #a238ff33}
 
-.petGrid,.eggGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
-.petCard,.eggCard{background:#081724;border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}
-.action{width:100%;padding:10px;border:0;border-radius:9px;background:linear-gradient(135deg,#12a9df,#4169ff);color:#fff;font-weight:1000;margin-top:8px}
-.action.gold{background:linear-gradient(135deg,#a97016,#ffd66b);color:#171007}
-.card{background:#081522;border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:12px}
-.cardTitle{font-weight:1000;margin-bottom:12px}.row{display:flex;justify-content:space-between;margin:8px 0;font-size:12px}
-.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#10283a;border:1px solid #37617d;color:#fff;padding:11px 14px;border-radius:12px;z-index:200;display:none;font-size:12px}
+/* small cards */
+.section-head{display:flex;align-items:center;justify-content:space-between;margin:5px 2px 9px}
+.section-head h2{font-size:18px}
+.count{font-size:10px;color:#95839f}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.card{
+  position:relative;overflow:hidden;border:1px solid #4f1c79;border-radius:14px;
+  background:linear-gradient(180deg,#14091f,#0b0611);
+  transition:transform .18s,border-color .18s,box-shadow .18s;
+}
+.card:hover{transform:translateY(-2px);border-color:#b24dff;box-shadow:0 8px 22px #8d31ff25}
+.pet-img-wrap{height:145px;position:relative;background:#09050e;overflow:hidden}
+.pet-img{width:100%;height:100%;object-fit:cover;display:block}
+.badge,.element{
+  position:absolute;top:6px;padding:4px 7px;border-radius:999px;
+  background:#09050edb;font-size:9px;font-weight:900
+}
+.badge{right:6px;border:1px solid #a744ee;color:#ead7f7}
+.element{left:6px;border:1px solid #2d9eb2;color:#b8f7ff}
+.card-body{padding:9px}
+.kicker{font-size:8px;color:#b04cff;font-weight:900;letter-spacing:.8px}
+.card h3{font-size:14px;margin:3px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-meta{display:flex;justify-content:space-between;gap:4px;align-items:center;margin:5px 0 7px}
+.level{font-size:9px;color:#a89aad}.price{font-size:13px;font-weight:900;color:#d9a4ff;white-space:nowrap}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.btn{
+  border:1px solid #7130ad;border-radius:9px;padding:7px 4px;
+  background:#140a1f;color:#eadcf2;font-size:10px;font-weight:900
+}
+.btn.primary{border-color:#b75bff;background:linear-gradient(135deg,#7421db,#a936f0);color:#fff}
+.btn:hover{filter:brightness(1.13)}
+.empty{display:none;text-align:center;padding:35px 15px;color:#94839f;border:1px dashed #593477;border-radius:14px}
+
+/* profile */
+.profile-panel{display:none;margin-bottom:12px;padding:13px;border:1px solid #6423a0;border-radius:15px;background:#10071a}
+.profile-panel.show{display:block}
+.profile-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.profile-head h2{font-size:18px}
+.profile-note{font-size:10px;color:#8f7f99;line-height:1.45;margin-top:5px}
+.profile-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:10px}
+.profile-box{border:1px solid #3f1a5f;border-radius:11px;padding:10px;background:#0c0612;font-size:10px;color:#96869f}
+.profile-box b{display:block;font-size:15px;color:#dca8ff;margin-top:4px}
+.profile-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+
+/* pet detail modal */
+.modal{
+  position:fixed;inset:0;z-index:100;display:none;align-items:flex-end;justify-content:center;
+  padding:8px;background:#000b;backdrop-filter:blur(7px)
+}
+.modal.show{display:flex}
+.modal-box{
+  width:min(680px,100%);max-height:91vh;overflow:auto;border:1px solid #9c40e8;
+  border-radius:20px 20px 10px 10px;background:linear-gradient(150deg,#160921,#09040f);
+  box-shadow:0 -5px 45px #8d32ff44
+}
+.modal-top{display:flex;justify-content:space-between;align-items:center;padding:11px 13px;border-bottom:1px solid #321545;position:sticky;top:0;background:#110719ee;backdrop-filter:blur(8px);z-index:2}
+.modal-top strong{font-size:13px}.close{border:1px solid #5e2787;background:#160a21;color:#fff;border-radius:8px;padding:5px 9px}
+.modal-content{display:grid;grid-template-columns:180px 1fr;gap:14px;padding:14px}
+.modal-img{width:100%;height:225px;object-fit:cover;border-radius:13px;border:1px solid #7126bc;background:#08040d}
+.modal-content h2{font-size:25px;margin:4px 0}
+.modal-meta{color:#a996b3;font-size:11px;line-height:1.5;margin-bottom:9px}
+.big-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:8px 0}
+.big-stat{padding:8px 5px;border:1px solid #301442;border-radius:9px;background:#0d0614;text-align:center}
+.big-stat span{display:block;color:#8f7f99;font-size:9px}.big-stat b{font-size:14px;color:#d9b0ff}
+.ability{padding:9px;border:1px solid #4c1c76;border-radius:10px;background:#130820;margin:9px 0;font-size:10px;line-height:1.4}
+.ability b{color:#bd73ff}
+.care{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:8px 0}
+.care-box{border:1px solid #3b1c50;border-radius:9px;padding:7px;text-align:center;background:#0d0614;font-size:9px;color:#97889e}
+.care-box b{display:block;color:#baff82;font-size:12px;margin-top:3px}
+.modal-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:9px}
+.notice{font-size:9px;color:#81728a;margin-top:8px;line-height:1.4}
+
+/* no giant prototype sections */
+.desktop-only{display:block}
+@media(max-width:850px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:620px){
+  .header{padding:8px}.brand-mark{width:38px;height:38px;flex-basis:38px;font-size:20px}
+  .brand h1{font-size:16px}.brand p{font-size:9px}.nav button{padding:7px 8px;font-size:10px}
+  .balance{font-size:9px;padding:7px 8px}.wrap{padding:9px 7px 35px}
+  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+  .pet-img-wrap{height:138px}.card-body{padding:8px}.card h3{font-size:13px}
+  .btn{font-size:9px;padding:7px 3px}.modal{padding:0}
+  .modal-box{border-radius:18px 18px 0 0}.modal-content{grid-template-columns:100px 1fr;gap:10px;padding:11px}
+  .modal-img{height:125px}.modal-content h2{font-size:20px}.big-stats{grid-template-columns:repeat(2,1fr)}
+  .profile-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:360px){
+  .nav button:nth-child(2){display:none}.balance{display:none}
+  .pet-img-wrap{height:125px}.card h3{font-size:12px}
+}
 </style>
 </head>
 
 <body>
-
-<section id="loginScreen">
-  <div class="login-card">
-    <div class="logo">AMT <span>PET MARKET</span></div>
-    <div class="logoMark">🐾</div>
-    <div class="testnet">● PI TESTNET</div>
-    <h1>Welcome, Pioneer</h1>
-    <p>Authenticate with your Pi Account to sync your AMT Wallet & Pioneer Profile.</p>
-    <button id="loginBtn" class="loginBtn" onclick="loginPi()">🟣 LOGIN WITH PI</button>
+<header class="header">
+  <div class="brand">
+    <div class="brand-mark">🐾</div>
+    <div><h1>AMT PETS</h1><p>Marketplace • Battle • Collect</p></div>
   </div>
-</section>
-
-<section id="marketLoading">
-  <div class="loadingCore">
-    <div class="waveTitle">AMT PET MARKETPLACE</div>
-    <div class="loadingBar"><span></span></div>
-    <div id="loadingStage" class="loadingStage">CONNECTING TO PI TESTNET...</div>
-  </div>
-</section>
-
-<div id="app">
-<header class="top">
   <div class="nav">
-    <div class="brand">AMT <span>PET MARKET</span></div>
-    <div class="navUser" id="navUser">Not connected</div>
-    <button class="logout" onclick="logoutPi()">Logout</button>
+    <div class="balance" id="amtBalance">🪙 — AMT</div>
+    <button onclick="toggleProfile()">👤 Profile</button>
   </div>
 </header>
 
 <main class="wrap">
-<nav class="tabs">
-  <button class="tab active" onclick="showPanel('market',this)">🛒 MARKET</button>
-  <button class="tab" onclick="showPanel('pets',this)">🐾 MY PETS</button>
-  <button class="tab" onclick="showPanel('eggs',this)">🥚 EGGS</button>
-  <button class="tab" onclick="showPanel('battle',this)">⚔️ ARENA</button>
-  <button class="tab" onclick="showPanel('profile',this)">👤 PROFILE</button>
-</nav>
 
-<!-- MARKET PANEL -->
-<section id="market" class="panel active">
-  <div class="card"><div class="cardTitle">🛒 PUBLIC SELL MARKETPLACE</div></div>
-  <div id="grid" class="petGrid"></div>
-</section>
-
-<!-- MY PETS PANEL -->
-<section id="pets" class="panel">
-  <div class="card"><div class="cardTitle">🐾 MY PET COLLECTION</div></div>
-  <div id="myPets" class="petGrid"></div>
-</section>
-
-<!-- EGGS PANEL -->
-<section id="eggs" class="panel">
-  <div class="card"><div class="cardTitle">🥚 INCUBATOR & EGG HATCHING</div></div>
-  <div id="eggGrid" class="eggGrid"></div>
-</section>
-
-<!-- BATTLE PANEL -->
-<section id="battle" class="panel">
-  <div class="card">
-    <div class="cardTitle">⚔️ PET BATTLE ARENA</div>
-    <p>Choose your pet and battle to earn AMT Coins & EXP!</p>
-    <button class="action gold" onclick="startBattle()">⚔️ START ARENA BATTLE</button>
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">🐾 Pet Marketplace</div>
+      <div class="topbar-sub">Common pets. Raise them. Train them. Evolve them.</div>
+    </div>
+    <div class="status-dot">● TESTNET</div>
   </div>
-  <div id="battleLog" class="card" style="display:none">
-    <div class="cardTitle">📜 BATTLE LOG</div>
-    <div id="logContent"></div>
-  </div>
-</section>
 
-<!-- PROFILE PANEL -->
-<section id="profile" class="panel">
-  <div class="card">
-    <div class="cardTitle">🔐 SYNCHRONIZED PI WALLET</div>
-    <div class="row"><span>Pi Username:</span><b id="profUsername">—</b></div>
-    <div class="row"><span>Wallet Address:</span><b id="profWallet">—</b></div>
-    <div class="row"><span>AMT Trustline:</span><b id="profTrustline" style="color:var(--gold)">Checking...</b></div>
-    <div class="row"><span>AMT Balance:</span><b id="profBalance">0 AMT</b></div>
-    <button class="action" onclick="checkAMTTrustline()">🔄 RE-SYNC WALLET & TRUSTLINE</button>
-  </div>
-</section>
+  <section id="profilePanel" class="profile-panel">
+    <div class="profile-head">
+      <h2>👤 Pioneer Profile</h2>
+      <button class="btn" onclick="toggleProfile()">Close</button>
+    </div>
+    <p class="profile-note">Your Pi login identity is read from the existing login flow. AMT balance is displayed only when supplied by your wallet/backend integration.</p>
+    <div class="profile-grid">
+      <div class="profile-box">Pioneer<b id="walletValue">Not connected</b></div>
+      <div class="profile-box">🪙 AMT Balance<b id="profileAmt">—</b></div>
+      <div class="profile-box">🐾 My Pets<b id="petOwned">0</b></div>
+      <div class="profile-box">⚔️ Battles<b>0</b></div>
+    </div>
+    <div class="profile-actions">
+      <button class="btn primary" onclick="alert('Pet care module: Feed • Care • Play • Train will be connected to the pet backend.')">🐾 My Pets</button>
+      <button class="btn" onclick="alert('Battle module is ready for the game/backend integration.')">⚔️ Battle</button>
+    </div>
+  </section>
 
+  <div class="search"><span>🔎</span><input id="searchInput" type="search" placeholder="Search pets..."></div>
+
+  <div class="filters" id="filters">
+    <button class="filter active" data-element="All">✨ All</button>
+    <button class="filter" data-element="Fire">🔥 Fire</button>
+    <button class="filter" data-element="Thunder">⚡ Thunder</button>
+    <button class="filter" data-element="Wind">🌪️ Wind</button>
+    <button class="filter" data-element="Water">💧 Water</button>
+    <button class="filter" data-element="Nature">🌿 Nature</button>
+    <button class="filter" data-element="Ice">❄️ Ice</button>
+    <button class="filter" data-element="Earth">🪨 Earth</button>
+  </div>
+
+  <div class="section-head">
+    <h2>Pets</h2><span class="count" id="count">0 pets</span>
+  </div>
+
+  <section class="grid" id="petGrid"></section>
+  <div class="empty" id="empty">No pets found. Try another search or element.</div>
 </main>
+
+<div class="modal" id="petModal">
+  <div class="modal-box">
+    <div class="modal-top">
+      <strong>🐾 Pet Details</strong>
+      <button class="close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-content">
+      <img class="modal-img" id="modalImg" alt="">
+      <div>
+        <div class="kicker">AMT PETS • COMMON START</div>
+        <h2 id="modalName"></h2>
+        <div class="modal-meta" id="modalMeta"></div>
+        <div class="big-stats" id="modalStats"></div>
+        <div class="ability"><b>✨ Ability</b><br><span id="modalAbility"></span></div>
+        <div class="care">
+          <div class="care-box">🍖 Hunger<b>100%</b></div>
+          <div class="care-box">😊 Happy<b>100%</b></div>
+          <div class="care-box">⚡ Energy<b>100%</b></div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn" onclick="alert('Feed will update the pet care state through the backend.')">🍖 Feed</button>
+          <button class="btn" onclick="alert('Care will update the pet care state through the backend.')">❤️ Care</button>
+          <button class="btn primary" id="modalBuy">Buy</button>
+        </div>
+        <p class="notice">The Buy button preserves the existing <code>marketplace.js</code> payment flow. AMT settlement should be verified by the backend before changing ownership or rewards.</p>
+      </div>
+    </div>
+  </div>
 </div>
 
-<div id="toast" class="toast"></div>
-
 <script>
-// CONFIGURATION PARAMS
-const CONFIG = {
-  AMT_ISSUER: "GA...YOUR_AMT_ISSUER_ADDRESS_HERE", // I-update sa issuer address ng AMT
-  HORIZON_URL: "https://api.testnet.minepi.com",
-  API_URL: "/api" // Target Node/Express backend endpoint
-};
+/* Existing marketplace data retained. Stats are hidden from cards and shown after clicking a pet. */
+const pets = [
+  ["earth-01","Terrax","Earth","terrax.png",120,20,22],["earth-02","Rockhorn","Earth","rockhorn.png",125,19,24],["earth-03","Stonefist","Earth","stonefist.png",130,22,25],["earth-04","Earthdrake","Earth","earthdrake.png",128,23,23],["earth-05","Boulderlynx","Earth","boulderlynx.png",118,24,20],["earth-06","Terrapin","Earth","terrapin.png",140,16,28],["earth-07","Gravelpaw","Earth","gravelpaw.png",115,21,21],["earth-08","Pebblix","Earth","pebblix.png",110,18,20],["earth-09","Mountainhoof","Earth","mountainhoof.png",145,18,30],["earth-10","Terroscale","Earth","terroscale.png",135,25,24],
+  ["water-01","Aqualis","Water","aqualis.png",110,23,18],["water-02","Tideback","Water","tideback.png",135,18,27],["water-03","Oceanix","Water","oceanix.png",125,24,20],["water-04","Neptunox","Water","neptunox.png",130,27,21],["water-05","Jellyfin","Water","jellyfin.png",105,19,19],["water-06","Sharky","Water","sharky.png",120,29,17],["water-07","Seapony","Water","seapony.png",115,22,21],["water-08","Krakenling","Water","krakenling.png",140,26,23],["water-09","Riptide","Water","riptide.png",118,30,18],["water-10","Abyssal","Water","abyssal.png",145,28,25],
+  ["nature-01","Leaflyn","Nature","leaflyn.png",115,20,22],["nature-02","Treetle","Nature","treetle.png",130,18,27],["nature-03","Sylvann","Nature","sylvann.png",120,25,20],["nature-04","Verdira","Nature","verdira.png",118,23,23],["nature-05","Bloomtail","Nature","bloomtail.png",112,21,22],["nature-06","Groveon","Nature","groveon.png",128,22,25],["nature-07","Nutty","Nature","nutty.png",108,19,20],["nature-08","Flora","Nature","flora.png",110,26,19],["nature-09","Forestfang","Nature","forestfang.png",125,28,21],["nature-10","Everbloom","Nature","everbloom.png",138,25,26],
+  ["ice-01","Frostbite","Ice","frostbite.png",115,24,21],["ice-02","Glaciard","Ice","glaciard.png",130,20,27],["ice-03","Snowwing","Ice","snowwing.png",108,27,18],["ice-04","Frostdrake","Ice","frostdrake.png",135,28,24],["ice-05","Chillpengu","Ice","chillpengu.png",105,19,20],["ice-06","Frostwolf","Ice","frostwolf.png",125,30,21],["ice-07","Icetusk","Ice","icetusk.png",142,22,29],["ice-08","Frostseal","Ice","frostseal.png",120,21,25],["ice-09","Glacieron","Ice","glacieron.png",132,26,26],["ice-10","Frostbear","Ice","frostbear.png",150,24,31],
+  ["fire-01","Flammy","Fire","flammy.png",108,27,17],["fire-02","Pyroclaw","Fire","pyroclaw.png",115,30,18],["fire-03","Blazewing","Fire","blazewing.png",110,32,17],["fire-04","Infernox","Fire","infernox.png",128,31,21],["fire-05","Phoenixia","Fire","phoenixia.png",125,34,20],["fire-06","Magmortar","Fire","magmortar.png",145,28,28],["fire-07","Salamorra","Fire","salamorra.png",130,33,23],["fire-08","Emberhorn","Fire","emberhorn.png",120,29,22],["fire-09","Flamefang","Fire","flamefang.png",118,35,19],["fire-10","Pyromite","Fire","pyromite.png",135,32,25],
+  ["wind-01","Zephyrin","Wind","zephyrin.png",105,25,18],["wind-02","Skyflare","Wind","skyflare.png",110,29,17],["wind-03","Windrake","Wind","windrake.png",125,30,21],["wind-04","Aerolith","Wind","aerolith.png",115,26,22],["wind-05","Skywhisp","Wind","skywhisp.png",100,24,16],["wind-06","Stormtalon","Wind","stormtalon.png",120,34,19],["wind-07","Cloudstride","Wind","cloudstride.png",112,28,20],["wind-08","Breezeling","Wind","breezeling.png",102,23,18],["wind-09","Tornadope","Wind","tornadope.png",118,33,18],["wind-10","Zephyria","Wind","zephyria.png",130,31,23],
+  ["thunder-01","Voltix","Thunder","voltix.png",110,30,18],["thunder-02","Zephron","Thunder","zephron.png",115,28,19],["thunder-03","Stormee","Thunder","stormee.png",108,32,17],["thunder-04","Thunderdrake","Thunder","thunderdrake.png",130,35,23],["thunder-05","Sparkster","Thunder","sparkster.png",105,29,18],["thunder-06","Raihorn","Thunder","raihorn.png",140,27,30],["thunder-07","Voltlynx","Thunder","voltlynx.png",118,34,20],["thunder-08","Electrix","Thunder","electrix.png",112,31,19],["thunder-09","Skyshock","Thunder","skyshock.png",120,36,18],["thunder-10","Thunderix","Thunder","thunderix.png",135,38,24]
+].map((x,i)=>({code:x[0],name:x[1],element:x[2],file:x[3],rarity:"Common",level:1,hp:x[4],attack:x[5],defense:x[6],speed:100+(i%10)*5,ability:"Elemental Bond",rep:80,price:10,amt:100,desc:"A Common starter pet from the AMT Pet World."}));
 
-let currentUser = null;
-let userWallet = null;
-let userAmtBalance = 0;
+let activeElement="All", currentPet=null;
 
-// APP DATA STATE
-let myPets = [];
-let marketPets = [];
-let myEggs = [];
-
-// PI SDK INITIALIZATION
-const Pi = window.Pi;
-Pi.init({ version: "2.0", sandbox: true });
-
-function showToast(msg) {
-  const t = document.getElementById("toast");
-  t.innerText = msg;
-  t.style.display = "block";
-  setTimeout(() => t.style.display = "none", 3000);
+function elementIcon(e){
+  return {Wind:"🌪️",Fire:"🔥",Earth:"🪨",Water:"💧",Nature:"🌿",Ice:"❄️",Thunder:"⚡"}[e]||"✨";
 }
 
-function showPanel(id, btn) {
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  if(btn) btn.classList.add('active');
-}
-
-// 1. PIONEER LOGIN & WALLET SYNC
-async function loginPi() {
-  try {
-    const scopes = ['username', 'payments', 'wallet_address'];
-    const auth = await Pi.authenticate(scopes, onIncompletePaymentFound);
-    
-    currentUser = auth.user;
-    userWallet = auth.user.wallet_address;
-    
-    document.getElementById("loginScreen").style.display = "none";
-    document.getElementById("marketLoading").classList.add("show");
-    
-    document.getElementById("navUser").innerText = `@${currentUser.username}`;
-    document.getElementById("profUsername").innerText = currentUser.username;
-    document.getElementById("profWallet").innerText = userWallet ? `${userWallet.substring(0,6)}...${userWallet.substring(userWallet.length-4)}` : "No Wallet Linked";
-    
-    await checkAMTTrustline();
-    await loadInitialData();
-    
-    document.getElementById("marketLoading").classList.remove("show");
-    document.getElementById("app").style.display = "block";
-    showToast(`Welcome back, @${currentUser.username}!`);
-  } catch (err) {
-    console.error("Login failed:", err);
-    showToast("Pi Authentication Failed.");
-  }
-}
-
-function logoutPi() {
-  location.reload();
-}
-
-function onIncompletePaymentFound(payment) {
-  console.log("Incomplete Payment Found:", payment);
-  // Backend resolver call para i-complete ang nakapending na tx
-}
-
-// 2. CHECK AMT TRUSTLINE & BALANCE VIA PI HORIZON NODE
-async function checkAMTTrustline() {
-  if (!userWallet) return;
-  try {
-    const res = await fetch(`${CONFIG.HORIZON_URL}/accounts/${userWallet}`);
-    const data = await res.json();
-    
-    const amtBalanceObj = data.balances.find(b => b.asset_code === "AMT" && b.asset_issuer === CONFIG.AMT_ISSUER);
-    
-    const trustElem = document.getElementById("profTrustline");
-    if (amtBalanceObj || data.balances.some(b => b.asset_code === "AMT")) {
-      trustElem.innerText = "ACTIVE ✅";
-      trustElem.style.color = "var(--green)";
-      userAmtBalance = amtBalanceObj ? parseFloat(amtBalanceObj.balance) : 0;
-    } else {
-      trustElem.innerText = "NO TRUSTLINE (Add AMT in Wallet)";
-      trustElem.style.color = "var(--red)";
-      userAmtBalance = 0;
-    }
-    document.getElementById("profBalance").innerText = `${userAmtBalance} AMT`;
-  } catch (e) {
-    console.warn("Error fetching Horizon account data:", e);
-    document.getElementById("profTrustline").innerText = "Mainnet/Testnet API Ready";
-  }
-}
-
-// 3. LOAD MARKETPLACE DATA
-async function loadInitialData() {
-  // Mock/API Data for Pets & Eggs
-  myPets = [
-    { id: 101, name: "Ignis Dragon", element: "Fire", hp: 120, atk: 45, def: 30, price: 50, isListed: false },
-    { id: 102, name: "Aqua Wolf", element: "Water", hp: 100, atk: 35, def: 25, price: 30, isListed: false }
-  ];
-  
-  marketPets = [
-    { id: 201, name: "Terra Bear", element: "Earth", hp: 150, atk: 30, def: 50, price: 75, seller: "PioneerAlpha" }
-  ];
-
-  myEggs = [
-    { id: 501, name: "Thunder Pet Egg", hatchTime: Date.now() - 1000, isIncubating: true }
-  ];
-
-  renderMarket();
-  renderMyPets();
-  renderEggs();
-}
-
-function renderMarket() {
-  const grid = document.getElementById("grid");
-  grid.innerHTML = marketPets.map(p => `
-    <div class="petCard">
-      <h3>${p.name}</h3>
-      <p>Element: ${p.element}</p>
-      <p>HP: ${p.hp} | ATK: ${p.atk}</p>
-      <p style="color:var(--gold)">Price: ${p.price} AMT</p>
-      <p style="font-size:10px">Seller: @${p.seller}</p>
-      <button class="action gold" onclick="buyPet(${p.id})">BUY WITH AMT</button>
+function card(p,index){
+  return `<article class="card" onclick="openModal(${index})" data-name="${p.name.toLowerCase()}" data-element="${p.element}">
+    <div class="pet-img-wrap">
+      <img class="pet-img" src="${p.file}" alt="${p.name}" loading="lazy"
+        onclick="event.stopPropagation();openModal(${index})"
+        onerror="this.parentElement.innerHTML='<div style=&quot;height:100%;display:grid;place-items:center;color:#8e789d;padding:12px;text-align:center;font-size:10px&quot;>Image not found<br>${p.file}</div>'">
+      <span class="element">${elementIcon(p.element)} ${p.element}</span>
+      <span class="badge">${p.rarity}</span>
     </div>
-  `).join('');
-}
-
-function renderMyPets() {
-  const container = document.getElementById("myPets");
-  container.innerHTML = myPets.map(p => `
-    <div class="petCard">
+    <div class="card-body">
+      <div class="kicker">PET #${String(index+1).padStart(3,"0")}</div>
       <h3>${p.name}</h3>
-      <p>Element: ${p.element}</p>
-      <p>HP: ${p.hp} | ATK: ${p.atk}</p>
-      <button class="action" onclick="sellPetPrompt(${p.id})">${p.isListed ? 'CANCEL LISTING' : 'PUBLIC SELL'}</button>
-    </div>
-  `).join('');
-}
-
-function renderEggs() {
-  const container = document.getElementById("eggGrid");
-  container.innerHTML = myEggs.map(e => {
-    const isReady = Date.now() >= e.hatchTime;
-    return `
-      <div class="eggCard">
-        <div style="font-size:50px">🥚</div>
-        <h3>${e.name}</h3>
-        <p style="color:var(--gold)">Status: ${isReady ? 'Ready to Hatch!' : 'Incubating...'}</p>
-        <button class="action ${isReady ? 'gold' : ''}" onclick="hatchEgg(${e.id})" ${!isReady ? 'disabled' : ''}>
-          ${isReady ? '🐣 HATCH NOW' : '⏳ INCUBATING'}
-        </button>
+      <div class="card-meta"><span class="level">Lv. ${p.level} • ${p.rarity}</span><span class="price">${p.amt.toLocaleString()} AMT</span></div>
+      <div class="actions">
+        <button class="btn" onclick="event.stopPropagation();openModal(${index})">Details</button>
+        <button class="btn primary buy-btn" data-pet-index="${index}" data-price-pi="${p.price}" data-price-amt="${p.amt}" onclick="event.stopPropagation();buyPet(${index})">Buy</button>
       </div>
-    `;
-  }).join('');
+    </div>
+  </article>`;
 }
 
-// 4. EGG HATCHING LOGIC
-async function hatchEgg(eggId) {
-  showToast("Hatching Pet Egg...");
-  
-  // Simulation: Hatching logic converts Egg -> New Pet
-  setTimeout(() => {
-    myEggs = myEggs.filter(e => e.id !== eggId);
-    const newPet = {
-      id: Math.floor(Math.random() * 899) + 100,
-      name: "Storm Griffin",
-      element: "Thunder",
-      hp: 130,
-      atk: 50,
-      def: 35,
-      isListed: false
-    };
-    myPets.push(newPet);
-    
-    renderEggs();
-    renderMyPets();
-    showToast("Congratulations! You hatched a Storm Griffin! 🐣");
-  }, 1500);
-}
-
-// 5. PUBLIC SELL & AMT PAYMENT INTEGRATION
-function sellPetPrompt(petId) {
-  const pet = myPets.find(p => p.id === petId);
-  if (!pet) return;
-  
-  if (pet.isListed) {
-    pet.isListed = false;
-    marketPets = marketPets.filter(m => m.id !== petId);
-    showToast("Unlisted from Marketplace.");
-  } else {
-    const price = prompt(`Set selling price for ${pet.name} (in AMT tokens):`, "50");
-    if (price && !isNaN(price)) {
-      pet.isListed = true;
-      marketPets.push({ ...pet, price: parseFloat(price), seller: currentUser.username });
-      showToast(`Listed ${pet.name} for ${price} AMT!`);
+const API_BASE = localStorage.getItem("AMT_API_BASE") || "https://amtpet09.onrender.com";
+async function loadServerCatalog(){
+  try{
+    const r=await fetch(API_BASE+"/api/pets");
+    const d=await r.json();
+    if(d.ok && Array.isArray(d.pets) && d.pets.length){
+      pets.splice(0,pets.length,...d.pets.map((p,i)=>({code:p.pet_code,name:p.name,element:p.element,file:p.image,rarity:p.rarity||"Common",level:1,hp:p.base_hp,attack:p.base_atk,defense:p.base_def,speed:100+(i%10)*5,ability:"Elemental Bond",rep:80,price:10,amt:100,desc:"A Common starter pet from the AMT Pet World."})));
     }
-  }
-  renderMyPets();
-  renderMarket();
+  }catch(e){ console.log("Using 70-pet local catalog",e); }
+  render();
 }
 
-async function buyPet(petId) {
-  const pet = marketPets.find(p => p.id === petId);
-  if (!pet) return;
-
-  // VERIFY PAYMENT VIA PI SDK CUSTOM ASSET FLOW
-  try {
-    const payment = await Pi.createPayment({
-      amount: pet.price,
-      memo: `Purchase Pet #${pet.id}: ${pet.name}`,
-      metadata: { petId: pet.id, type: "PET_PURCHASE" },
-      paymentData: {
-        asset_code: "AMT",
-        asset_issuer: CONFIG.AMT_ISSUER
-      }
-    }, {
-      onReadyForServerApproval: function(paymentId) {
-        console.log("Approval pending for Tx:", paymentId);
-      },
-      onReadyForServerCompletion: function(paymentId, txid) {
-        showToast("Payment verified on Pi Chain!");
-        // Transfer ownership
-        marketPets = marketPets.filter(p => p.id !== petId);
-        myPets.push({ ...pet, isListed: false });
-        renderMarket();
-        renderMyPets();
-      },
-      onCancel: function(paymentId) { showToast("Payment cancelled."); },
-      onError: function(error, payment) { showToast("AMT Payment Failed."); }
-    });
-  } catch (err) {
-    console.error("Payment trigger error:", err);
-    showToast("Transaction initialization failed.");
-  }
+function render(){
+  const q=document.getElementById("searchInput").value.trim().toLowerCase();
+  let shown=0;
+  document.getElementById("petGrid").innerHTML=pets.map((p,i)=>{
+    const ok=(activeElement==="All"||p.element===activeElement)&&
+      (!q||p.name.toLowerCase().includes(q)||p.element.toLowerCase().includes(q)||p.rarity.toLowerCase().includes(q));
+    if(ok)shown++;
+    return ok?card(p,i):"";
+  }).join("");
+  document.getElementById("count").textContent=shown+" pet"+(shown===1?"":"s");
+  document.getElementById("empty").style.display=shown?"none":"block";
 }
 
-// 6. ARENA BATTLE SYSTEM ENGINE
-function startBattle() {
-  if (myPets.length === 0) {
-    showToast("You need at least 1 Pet to enter the Arena!");
+function openModal(i){
+  currentPet=pets[i]; const p=currentPet;
+  document.getElementById("modalImg").src=p.file;
+  document.getElementById("modalImg").alt=p.name;
+  document.getElementById("modalName").textContent=p.name;
+  document.getElementById("modalMeta").innerHTML=`${elementIcon(p.element)} ${p.element} • ⭐ ${p.rarity} • Level ${p.level}<br>${p.desc}`;
+  document.getElementById("modalStats").innerHTML=[
+    ["HP",p.hp],["Attack",p.attack],["Defense",p.defense],["Speed",p.speed]
+  ].map(x=>`<div class="big-stat"><span>${x[0]}</span><b>${x[1]}</b></div>`).join("");
+  document.getElementById("modalAbility").textContent=p.ability;
+  document.getElementById("modalBuy").onclick=()=>buyPet(i);
+  document.getElementById("petModal").classList.add("show");
+}
+
+function closeModal(){document.getElementById("petModal").classList.remove("show")}
+document.getElementById("petModal").addEventListener("click",e=>{if(e.target.id==="petModal")closeModal()});
+
+function buyPet(i){
+  const btn=document.querySelector(`.buy-btn[data-pet-index="${i}"]`);
+  if(btn){
+    closeModal();
+    btn.dataset.triggeredByDetails="true";
+    btn.click();
     return;
   }
-  
-  const myPet = myPets[0];
-  const enemy = { name: "Wild Mecha-Wolf", hp: 110, atk: 30 };
-  
-  const logBox = document.getElementById("battleLog");
-  const logContent = document.getElementById("logContent");
-  logBox.style.display = "block";
-  
-  let logs = `<p>⚔️ <b>${myPet.name}</b> vs <b>${enemy.name}</b></p>`;
-  
-  // Simple Turn-based Battle Calculation
-  let petHP = myPet.hp;
-  let enemyHP = enemy.hp;
-  
-  const damageDealt = Math.floor(myPet.atk * (1 + Math.random() * 0.3));
-  enemyHP -= damageDealt;
-  logs += `<p>🟢 ${myPet.name} attacked causing ${damageDealt} damage!</p>`;
-  
-  if (enemyHP <= 0) {
-    logs += `<p style="color:var(--green)">🏆 <b>VICTORY!</b> You earned 10 AMT Coins & 50 EXP!</p>`;
-  } else {
-    const damageTaken = Math.floor(enemy.atk * (1 + Math.random() * 0.2));
-    petHP -= damageTaken;
-    logs += `<p>🔴 ${enemy.name} counter-attacked causing ${damageTaken} damage!</p>`;
-    logs += `<p style="color:var(--gold)">✨ Round ended! Victory points registered on-chain.</p>`;
-  }
-  
-  logContent.innerHTML = logs;
+  alert("Buy button is unavailable.");
 }
+
+function toggleProfile(){
+  const panel=document.getElementById("profilePanel");
+  panel.classList.toggle("show");
+  if(panel.classList.contains("show")) panel.scrollIntoView({behavior:"smooth",block:"start"});
+  const saved=localStorage.getItem("piUser");
+  document.getElementById("walletValue").textContent=saved?saved:"Not connected";
+  document.getElementById("profileAmt").textContent=readAMTBalance();
+}
+
+function readAMTBalance(){
+  /* Never invent a wallet balance. Your real backend can populate localStorage
+     after verified Pi/AMT wallet synchronization. */
+  const raw=localStorage.getItem("amtBalance");
+  if(raw===null||raw==="") return "—";
+  const n=Number(raw);
+  return Number.isFinite(n)?n.toLocaleString()+" AMT":String(raw);
+}
+
+function refreshBalance(){
+  const text=readAMTBalance();
+  document.getElementById("amtBalance").textContent="🪙 "+(text==="—"?"— AMT":text);
+  document.getElementById("profileAmt").textContent=text;
+}
+
+document.querySelectorAll(".filter").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    document.querySelectorAll(".filter").forEach(x=>x.classList.remove("active"));
+    btn.classList.add("active");
+    activeElement=btn.dataset.element;
+    render();
+  });
+});
+document.getElementById("searchInput").addEventListener("input",render);
+
+refreshBalance();
+render();
+loadServerCatalog();
 </script>
+
+<!-- IMPORTANT: keep your existing payment/backend file -->
+<script src="marketplace.js"></script>
 </body>
 </html>
