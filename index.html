@@ -9,163 +9,240 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#07040d;--panel:#10081a;--panel2:#160b23;--line:#6f27ad;
-  --purple:#b04cff;--text:#fff;--muted:#9d8eaa;--green:#a5ff52;
-  --gold:#ffd45a;--danger:#ff6b8a;
+  --bg:#05030a;--panel:#0c0713;--panel2:#12091c;--line:#3d1959;
+  --purple:#b64cff;--purple2:#7d2bd6;--text:#fff;--muted:#9e91aa;
+  --green:#a9ff65;--gold:#ffd66b;--common:#c9b8d6;
 }
 html{scroll-behavior:smooth}
 body{
-  min-height:100vh;background:
-  radial-gradient(circle at 50% -10%,#32105a 0,#10061a 34%,#07040d 75%);
-  color:var(--text);font-family:Arial,Helvetica,sans-serif;
+  min-height:100vh;color:var(--text);font-family:Arial,Helvetica,sans-serif;
+  background:
+    radial-gradient(circle at 50% -15%,#35115b 0,#10071a 28%,#05030a 72%),
+    #05030a;
 }
 button,input{font:inherit}button{cursor:pointer}
 button:disabled{cursor:not-allowed;opacity:.55}
 .header{
-  position:sticky;top:0;z-index:30;display:flex;align-items:center;
+  position:sticky;top:0;z-index:40;display:flex;align-items:center;
   justify-content:space-between;gap:10px;padding:9px 12px;
-  background:rgba(7,4,13,.94);border-bottom:1px solid #57218b;
-  backdrop-filter:blur(14px);
+  background:rgba(5,3,10,.88);border-bottom:1px solid #472064;
+  backdrop-filter:blur(18px)
 }
 .brand{display:flex;align-items:center;gap:9px;min-width:0}
 .brand-mark{
-  width:42px;height:42px;flex:0 0 42px;border-radius:13px;
-  display:grid;place-items:center;font-size:23px;
-  background:linear-gradient(145deg,#3a1260,#160a24);
-  border:1px solid #a347ff;box-shadow:0 0 18px #9c3fff33;
+  width:42px;height:42px;flex:0 0 42px;border-radius:14px;display:grid;
+  place-items:center;font-size:23px;background:
+  radial-gradient(circle at 35% 25%,#d66cff,#7b22c9 48%,#190a28 100%);
+  border:1px solid #d06cff;box-shadow:0 0 24px #a52dff55
 }
-.brand h1{font-size:18px;line-height:1.05;white-space:nowrap}
-.brand p{font-size:10px;color:#bda8c9;margin-top:3px}
+.brand h1{font-size:18px;line-height:1.05;letter-spacing:.4px;white-space:nowrap}
+.brand p{font-size:10px;color:#bdaac9;margin-top:3px}
 .nav{display:flex;align-items:center;gap:6px}
-.nav button,.profile-btn{
-  border:1px solid #8234c7;background:#11081c;color:#fff;
-  border-radius:11px;padding:8px 10px;font-size:11px;font-weight:800;
+.nav button{
+  border:1px solid #6f2da2;background:#10071a;color:#fff;border-radius:11px;
+  padding:8px 10px;font-size:11px;font-weight:900
 }
-.nav button:hover{background:#241039;border-color:#b34dff}
+.nav button:hover{border-color:#c15cff;background:#241039}
 .balance{
-  display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:11px;
-  border:1px solid #5d7d2e;background:#101a0a;color:#c9ffa2;font-size:11px;font-weight:900;
+  display:flex;align-items:center;gap:5px;padding:8px 10px;border-radius:11px;
+  border:1px solid #557a2d;background:#0b1508;color:#cfffad;font-size:11px;font-weight:900
 }
-.wrap{width:min(1120px,100%);margin:auto;padding:12px 10px 45px}
-
-/* compact marketplace top */
+.wrap{width:min(1180px,100%);margin:auto;padding:12px 10px 50px}
+.hero{
+  position:relative;overflow:hidden;margin-bottom:11px;padding:20px 15px 17px;
+  border:1px solid #5d2388;border-radius:19px;
+  background:
+    radial-gradient(circle at 90% 15%,#7c2ac455 0,transparent 30%),
+    linear-gradient(135deg,#180927,#09040f 65%);
+  box-shadow:0 10px 40px #0008
+}
+.hero:after{
+  content:"";position:absolute;inset:auto -30px -60px auto;width:190px;height:190px;
+  border-radius:50%;background:#b84cff18;filter:blur(8px)
+}
+.hero .eyebrow{font-size:9px;letter-spacing:1.7px;color:#d08aff;font-weight:900}
+.hero h2{font-size:clamp(25px,6vw,44px);line-height:1.02;margin:7px 0}
+.hero p{max-width:690px;color:#c4b5cd;font-size:11px;line-height:1.55}
+.hero-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px}
+.hero-pill{
+  padding:7px 10px;border-radius:999px;border:1px solid #4c2764;
+  background:#0a0610cc;color:#d9cae0;font-size:10px;font-weight:800
+}
+.hero-pill strong{color:#fff}
 .topbar{
   display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:11px 12px;margin-bottom:10px;border:1px solid #54207c;
-  border-radius:15px;background:rgba(16,8,26,.82);
+  padding:11px 12px;margin-bottom:9px;border:1px solid #3f1b5b;
+  border-radius:14px;background:rgba(12,7,19,.84)
 }
-.topbar-title{font-size:17px;font-weight:900}
+.topbar-title{font-size:16px;font-weight:900}
 .topbar-sub{font-size:10px;color:var(--muted);margin-top:3px}
-.status-dot{color:var(--green);font-size:10px;font-weight:800}
-
-/* search + filters */
+.status-dot{color:var(--green);font-size:9px;font-weight:900;white-space:nowrap}
 .search{
-  display:flex;align-items:center;gap:8px;margin:0 0 8px;
-  background:#0b0612;border:1px solid #4e1d78;border-radius:13px;padding:2px 11px;
+  display:flex;align-items:center;gap:8px;margin-bottom:8px;
+  background:#08050d;border:1px solid #3e1a57;border-radius:13px;padding:2px 11px
 }
-.search span{font-size:17px}
-.search input{width:100%;border:0;outline:0;background:transparent;color:#fff;padding:10px 3px;font-size:13px}
-.search input::placeholder{color:#75677e}
+.search span{font-size:16px}.search input{
+  width:100%;border:0;outline:0;background:transparent;color:#fff;
+  padding:10px 3px;font-size:13px
+}
+.search input::placeholder{color:#6f6478}
 .filters{
-  display:flex;gap:6px;overflow-x:auto;padding:2px 1px 8px;
-  scrollbar-width:none
+  display:flex;gap:6px;overflow-x:auto;padding:1px 1px 9px;scrollbar-width:none
 }
 .filters::-webkit-scrollbar{display:none}
 .filter{
-  flex:0 0 auto;border:1px solid #54207b;background:#10071a;color:#cbbbd5;
-  border-radius:999px;padding:7px 10px;font-size:11px;font-weight:800;
+  flex:0 0 auto;border:1px solid #45205e;background:#0d0615;color:#c7b8d0;
+  border-radius:999px;padding:7px 10px;font-size:10px;font-weight:900
 }
-.filter.active,.filter:hover{color:#fff;border-color:#b04cff;background:#321050;box-shadow:0 0 12px #a238ff33}
-
-/* small cards */
-.section-head{display:flex;align-items:center;justify-content:space-between;margin:5px 2px 9px}
-.section-head h2{font-size:18px}
-.count{font-size:10px;color:#95839f}
-.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.filter.active,.filter:hover{
+  color:#fff;border-color:#b84dff;background:#32104f;box-shadow:0 0 14px #a238ff30
+}
+.section-head{
+  display:flex;align-items:center;justify-content:space-between;margin:5px 2px 8px
+}
+.section-head h2{font-size:18px}.count{font-size:10px;color:#91839a}
+.grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
 .card{
-  position:relative;overflow:hidden;border:1px solid #4f1c79;border-radius:14px;
-  background:linear-gradient(180deg,#14091f,#0b0611);
-  transition:transform .18s,border-color .18s,box-shadow .18s;
+  position:relative;overflow:hidden;border:1px solid #3e1957;border-radius:15px;
+  background:linear-gradient(180deg,#14091e,#09050e);
+  transition:transform .18s,border-color .18s,box-shadow .18s
 }
-.card:hover{transform:translateY(-2px);border-color:#b24dff;box-shadow:0 8px 22px #8d31ff25}
-.pet-img-wrap{height:145px;position:relative;background:#09050e;overflow:hidden}
-.pet-img{width:100%;height:100%;object-fit:cover;display:block}
+.card:hover{
+  transform:translateY(-3px);border-color:#ae48f4;box-shadow:0 12px 28px #7c28b82a
+}
+.pet-img-wrap{
+  position:relative;aspect-ratio:5/7;min-height:170px;overflow:hidden;
+  background:
+    radial-gradient(circle at 50% 35%,#4a1b68 0,transparent 55%),#08040d
+}
+.pet-img{
+  width:100%;height:100%;display:block;object-fit:cover;object-position:center;
+  transition:transform .3s
+}
+.card:hover .pet-img{transform:scale(1.025)}
+.pet-shade{
+  position:absolute;inset:auto 0 0;height:38%;
+  background:linear-gradient(transparent,#05030add)
+}
 .badge,.element{
-  position:absolute;top:6px;padding:4px 7px;border-radius:999px;
-  background:#09050edb;font-size:9px;font-weight:900
+  position:absolute;top:7px;padding:5px 7px;border-radius:999px;
+  background:#07040ddc;font-size:8px;font-weight:900;backdrop-filter:blur(6px)
 }
-.badge{right:6px;border:1px solid #a744ee;color:#ead7f7}
-.element{left:6px;border:1px solid #2d9eb2;color:#b8f7ff}
+.badge{right:7px;border:1px solid #b88ccf;color:#f1e8f5}
+.element{left:7px;border:1px solid #47758a;color:#d3fbff}
+.common-tag{
+  position:absolute;left:7px;bottom:7px;padding:4px 7px;border-radius:7px;
+  background:#05030ad9;border:1px solid #9a78a8;color:#eee5f2;font-size:8px;font-weight:900
+}
 .card-body{padding:9px}
-.kicker{font-size:8px;color:#b04cff;font-weight:900;letter-spacing:.8px}
-.card h3{font-size:14px;margin:3px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.card-meta{display:flex;justify-content:space-between;gap:4px;align-items:center;margin:5px 0 7px}
-.level{font-size:9px;color:#a89aad}.price{font-size:13px;font-weight:900;color:#d9a4ff;white-space:nowrap}
+.kicker{font-size:7px;color:#bd6cff;font-weight:900;letter-spacing:1px}
+.card h3{
+  font-size:14px;margin:3px 0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+}
+.card-meta{display:flex;justify-content:space-between;gap:4px;align-items:center;margin-bottom:7px}
+.level{font-size:9px;color:#a89bae}.price{font-size:11px;font-weight:900;color:#dfb0ff;white-space:nowrap}
+.price small{font-size:8px;color:#9984a5;font-weight:700}
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:5px}
 .btn{
-  border:1px solid #7130ad;border-radius:9px;padding:7px 4px;
-  background:#140a1f;color:#eadcf2;font-size:10px;font-weight:900
+  border:1px solid #65308a;border-radius:9px;padding:7px 4px;background:#11071a;
+  color:#eadff0;font-size:9px;font-weight:900
 }
-.btn.primary{border-color:#b75bff;background:linear-gradient(135deg,#7421db,#a936f0);color:#fff}
+.btn.primary{
+  border-color:#b951ff;background:linear-gradient(135deg,#7620d5,#ad36e9);color:#fff
+}
 .btn:hover{filter:brightness(1.13)}
-.empty{display:none;text-align:center;padding:35px 15px;color:#94839f;border:1px dashed #593477;border-radius:14px}
-
-/* profile */
-.profile-panel{display:none;margin-bottom:12px;padding:13px;border:1px solid #6423a0;border-radius:15px;background:#10071a}
+.empty{
+  display:none;text-align:center;padding:35px 15px;color:#94839f;
+  border:1px dashed #593477;border-radius:14px
+}
+.profile-panel{
+  display:none;margin-bottom:12px;padding:13px;border:1px solid #6423a0;
+  border-radius:15px;background:#10071a
+}
 .profile-panel.show{display:block}
 .profile-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .profile-head h2{font-size:18px}
-.profile-note{font-size:10px;color:#8f7f99;line-height:1.45;margin-top:5px}
+.profile-note{font-size:10px;color:#91829c;line-height:1.45;margin-top:5px}
 .profile-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:10px}
-.profile-box{border:1px solid #3f1a5f;border-radius:11px;padding:10px;background:#0c0612;font-size:10px;color:#96869f}
+.profile-box{
+  border:1px solid #3f1a5f;border-radius:11px;padding:10px;background:#0c0612;
+  font-size:10px;color:#96869f
+}
 .profile-box b{display:block;font-size:15px;color:#dca8ff;margin-top:4px}
+.progress-box{
+  margin-top:9px;padding:10px;border:1px solid #412058;border-radius:11px;background:#0b0611
+}
+.progress-top{display:flex;justify-content:space-between;gap:8px;font-size:9px;color:#b5a5bd}
+.progress-bar{height:7px;background:#21132b;border-radius:99px;overflow:hidden;margin-top:7px}
+.progress-fill{height:100%;width:0;background:linear-gradient(90deg,#7e2bdd,#c94dff);border-radius:99px}
+.roadmap{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.roadmap span{
+  border:1px solid #3d2648;border-radius:999px;padding:5px 7px;font-size:8px;color:#9c8da4
+}
+.roadmap span.current{border-color:#b34dff;color:#fff;background:#32104d}
 .profile-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
-
-/* pet detail modal */
 .modal{
   position:fixed;inset:0;z-index:100;display:none;align-items:flex-end;justify-content:center;
-  padding:8px;background:#000b;backdrop-filter:blur(7px)
+  padding:8px;background:#000c;backdrop-filter:blur(8px)
 }
 .modal.show{display:flex}
 .modal-box{
-  width:min(680px,100%);max-height:91vh;overflow:auto;border:1px solid #9c40e8;
-  border-radius:20px 20px 10px 10px;background:linear-gradient(150deg,#160921,#09040f);
-  box-shadow:0 -5px 45px #8d32ff44
+  width:min(760px,100%);max-height:94vh;overflow:auto;border:1px solid #a148e7;
+  border-radius:20px 20px 10px 10px;background:linear-gradient(145deg,#170a22,#08040e);
+  box-shadow:0 -8px 55px #8d32ff44
 }
-.modal-top{display:flex;justify-content:space-between;align-items:center;padding:11px 13px;border-bottom:1px solid #321545;position:sticky;top:0;background:#110719ee;backdrop-filter:blur(8px);z-index:2}
-.modal-top strong{font-size:13px}.close{border:1px solid #5e2787;background:#160a21;color:#fff;border-radius:8px;padding:5px 9px}
-.modal-content{display:grid;grid-template-columns:180px 1fr;gap:14px;padding:14px}
-.modal-img{width:100%;height:225px;object-fit:cover;border-radius:13px;border:1px solid #7126bc;background:#08040d}
-.modal-content h2{font-size:25px;margin:4px 0}
+.modal-top{
+  display:flex;justify-content:space-between;align-items:center;padding:11px 13px;
+  border-bottom:1px solid #321545;position:sticky;top:0;background:#110719ed;
+  backdrop-filter:blur(9px);z-index:2
+}
+.modal-top strong{font-size:13px}
+.close{border:1px solid #5e2787;background:#160a21;color:#fff;border-radius:8px;padding:5px 9px}
+.modal-content{display:grid;grid-template-columns:220px 1fr;gap:15px;padding:14px}
+.modal-img{
+  width:100%;aspect-ratio:5/7;height:auto;object-fit:cover;object-position:center;
+  border-radius:15px;border:1px solid #7126bc;background:#08040d
+}
+.modal-content h2{font-size:27px;margin:4px 0}
 .modal-meta{color:#a996b3;font-size:11px;line-height:1.5;margin-bottom:9px}
 .big-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:8px 0}
-.big-stat{padding:8px 5px;border:1px solid #301442;border-radius:9px;background:#0d0614;text-align:center}
-.big-stat span{display:block;color:#8f7f99;font-size:9px}.big-stat b{font-size:14px;color:#d9b0ff}
-.ability{padding:9px;border:1px solid #4c1c76;border-radius:10px;background:#130820;margin:9px 0;font-size:10px;line-height:1.4}
+.big-stat{
+  padding:8px 5px;border:1px solid #301442;border-radius:9px;background:#0d0614;text-align:center
+}
+.big-stat span{display:block;color:#8f7f99;font-size:9px}
+.big-stat b{font-size:14px;color:#d9b0ff}
+.xp-panel{padding:9px;border:1px solid #412058;border-radius:10px;background:#0d0614;margin:8px 0}
+.xp-row{display:flex;justify-content:space-between;font-size:9px;color:#aa9bae}
+.ability{
+  padding:9px;border:1px solid #4c1c76;border-radius:10px;background:#130820;
+  margin:9px 0;font-size:10px;line-height:1.4
+}
 .ability b{color:#bd73ff}
 .care{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:8px 0}
-.care-box{border:1px solid #3b1c50;border-radius:9px;padding:7px;text-align:center;background:#0d0614;font-size:9px;color:#97889e}
+.care-box{
+  border:1px solid #3b1c50;border-radius:9px;padding:7px;text-align:center;
+  background:#0d0614;font-size:9px;color:#97889e
+}
 .care-box b{display:block;color:#baff82;font-size:12px;margin-top:3px}
 .modal-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:9px}
 .notice{font-size:9px;color:#81728a;margin-top:8px;line-height:1.4}
-
-/* no giant prototype sections */
-.desktop-only{display:block}
-@media(max-width:850px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:620px){
+@media(max-width:980px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:720px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:560px){
   .header{padding:8px}.brand-mark{width:38px;height:38px;flex-basis:38px;font-size:20px}
   .brand h1{font-size:16px}.brand p{font-size:9px}.nav button{padding:7px 8px;font-size:10px}
-  .balance{font-size:9px;padding:7px 8px}.wrap{padding:9px 7px 35px}
+  .balance{font-size:9px;padding:7px 8px}.wrap{padding:8px 7px 35px}
+  .hero{padding:17px 13px}.hero h2{font-size:28px}
   .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
-  .pet-img-wrap{height:138px}.card-body{padding:8px}.card h3{font-size:13px}
-  .btn{font-size:9px;padding:7px 3px}.modal{padding:0}
-  .modal-box{border-radius:18px 18px 0 0}.modal-content{grid-template-columns:100px 1fr;gap:10px;padding:11px}
-  .modal-img{height:125px}.modal-content h2{font-size:20px}.big-stats{grid-template-columns:repeat(2,1fr)}
-  .profile-grid{grid-template-columns:1fr 1fr}
+  .pet-img-wrap{min-height:0}.card-body{padding:8px}.card h3{font-size:12px}
+  .btn{font-size:9px;padding:7px 3px}.profile-grid{grid-template-columns:1fr 1fr}
+  .modal{padding:0}.modal-box{border-radius:18px 18px 0 0}
+  .modal-content{grid-template-columns:120px 1fr;gap:10px;padding:11px}
+  .modal-content h2{font-size:20px}.big-stats{grid-template-columns:repeat(2,1fr)}
 }
 @media(max-width:360px){
-  .nav button:nth-child(2){display:none}.balance{display:none}
-  .pet-img-wrap{height:125px}.card h3{font-size:12px}
+  .nav button{display:none}.balance{display:none}
+  .card h3{font-size:11px}.card-meta{display:block}.price{display:block;margin-top:3px}
 }
 </style>
 </head>
@@ -184,10 +261,21 @@ button:disabled{cursor:not-allowed;opacity:.55}
 
 <main class="wrap">
 
+  <section class="hero">
+    <div class="eyebrow">ALBERTO • AMT PET WORLD</div>
+    <h2>Raise Your Own Legend.</h2>
+    <p>Every starter pet begins as <b>Common • Level 1</b>. The Pioneer who owns the pet earns its growth through care, training and battle progression.</p>
+    <div class="hero-row">
+      <span class="hero-pill">🐾 <strong>70</strong> Starter Pets</span>
+      <span class="hero-pill">⭐ <strong>Common</strong> Start</span>
+      <span class="hero-pill">📈 <strong>Pioneer</strong> Progression</span>
+      <span class="hero-pill">🪙 <strong>AMT</strong> Economy</span>
+    </div>
+  </section>
   <div class="topbar">
     <div>
-      <div class="topbar-title">🐾 Pet Marketplace</div>
-      <div class="topbar-sub">Common pets. Raise them. Train them. Evolve them.</div>
+      <div class="topbar-title">🐾 Starter Pet Collection</div>
+      <div class="topbar-sub">Choose a Common pet and build its story.</div>
     </div>
     <div class="status-dot">● TESTNET</div>
   </div>
@@ -197,16 +285,23 @@ button:disabled{cursor:not-allowed;opacity:.55}
       <h2>👤 Pioneer Profile</h2>
       <button class="btn" onclick="toggleProfile()">Close</button>
     </div>
-    <p class="profile-note">Your Pi login identity is read from the existing login flow. AMT balance is displayed only when supplied by your wallet/backend integration.</p>
+    <p class="profile-note">Your Pioneer identity comes from the existing Pi login. Pets start Common and Level 1; your own progression determines their future rarity.</p>
     <div class="profile-grid">
       <div class="profile-box">Pioneer<b id="walletValue">Not connected</b></div>
       <div class="profile-box">🪙 AMT Balance<b id="profileAmt">—</b></div>
       <div class="profile-box">🐾 My Pets<b id="petOwned">0</b></div>
       <div class="profile-box">⚔️ Battles<b>0</b></div>
     </div>
+    <div class="progress-box">
+      <div class="progress-top"><span>Starter progression</span><b>Common → Rare → Epic → Legendary → Mythic</b></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:12%"></div></div>
+      <div class="roadmap">
+        <span class="current">Common • Lv.1</span><span>Rare</span><span>Epic</span><span>Legendary</span><span>Mythic</span>
+      </div>
+    </div>
     <div class="profile-actions">
-      <button class="btn primary" onclick="alert('Pet care module: Feed • Care • Play • Train will be connected to the pet backend.')">🐾 My Pets</button>
-      <button class="btn" onclick="alert('Battle module is ready for the game/backend integration.')">⚔️ Battle</button>
+      <button class="btn primary" onclick="alert('Your owned pets and real progression will appear here once the pet ownership endpoints are connected.')">🐾 My Pets</button>
+      <button class="btn" onclick="alert('Battle progression will use the Pioneer-owned pet and verified backend rewards.')">⚔️ Battle</button>
     </div>
   </section>
 
@@ -244,6 +339,10 @@ button:disabled{cursor:not-allowed;opacity:.55}
         <h2 id="modalName"></h2>
         <div class="modal-meta" id="modalMeta"></div>
         <div class="big-stats" id="modalStats"></div>
+        <div class="xp-panel">
+          <div class="xp-row"><span>Level 1 • Common Starter</span><b id="modalXp">0 / 100 XP</b></div>
+          <div class="progress-bar"><div class="progress-fill" id="modalXpBar"></div></div>
+        </div>
         <div class="ability"><b>✨ Ability</b><br><span id="modalAbility"></span></div>
         <div class="care">
           <div class="care-box">🍖 Hunger<b>100%</b></div>
@@ -262,7 +361,7 @@ button:disabled{cursor:not-allowed;opacity:.55}
 </div>
 
 <script>
-/* Existing marketplace data retained. Stats are hidden from cards and shown after clicking a pet. */
+/* 70-pet starter catalog. Every pet is intentionally Common / Level 1. Pioneer progression comes later. */
 const pets = [
   ["earth-01","Terrax","Earth","terrax.png",120,20,22],["earth-02","Rockhorn","Earth","rockhorn.png",125,19,24],["earth-03","Stonefist","Earth","stonefist.png",130,22,25],["earth-04","Earthdrake","Earth","earthdrake.png",128,23,23],["earth-05","Boulderlynx","Earth","boulderlynx.png",118,24,20],["earth-06","Terrapin","Earth","terrapin.png",140,16,28],["earth-07","Gravelpaw","Earth","gravelpaw.png",115,21,21],["earth-08","Pebblix","Earth","pebblix.png",110,18,20],["earth-09","Mountainhoof","Earth","mountainhoof.png",145,18,30],["earth-10","Terroscale","Earth","terroscale.png",135,25,24],
   ["water-01","Aqualis","Water","aqualis.png",110,23,18],["water-02","Tideback","Water","tideback.png",135,18,27],["water-03","Oceanix","Water","oceanix.png",125,24,20],["water-04","Neptunox","Water","neptunox.png",130,27,21],["water-05","Jellyfin","Water","jellyfin.png",105,19,19],["water-06","Sharky","Water","sharky.png",120,29,17],["water-07","Seapony","Water","seapony.png",115,22,21],["water-08","Krakenling","Water","krakenling.png",140,26,23],["water-09","Riptide","Water","riptide.png",118,30,18],["water-10","Abyssal","Water","abyssal.png",145,28,25],
@@ -286,12 +385,12 @@ function card(p,index){
         onclick="event.stopPropagation();openModal(${index})"
         onerror="this.parentElement.innerHTML='<div style=&quot;height:100%;display:grid;place-items:center;color:#8e789d;padding:12px;text-align:center;font-size:10px&quot;>Image not found<br>${p.file}</div>'">
       <span class="element">${elementIcon(p.element)} ${p.element}</span>
-      <span class="badge">${p.rarity}</span>
+      <span class="badge">${p.rarity}</span><span class="common-tag">Lv. 1 • Common</span>
     </div>
     <div class="card-body">
       <div class="kicker">PET #${String(index+1).padStart(3,"0")}</div>
       <h3>${p.name}</h3>
-      <div class="card-meta"><span class="level">Lv. ${p.level} • ${p.rarity}</span><span class="price">${p.amt.toLocaleString()} AMT</span></div>
+      <div class="card-meta"><span class="level">Lv. ${p.level} • ${p.rarity}</span><span class="price">${p.amt.toLocaleString()} AMT <small>• ${p.price} Pi</small></span></div>
       <div class="actions">
         <button class="btn" onclick="event.stopPropagation();openModal(${index})">Details</button>
         <button class="btn primary buy-btn" data-pet-index="${index}" data-price-pi="${p.price}" data-price-amt="${p.amt}" onclick="event.stopPropagation();buyPet(${index})">Buy</button>
@@ -306,7 +405,7 @@ async function loadServerCatalog(){
     const r=await fetch(API_BASE+"/api/pets");
     const d=await r.json();
     if(d.ok && Array.isArray(d.pets) && d.pets.length){
-      pets.splice(0,pets.length,...d.pets.map((p,i)=>({code:p.pet_code,name:p.name,element:p.element,file:p.image,rarity:p.rarity||"Common",level:1,hp:p.base_hp,attack:p.base_atk,defense:p.base_def,speed:100+(i%10)*5,ability:"Elemental Bond",rep:80,price:10,amt:100,desc:"A Common starter pet from the AMT Pet World."})));
+      pets.splice(0,pets.length,...d.pets.map((p,i)=>({code:p.pet_code,name:p.name,element:p.element,file:p.image,rarity:"Common",level:1,hp:p.base_hp,attack:p.base_atk,defense:p.base_def,speed:100+(i%10)*5,ability:"Elemental Bond",rep:80,price:10,amt:100,desc:"A Common starter pet from the AMT Pet World."})));
     }
   }catch(e){ console.log("Using 70-pet local catalog",e); }
   render();
@@ -330,11 +429,13 @@ function openModal(i){
   document.getElementById("modalImg").src=p.file;
   document.getElementById("modalImg").alt=p.name;
   document.getElementById("modalName").textContent=p.name;
-  document.getElementById("modalMeta").innerHTML=`${elementIcon(p.element)} ${p.element} • ⭐ ${p.rarity} • Level ${p.level}<br>${p.desc}`;
+  document.getElementById("modalMeta").innerHTML=`${elementIcon(p.element)} ${p.element} • ⭐ Common • Level 1<br>${p.desc}`;
   document.getElementById("modalStats").innerHTML=[
     ["HP",p.hp],["Attack",p.attack],["Defense",p.defense],["Speed",p.speed]
   ].map(x=>`<div class="big-stat"><span>${x[0]}</span><b>${x[1]}</b></div>`).join("");
   document.getElementById("modalAbility").textContent=p.ability;
+  document.getElementById("modalXp").textContent="0 / 100 XP";
+  document.getElementById("modalXpBar").style.width="0%";
   document.getElementById("modalBuy").onclick=()=>buyPet(i);
   document.getElementById("petModal").classList.add("show");
 }
