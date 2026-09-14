@@ -366,39 +366,238 @@ app.post("/api/train", requirePiAuth, train);
 app.post("/api/train/pet", requirePiAuth, train);
 app.post("/api/pets/train", requirePiAuth, train);
 
-function battleMult(a, d) {
-  const strong = { fire: "nature", nature: "water", water: "fire", wind: "earth", earth: "thunder", thunder: "wind", ice: "wind" };
-  if (strong[String(a).toLowerCase()] === String(d).toLowerCase()) return 1.15;
-  if (strong[String(d).toLowerCase()] === String(a).toLowerCase()) return .9;
-  return 1;
+/* ==========================================
+   PRODUCTION-GRADE TURN-BASED BATTLE ENGINE
+   ========================================== */
+
+const ELEMENT_CHART = {
+  Fire: { strongAgainst: ["Nature", "Ice"], weakAgainst: ["Water", "Earth"] },
+  Water: { strongAgainst: ["Fire", "Earth"], weakAgainst: ["Thunder", "Nature"] },
+  Earth: { strongAgainst: ["Thunder", "Fire"], weakAgainst: ["Wind", "Nature"] },
+  Wind: { strongAgainst: ["Earth", "Nature"], weakAgainst: ["Thunder", "Ice"] },
+  Nature: { strongAgainst: ["Water", "Earth"], weakAgainst: ["Fire", "Wind"] },
+  Ice: { strongAgainst: ["Wind", "Nature"], weakAgainst: ["Fire", "Thunder"] },
+  Thunder: { strongAgainst: ["Water", "Wind"], weakAgainst: ["Earth", "Ice"] }
+};
+
+function getElementMultiplier(attackerElement, defenderElement) {
+  const chart = ELEMENT_CHART[attackerElement];
+  if (!chart) return 1.0;
+  if (chart.strongAgainst.includes(defenderElement)) return 1.5;
+  if (chart.weakAgainst.includes(defenderElement)) return 0.7;
+  return 1.0;
 }
 
-function battleScore(a, d) { return Number(a.atk) * 1.25 + Number(a.def) * .75 + Number(a.hp) * .15 + Number(a.level) * 5; }
+function calculateDamage(attacker, defender) {
+  const elementMult = getElementMultiplier(attacker.element, defender.element);
+  const isCrit = Math.random() < 0.10;
+  const critMult = isCrit ? 1.5 : 1.0;
+  const variance = 0.85 + Math.random() * 0.30;
+
+  let rawDamage = (attacker.atk * 2) - defender.def;
+  if (rawDamage < 5) rawDamage = 5;
+
+  const finalDamage = Math.round(rawDamage * elementMult * critMult * variance);
+
+  return {
+    damage: finalDamage,
+    isCrit,
+    elementMult,
+    isSuperEffective: elementMult > 1.0,
+    isIneffective: elementMult < 1.0
+  };
+}
+
+function simulateCombat(petA, petB) {
+  let combatants = [
+    { ...petA, currentHp: petA.hp, maxHp: petA.hp, isPlayer: true },
+    { ...petB, currentHp: petB.hp, maxHp: petB.hp, isPlayer: false }
+  ];
+
+  if (combatants[1].atk > combatants[0].atk || (combatants[1].atk === combatants[0].atk && Math.random() > 0.5)) {
+    combatants.reverse();
+  }
+
+  const logs = [];
+  let turn = 1;
+  const maxTurns = 20;
+
+  while (combatants[0].currentHp > 0 && combatants[1].currentHp > 0 && turn <= maxTurns) {
+    const attacker = combatants[0];
+    const defender = combatants[1];
+
+    const hit = calculateDamage(attacker, defender);
+    defender.currentHp = Math.max(0, defender.currentHp - hit.damage);
+
+    logs.push({
+      turn,
+      attackerName: attacker.name,
+      defenderName: defender.name,
+      damage: hit.damage,
+      defenderRemainingHp: defender.currentHp,
+      defenderMaxHp: defender.maxHp,
+      isCrit: hit.isCrit,
+      isSuperEffective: hit.isSuperEffective,
+      isIneffective: hit.isIneffective,
+      actionText: `${attacker.name} attacked ${defender.name} dealing ${hit.damage} damage!${hit.isCrit ? " CRITICAL HIT!" : ""}${hit.isSuperEffective ? " It's super effective!" : ""}`
+    });
+
+    if (defender.currentHp <= 0) break;
+
+    combatants.reverse();
+    turn++;
+  }
+
+  const winner = combatants.find(c => c.currentHp > 0) || combatants[0];
+  const isPlayerWin = winner.isPlayer;
+
+  return {
+    winner: winner.name,
+    isPlayerWin,
+    totalTurns: turn,
+    logs
+  };
+}
 
 async function arenaBattle(req, res) {
   try {
-    const a = await findOwnedPet(req.piUser.uid, req), elements = ["Fire", "Water", "Earth", "Wind", "Nature", "Ice", "Thunder"], names = ["Shadow Beast", "Iron Fang", "Storm Bot", "Flame Golem", "Frost Drone", "Terra Mech", "Aqua Guardian"];
-    const idx = Math.floor(Math.random() * names.length), element = elements[idx], baseHp = 120 + Math.floor(Math.random() * 55), baseAtk = 22 + Math.floor(Math.random() * 18), baseDef = 18 + Math.floor(Math.random() * 15), level = Math.max(1, Number(a.level) + Math.floor(Math.random() * 3) - 1);
-    const d = { name: names[idx], element, level, hp: baseHp, atk: baseAtk, def: baseDef }, ap = battleScore(a, d) * battleMult(a.element, d.element), dp = battleScore(d, a) * battleMult(d.element, a.element), win = ap >= dp, gain = win ? 35 : 12, total = Number(a.xp) + gain, newLevel = Math.max(1, Math.floor(total / 100) + 1), ups = Math.max(0, newLevel - Number(a.level));
-    const u = await dbQuery(`UPDATE user_pets SET xp=$1,level=$2,atk=$3,def=$4,updated_at=NOW() WHERE id=$5 RETURNING *`, [total, newLevel, Number(a.atk) + ups * 2, Number(a.def) + ups * 2, a.id]);
-    const coins = win ? 50 : 15, food = win ? 3 : 1;
-    await dbQuery(`UPDATE pioneers SET coins=coins+$1,food=food+$2,updated_at=NOW() WHERE pi_uid=$3`, [coins, food, req.piUser.uid]);
-    res.json({ ok: true, mode: "ARENA", result: win ? "WIN" : "LOSS", message: win ? `Victory! ${a.name} defeated the computer ${d.name}.` : `${a.name} lost to the computer ${d.name}.`, xpEarned: gain, coinsEarned: coins, foodEarned: food, levelUps: ups, pet: { ...u.rows[0], name: a.name, element: a.element, image: a.image }, opponent: { name: d.name, element: d.element, level: d.level, computer: true } });
-  } catch (e) { console.error("arena:", e); res.status(400).json({ ok: false, error: e.message }); }
+    const playerPet = await findOwnedPet(req.piUser.uid, req);
+
+    const elements = ["Fire", "Water", "Earth", "Wind", "Nature", "Ice", "Thunder"];
+    const bossNames = ["Titan Golem", "Infernal Wyrm", "Abyssal Hydra", "Storm Sovereign", "Vortex Behemoth"];
+    
+    const randomElem = elements[Math.floor(Math.random() * elements.length)];
+    const bossName = bossNames[Math.floor(Math.random() * bossNames.length)];
+
+    const bossPet = {
+      name: `[Boss] ${bossName}`,
+      element: randomElem,
+      level: Math.max(1, Number(playerPet.level) + Math.floor(Math.random() * 3) - 1),
+      hp: Math.round(playerPet.hp * (0.9 + Math.random() * 0.3)),
+      atk: Math.round(playerPet.atk * (0.85 + Math.random() * 0.3)),
+      def: Math.round(playerPet.def * (0.85 + Math.random() * 0.3))
+    };
+
+    const simulation = simulateCombat(playerPet, bossPet);
+
+    const xpGain = simulation.isPlayerWin ? (40 + playerPet.level * 5) : 15;
+    const coinsGain = simulation.isPlayerWin ? (60 + playerPet.level * 10) : 20;
+    const foodGain = simulation.isPlayerWin ? 4 : 1;
+
+    const totalXp = Number(playerPet.xp || 0) + xpGain;
+    const newLevel = Math.max(1, Math.floor(totalXp / 100) + 1);
+    const levelUps = Math.max(0, newLevel - Number(playerPet.level));
+
+    const updatedPet = await dbQuery(
+      `UPDATE user_pets SET xp=$1, level=$2, atk=$3, def=$4, updated_at=NOW() WHERE id=$5 RETURNING *`,
+      [totalXp, newLevel, Number(playerPet.atk) + (levelUps * 2), Number(playerPet.def) + (levelUps * 2), playerPet.id]
+    );
+
+    await dbQuery(
+      `UPDATE pioneers SET coins=coins+$1, food=food+$2, updated_at=NOW() WHERE pi_uid=$3`,
+      [coinsGain, foodGain, req.piUser.uid]
+    );
+
+    res.json({
+      ok: true,
+      mode: "ARENA_PRO",
+      result: simulation.isPlayerWin ? "WIN" : "LOSS",
+      message: simulation.isPlayerWin 
+        ? `Victory! ${playerPet.name} defeated ${bossPet.name} in ${simulation.totalTurns} turns!`
+        : `${playerPet.name} was defeated by ${bossPet.name}.`,
+      rewards: { xp: xpGain, coins: coinsGain, food: foodGain, levelUps },
+      combatLogs: simulation.logs,
+      pet: { ...updatedPet.rows[0], name: playerPet.name, element: playerPet.element, image: playerPet.image },
+      opponent: bossPet
+    });
+
+  } catch (e) {
+    console.error("Arena error:", e);
+    res.status(400).json({ ok: false, error: e.message });
+  }
 }
 
 async function adventureBattle(req, res) {
   try {
-    const a = await findOwnedPet(req.piUser.uid, req), q = await dbQuery(`SELECT up.*,p.id AS opponent_pioneer_id,p.pi_uid AS opponent_uid,p.username AS opponent_username,pc.name,pc.element,pc.image,pc.base_hp,pc.base_atk,pc.base_def
-      FROM user_pets up JOIN pioneers p ON p.id=up.pioneer_id JOIN pets_catalog pc ON pc.pet_code=up.pet_code
-      WHERE p.pi_uid<>$1 ORDER BY RANDOM() LIMIT 1`, [req.piUser.uid]);
-    if (!q.rows.length) return res.status(409).json({ ok: false, error: "No other Pioneer is available for Adventure yet.", message: "Another Pioneer needs to own a pet before an Adventure battle can start." });
-    const d = q.rows[0], ap = battleScore(a, d) * battleMult(a.element, d.element), dp = battleScore(d, a) * battleMult(d.element, a.element), win = ap >= dp, gain = win ? 45 : 18, total = Number(a.xp) + gain, newLevel = Math.max(1, Math.floor(total / 100) + 1), ups = Math.max(0, newLevel - Number(a.level)), coins = win ? 80 : 25, food = win ? 5 : 2;
-    const u = await dbQuery(`UPDATE user_pets SET xp=$1,level=$2,atk=$3,def=$4,updated_at=NOW() WHERE id=$5 RETURNING *`, [total, newLevel, Number(a.atk) + ups * 2, Number(a.def) + ups * 2, a.id]);
-    await dbQuery(`INSERT INTO pet_battles(attacker_pioneer_id,attacker_pet_id,defender_pioneer_id,defender_pet_id,winner_pioneer_id,xp_earned) VALUES($1,$2,$3,$4,$5,$6)`, [req.pioneer.id, a.id, d.opponent_pioneer_id, d.id, win ? req.pioneer.id : d.opponent_pioneer_id, gain]);
-    await dbQuery(`UPDATE pioneers SET coins=coins+$1,food=food+$2,updated_at=NOW() WHERE pi_uid=$3`, [coins, food, req.piUser.uid]);
-    res.json({ ok: true, mode: "ADVENTURE", result: win ? "WIN" : "LOSS", message: win ? `Adventure victory! You defeated Pioneer @${d.opponent_username || "Pioneer"}.` : `Adventure loss against Pioneer @${d.opponent_username || "Pioneer"}.`, xpEarned: gain, coinsEarned: coins, foodEarned: food, levelUps: ups, pet: { ...u.rows[0], name: a.name, element: a.element, image: a.image }, opponent: { id: d.id, name: d.name, element: d.element, image: d.image, level: d.level, username: d.opponent_username || "Pioneer", computer: false } });
-  } catch (e) { console.error("adventure:", e); res.status(400).json({ ok: false, error: e.message }); }
+    const playerPet = await findOwnedPet(req.piUser.uid, req);
+
+    const opponentQuery = await dbQuery(
+      `SELECT up.*, p.id AS opponent_pioneer_id, p.username AS opponent_username, pc.name, pc.element, pc.image 
+       FROM user_pets up 
+       JOIN pioneers p ON p.id=up.pioneer_id 
+       JOIN pets_catalog pc ON pc.pet_code=up.pet_code 
+       WHERE p.pi_uid <> $1 
+       ORDER BY RANDOM() LIMIT 1`,
+      [req.piUser.uid]
+    );
+
+    if (!opponentQuery.rows.length) {
+      return res.status(409).json({
+        ok: false,
+        error: "No rival Pioneer found.",
+        message: "Kailangan muna ng ibang Pioneer na may pet para sa PvP Adventure."
+      });
+    }
+
+    const opponentPet = opponentQuery.rows[0];
+
+    const simulation = simulateCombat(playerPet, opponentPet);
+
+    const xpGain = simulation.isPlayerWin ? (55 + playerPet.level * 6) : 20;
+    const coinsGain = simulation.isPlayerWin ? (100 + playerPet.level * 12) : 30;
+    const foodGain = simulation.isPlayerWin ? 6 : 2;
+
+    const totalXp = Number(playerPet.xp || 0) + xpGain;
+    const newLevel = Math.max(1, Math.floor(totalXp / 100) + 1);
+    const levelUps = Math.max(0, newLevel - Number(playerPet.level));
+
+    const updatedPet = await dbQuery(
+      `UPDATE user_pets SET xp=$1, level=$2, atk=$3, def=$4, updated_at=NOW() WHERE id=$5 RETURNING *`,
+      [totalXp, newLevel, Number(playerPet.atk) + (levelUps * 2), Number(playerPet.def) + (levelUps * 2), playerPet.id]
+    );
+
+    await dbQuery(
+      `INSERT INTO pet_battles(attacker_pioneer_id, attacker_pet_id, defender_pioneer_id, defender_pet_id, winner_pioneer_id, xp_earned) 
+       VALUES($1, $2, $3, $4, $5, $6)`,
+      [
+        req.pioneer.id,
+        playerPet.id,
+        opponentPet.opponent_pioneer_id,
+        opponentPet.id,
+        simulation.isPlayerWin ? req.pioneer.id : opponentPet.opponent_pioneer_id,
+        xpGain
+      ]
+    );
+
+    await dbQuery(
+      `UPDATE pioneers SET coins=coins+$1, food=food+$2, updated_at=NOW() WHERE pi_uid=$3`,
+      [coinsGain, foodGain, req.piUser.uid]
+    );
+
+    res.json({
+      ok: true,
+      mode: "PVP_ADVENTURE_PRO",
+      result: simulation.isPlayerWin ? "WIN" : "LOSS",
+      message: simulation.isPlayerWin
+        ? `PvP Victory! ${playerPet.name} defeated @${opponentPet.opponent_username || "Pioneer"}'s ${opponentPet.name}!`
+        : `${playerPet.name} lost against @${opponentPet.opponent_username || "Pioneer"}'s ${opponentPet.name}.`,
+      rewards: { xp: xpGain, coins: coinsGain, food: foodGain, levelUps },
+      combatLogs: simulation.logs,
+      pet: { ...updatedPet.rows[0], name: playerPet.name, element: playerPet.element, image: playerPet.image },
+      opponent: {
+        id: opponentPet.id,
+        name: opponentPet.name,
+        element: opponentPet.element,
+        image: opponentPet.image,
+        level: opponentPet.level,
+        username: opponentPet.opponent_username || "Pioneer"
+      }
+    });
+
+  } catch (e) {
+    console.error("PvP Adventure error:", e);
+    res.status(400).json({ ok: false, error: e.message });
+  }
 }
 
 app.post("/api/battle/arena", requirePiAuth, arenaBattle);
@@ -487,7 +686,6 @@ app.post("/api/eggs/hatch", requirePiAuth, async (req, res) => {
     const status = normalizeEggStatus(e);
     if (status !== "READY") return res.status(400).json({ ok: false, error: "Egg incubation is not complete yet." });
     
-    // Grant pet and update egg status
     const pet = await grantPet(req.piUser.uid, e.future_pet_code);
     await dbQuery("UPDATE pet_eggs SET status='HATCHED',hatch_at=NOW() WHERE id=$1", [e.id]);
     await dbQuery("UPDATE pet_breeding SET offspring_id=$1 WHERE parent1_id=$2 AND parent2_id=$3 AND offspring_id IS NULL", [pet.id, e.parent1_id, e.parent2_id]);
