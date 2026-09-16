@@ -13,7 +13,7 @@ const PI_API_BASE = process.env.PI_API_BASE || "https://api.minepi.com";
 const PI_AUTH_TIMEOUT_MS = Number(process.env.PI_AUTH_TIMEOUT_MS || 15000);
 const PI_PAYMENT_CURRENCY = "Pi";
 const PET_PI_PRICE = "10";
-const PET_AMT_PRICE = "100";
+const PET_AMT_PRICE = "20";
 
 const AMT_ASSET_CODE = process.env.AMT_ASSET_CODE || "AMT";
 const AMT_ISSUER = process.env.AMT_ISSUER || "GCDV5VKFE4EPQFRPDDZN64RXZMH2T4EHP47PMZ7KJMILR5DQICONMFP5";
@@ -337,15 +337,25 @@ async function verifyPiAccessToken(token) {
 
   const data = await piVerifyFetch("/v2/me", token);
 
+  // Pi sometimes returns wallet in different places / shapes
+  const rawWallet =
+    data.wallet_address ||
+    data.walletAddress ||
+    data.user?.wallet_address ||
+    data.user?.walletAddress ||
+    data.wallet?.address ||
+    data.user?.wallet?.address ||
+    "";
+
+  const wallet_address =
+    typeof rawWallet === "string" && /^G[A-Z2-7]{55}$/.test(rawWallet.trim())
+      ? rawWallet.trim()
+      : "";
+
   return {
     uid: data.uid || data.user?.uid || "",
     username: data.username || data.user?.username || "",
-    wallet_address:
-      data.wallet_address ||
-      data.walletAddress ||
-      data.user?.wallet_address ||
-      data.user?.walletAddress ||
-      ""
+    wallet_address
   };
 }
 
@@ -714,12 +724,25 @@ app.get("/api/auth/status", async (req, res) => {
 
 /* Auth */
 app.post("/api/auth/verify", requirePiAuth, async (req, res) => {
+  const wallet =
+    req.pioneer.wallet_address ||
+    req.piUser.wallet_address ||
+    "";
+
+  const walletSynced =
+    typeof wallet === "string" && /^G[A-Z2-7]{55}$/.test(wallet.trim());
+
   res.json({
     ok: true,
     uid: req.piUser.uid,
     username: req.piUser.username,
-    walletAddress: req.piUser.wallet_address || null,
-    wallet_address: req.piUser.wallet_address || null,
+    walletAddress: walletSynced ? wallet : null,
+    wallet_address: walletSynced ? wallet : null,
+    walletSynced,
+    needsWalletSync: !walletSynced,
+    message: walletSynced
+      ? "Pioneer authenticated and wallet already synchronized."
+      : "Pioneer authenticated. Please sync your public Pi Testnet wallet (G...) to use AMT.",
     pioneer: req.pioneer
   });
 });
@@ -793,21 +816,28 @@ app.get("/api/wallet/sync", requirePiAuth, async (req, res) => {
     const wallet = req.pioneer.wallet_address || req.piUser.wallet_address || "";
 
     if (!isPublicStellarAddress(wallet)) {
-      return res.status(400).json({
-        ok: false,
+      return res.status(200).json({
+        ok: true,
         synced: false,
-        error: "No valid public Pi Testnet wallet is synchronized yet."
+        needsWalletSync: true,
+        uid: req.piUser.uid,
+        username: req.piUser.username,
+        wallet_address: null,
+        walletAddress: null,
+        message: "No valid public Pi Testnet wallet is synchronized yet. Please bind your G... address."
       });
     }
 
     res.json({
       ok: true,
       synced: true,
+      needsWalletSync: false,
       uid: req.piUser.uid,
       username: req.piUser.username,
       wallet_address: wallet,
       walletAddress: wallet,
-      network: "Pi Testnet"
+      network: "Pi Testnet",
+      message: "Wallet already synchronized."
     });
   } catch (e) {
     res.status(400).json({ ok: false, error: e.message });
