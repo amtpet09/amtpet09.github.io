@@ -145,9 +145,13 @@ async function initializeDatabase() {
     pi_uid TEXT UNIQUE NOT NULL,
     username TEXT,
     wallet_address TEXT,
+    profile_picture TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );`);
+
+  // Safe migration for existing databases
+  await dbQuery(`ALTER TABLE pioneers ADD COLUMN IF NOT EXISTS profile_picture TEXT;`);
 
   await dbQuery(`CREATE TABLE IF NOT EXISTS pets_catalog(
     id BIGSERIAL PRIMARY KEY,
@@ -337,38 +341,29 @@ async function verifyPiAccessToken(token) {
 
   const data = await piVerifyFetch("/v2/me", token);
 
-  // Pi sometimes returns wallet in different places / shapes
-  const rawWallet =
-    data.wallet_address ||
-    data.walletAddress ||
-    data.user?.wallet_address ||
-    data.user?.walletAddress ||
-    data.wallet?.address ||
-    data.user?.wallet?.address ||
-    "";
-
-  const wallet_address =
-    typeof rawWallet === "string" && /^G[A-Z2-7]{55}$/.test(rawWallet.trim())
-      ? rawWallet.trim()
-      : "";
-
   return {
     uid: data.uid || data.user?.uid || "",
     username: data.username || data.user?.username || "",
-    wallet_address
+    wallet_address:
+      data.wallet_address ||
+      data.walletAddress ||
+      data.user?.wallet_address ||
+      data.user?.walletAddress ||
+      ""
   };
 }
 
-async function upsertPioneer(pi_uid, username, wallet_address) {
+async function upsertPioneer(pi_uid, username, wallet_address, profile_picture = null) {
   const r = await dbQuery(`INSERT INTO pioneers
-      (pi_uid,username,wallet_address)
-      VALUES($1,$2,$3)
+      (pi_uid,username,wallet_address,profile_picture)
+      VALUES($1,$2,$3,$4)
       ON CONFLICT(pi_uid) DO UPDATE SET
         username=COALESCE(NULLIF(EXCLUDED.username,''),pioneers.username),
         wallet_address=COALESCE(NULLIF(EXCLUDED.wallet_address,''),pioneers.wallet_address),
+        profile_picture=COALESCE(NULLIF(EXCLUDED.profile_picture,''),pioneers.profile_picture),
         updated_at=NOW()
-      RETURNING id,pi_uid,username,wallet_address,created_at,updated_at`,
-    [pi_uid, username || null, wallet_address || null]
+      RETURNING id,pi_uid,username,wallet_address,profile_picture,created_at,updated_at`,
+    [pi_uid, username || null, wallet_address || null, profile_picture || null]
   );
 
   return r.rows[0];
@@ -735,9 +730,11 @@ app.post("/api/auth/verify", requirePiAuth, async (req, res) => {
   res.json({
     ok: true,
     uid: req.piUser.uid,
-    username: req.piUser.username,
+    username: req.piUser.username || req.pioneer.username || null,
     walletAddress: walletSynced ? wallet : null,
     wallet_address: walletSynced ? wallet : null,
+    profilePicture: req.pioneer.profile_picture || null,
+    profile_picture: req.pioneer.profile_picture || null,
     walletSynced,
     needsWalletSync: !walletSynced,
     message: walletSynced
@@ -745,6 +742,58 @@ app.post("/api/auth/verify", requirePiAuth, async (req, res) => {
       : "Pioneer authenticated. Please sync your public Pi Testnet wallet (G...) to use AMT.",
     pioneer: req.pioneer
   });
+});
+
+/* Update profile picture */
+app.post("/api/profile/picture", requirePiAuth, async (req, res) => {
+  try {
+    const picture = String(
+      req.body?.profile_picture ||
+      req.body?.profilePicture ||
+      req.body?.picture ||
+      req.body?.url ||
+      ""
+    ).trim();
+
+    if (!picture) {
+      return res.status(400).json({
+        ok: false,
+        error: "profile_picture (URL or base64) is required."
+      });
+    }
+
+    // Basic validation – accept http(s) URL or data:image base64
+    const isUrl = /^https?:\/\/.+/i.test(picture);
+    const isBase64 = /^data:image\/(png|jpeg|jpg|gif|webp);base64,/i.test(picture);
+
+    if (!isUrl && !isBase64) {
+      return res.status(400).json({
+        ok: false,
+        error: "profile_picture must be a valid image URL or base64 data URI."
+      });
+    }
+
+    const pioneer = await upsertPioneer(
+      req.piUser.uid,
+      req.piUser.username,
+      req.pioneer.wallet_address || req.piUser.wallet_address || null,
+      picture
+    );
+
+    res.json({
+      ok: true,
+      message: "Profile picture saved successfully.",
+      profilePicture: pioneer.profile_picture,
+      profile_picture: pioneer.profile_picture,
+      pioneer
+    });
+  } catch (e) {
+    console.error("profile picture:", e);
+    res.status(400).json({
+      ok: false,
+      error: e.message || "Unable to save profile picture."
+    });
+  }
 });
 
 /* Wallet config */
@@ -923,7 +972,7 @@ app.post("/api/pioneers", async (req, res) => {
 app.get("/api/pioneers/:pi_uid", async (req, res) => {
   try {
     const r = await dbQuery(`SELECT id,pi_uid,username,wallet_address,
-        created_at,updated_at
+        profile_picture,created_at,updated_at
         FROM pioneers WHERE pi_uid=$1 LIMIT 1`,
       [req.params.pi_uid]
     );
