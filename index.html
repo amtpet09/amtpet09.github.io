@@ -1,957 +1,482 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>AMT Pet Marketplace • 70 Pets</title>
-<script src="https://sdk.minepi.com/pi-sdk.js"></script>
-<script>
-  /* Pi SDK must be initialized before authenticate() is called. */
-  window.__PI_READY__ = false;
-  try {
-    if (window.Pi && typeof Pi.init === "function") {
-      Pi.init({ version: "2.0", sandbox: true });
-      window.__PI_READY__ = true;
-      document.addEventListener("DOMContentLoaded", function(){
-        var b=document.getElementById("piLogin");
-        if(b) b.classList.add("show");
-        var s=document.getElementById("piStatus");
-        if(s) s.textContent="Ready — tap LOGIN WITH PI";
-      });
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AMT Pet Marketplace – Login</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(160deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);
+      min-height: 100vh;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
-  } catch (e) {
-    console.error("Pi SDK init failed:", e);
-  }
-</script>
 
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#05030a;--panel:#0c0713;--panel2:#12091c;--line:#3d1959;
-  --purple:#b64cff;--purple2:#7d2bd6;--text:#fff;--muted:#9e91aa;
-  --green:#a9ff65;--gold:#ffd66b;--common:#c9b8d6;
-}
-html{scroll-behavior:smooth}
-body{
-  min-height:100vh;color:var(--text);font-family:Arial,Helvetica,sans-serif;
-  background:
-    radial-gradient(circle at 50% -15%,#35115b 0,#10071a 28%,#05030a 72%),
-    #05030a;
-}
-button,input{font:inherit}button{cursor:pointer}
-button:disabled{cursor:not-allowed;opacity:.55}
-.header{
-  position:sticky;top:0;z-index:40;display:flex;align-items:center;
-  justify-content:space-between;gap:10px;padding:9px 12px;
-  background:rgba(5,3,10,.88);border-bottom:1px solid #472064;
-  backdrop-filter:blur(18px)
-}
-.brand{display:flex;align-items:center;gap:9px;min-width:0}
-.brand-mark{
-  width:42px;height:42px;flex:0 0 42px;border-radius:14px;display:grid;
-  place-items:center;font-size:23px;background:
-  radial-gradient(circle at 35% 25%,#d66cff,#7b22c9 48%,#190a28 100%);
-  border:1px solid #d06cff;box-shadow:0 0 24px #a52dff55
-}
-.brand h1{font-size:18px;line-height:1.05;letter-spacing:.4px;white-space:nowrap}
-.brand p{font-size:10px;color:#bdaac9;margin-top:3px}
-.nav{display:flex;align-items:center;gap:6px}
-.nav button{
-  border:1px solid #6f2da2;background:#10071a;color:#fff;border-radius:11px;
-  padding:8px 10px;font-size:11px;font-weight:900
-}
-.nav button:hover{border-color:#c15cff;background:#241039}
-.balance{
-  display:flex;align-items:center;gap:5px;padding:8px 10px;border-radius:11px;
-  border:1px solid #557a2d;background:#0b1508;color:#cfffad;font-size:11px;font-weight:900
-}
-.wrap{width:min(1180px,100%);margin:auto;padding:12px 10px 50px}
-.hero{
-  position:relative;overflow:hidden;margin-bottom:11px;padding:20px 15px 17px;
-  border:1px solid #5d2388;border-radius:19px;
-  background:
-    radial-gradient(circle at 90% 15%,#7c2ac455 0,transparent 30%),
-    linear-gradient(135deg,#180927,#09040f 65%);
-  box-shadow:0 10px 40px #0008
-}
-.hero:after{
-  content:"";position:absolute;inset:auto -30px -60px auto;width:190px;height:190px;
-  border-radius:50%;background:#b84cff18;filter:blur(8px)
-}
-.hero .eyebrow{font-size:9px;letter-spacing:1.7px;color:#d08aff;font-weight:900}
-.hero h2{font-size:clamp(25px,6vw,44px);line-height:1.02;margin:7px 0}
-.hero p{max-width:690px;color:#c4b5cd;font-size:11px;line-height:1.55}
-.hero-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px}
-.hero-pill{
-  padding:7px 10px;border-radius:999px;border:1px solid #4c2764;
-  background:#0a0610cc;color:#d9cae0;font-size:10px;font-weight:800
-}
-.hero-pill strong{color:#fff}
-.topbar{
-  display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:11px 12px;margin-bottom:9px;border:1px solid #3f1b5b;
-  border-radius:14px;background:rgba(12,7,19,.84)
-}
-.topbar-title{font-size:16px;font-weight:900}
-.topbar-sub{font-size:10px;color:var(--muted);margin-top:3px}
-.status-dot{color:var(--green);font-size:9px;font-weight:900;white-space:nowrap}
-.search{
-  display:flex;align-items:center;gap:8px;margin-bottom:8px;
-  background:#08050d;border:1px solid #3e1a57;border-radius:13px;padding:2px 11px
-}
-.search span{font-size:16px}.search input{
-  width:100%;border:0;outline:0;background:transparent;color:#fff;
-  padding:10px 3px;font-size:13px
-}
-.search input::placeholder{color:#6f6478}
-.filters{
-  display:flex;gap:6px;overflow-x:auto;padding:1px 1px 9px;scrollbar-width:none
-}
-.filters::-webkit-scrollbar{display:none}
-.filter{
-  flex:0 0 auto;border:1px solid #45205e;background:#0d0615;color:#c7b8d0;
-  border-radius:999px;padding:7px 10px;font-size:10px;font-weight:900
-}
-.filter.active,.filter:hover{
-  color:#fff;border-color:#b84dff;background:#32104f;box-shadow:0 0 14px #a238ff30
-}
-.section-head{
-  display:flex;align-items:center;justify-content:space-between;margin:5px 2px 8px
-}
-.section-head h2{font-size:18px}.count{font-size:10px;color:#91839a}
-.grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
-.card{
-  position:relative;overflow:hidden;border:1px solid #3e1957;border-radius:15px;
-  background:linear-gradient(180deg,#14091e,#09050e);
-  transition:transform .18s,border-color .18s,box-shadow .18s
-}
-.card:hover{
-  transform:translateY(-3px);border-color:#ae48f4;box-shadow:0 12px 28px #7c28b82a
-}
-.pet-img-wrap{
-  position:relative;aspect-ratio:5/7;min-height:170px;overflow:hidden;
-  background:
-    radial-gradient(circle at 50% 35%,#4a1b68 0,transparent 55%),#08040d
-}
-.pet-img{
-  width:100%;height:100%;display:block;object-fit:cover;object-position:center;
-  transition:transform .3s
-}
-.card:hover .pet-img{transform:scale(1.025)}
-.pet-shade{
-  position:absolute;inset:auto 0 0;height:38%;
-  background:linear-gradient(transparent,#05030add)
-}
-.badge,.element{
-  position:absolute;top:7px;padding:5px 7px;border-radius:999px;
-  background:#07040ddc;font-size:8px;font-weight:900;backdrop-filter:blur(6px)
-}
-.badge{right:7px;border:1px solid #b88ccf;color:#f1e8f5}
-.element{left:7px;border:1px solid #47758a;color:#d3fbff}
-.common-tag{
-  display:none;position:absolute;left:7px;bottom:7px;padding:4px 7px;border-radius:7px;
-  background:#05030ad9;border:1px solid #9a78a8;color:#eee5f2;font-size:8px;font-weight:900
-}
-.card-body{padding:9px}
-.kicker{font-size:7px;color:#bd6cff;font-weight:900;letter-spacing:1px}
-.card h3{
-  font-size:14px;margin:3px 0 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis
-}
-.card-meta{display:flex;justify-content:space-between;gap:4px;align-items:center;margin-bottom:7px}
-.level{font-size:9px;color:#a89bae}.price{font-size:11px;font-weight:900;color:#dfb0ff;white-space:nowrap}
-.price small{font-size:8px;color:#9984a5;font-weight:700}
-.actions{display:grid;grid-template-columns:1fr 1fr;gap:5px}
-.btn{
-  border:1px solid #65308a;border-radius:9px;padding:7px 4px;background:#11071a;
-  color:#eadff0;font-size:9px;font-weight:900
-}
-.btn.primary{
-  border-color:#b951ff;background:linear-gradient(135deg,#7620d5,#ad36e9);color:#fff
-}
-.btn:hover{filter:brightness(1.13)}
-.empty{
-  display:none;text-align:center;padding:35px 15px;color:#94839f;
-  border:1px dashed #593477;border-radius:14px
-}
-.profile-panel{
-  display:none;margin-bottom:12px;padding:13px;border:1px solid #6423a0;
-  border-radius:15px;background:#10071a
-}
-.profile-panel.show{display:block}
-.profile-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.profile-head-left{display:flex;align-items:center;gap:9px}
-.profile-avatar{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#7d20d9,#d83dff);border:2px solid #c65cff;font-weight:900;color:#fff;overflow:hidden;flex:none}
-.profile-avatar img{width:100%;height:100%;object-fit:cover}
-.feature-modal-box{max-width:520px}
-.feature-modal-content{padding:12px}
-.feature-choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
-.choice{border:1px solid #48205f;border-radius:10px;padding:10px;background:#0b0610;color:#eee;text-align:left;cursor:pointer}
-.choice.selected{border-color:#c050ff;background:#241036;box-shadow:0 0 0 1px #c050ff inset}
-.choice b{display:block;font-size:11px;margin-bottom:3px}
-.choice span{font-size:9px;color:#9d8da7}
-.feature-modal-actions{display:flex;gap:7px;margin-top:10px}
-.feature-modal-actions .btn{flex:1}
-.timer{font-size:25px;font-weight:900;text-align:center;margin:10px 0;color:#dca2ff}
-.sell-price{width:100%;margin-top:8px}
+    .card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 24px;
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+      text-align: center;
+    }
 
-.profile-head h2{font-size:18px}
-.profile-note{font-size:10px;color:#91829c;line-height:1.45;margin-top:5px}
-.profile-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:10px}
-.profile-box{
-  border:1px solid #3f1a5f;border-radius:11px;padding:10px;background:#0c0612;
-  font-size:10px;color:#96869f
-}
-.profile-box b{display:block;font-size:15px;color:#dca8ff;margin-top:4px}
-.progress-box{
-  margin-top:9px;padding:10px;border:1px solid #412058;border-radius:11px;background:#0b0611
-}
-.progress-top{display:flex;justify-content:space-between;gap:8px;font-size:9px;color:#b5a5bd}
-.progress-bar{height:7px;background:#21132b;border-radius:99px;overflow:hidden;margin-top:7px}
-.progress-fill{height:100%;width:0;background:linear-gradient(90deg,#7e2bdd,#c94dff);border-radius:99px}
-.roadmap{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
-.roadmap span{
-  border:1px solid #3d2648;border-radius:999px;padding:5px 7px;font-size:8px;color:#9c8da4
-}
-.roadmap span.current{border-color:#b34dff;color:#fff;background:#32104d}
-.profile-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
-.feature-nav{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:9px}
-.feature-btn{border:1px solid #542276;background:#0d0615;color:#e8dff0;border-radius:10px;padding:9px 5px;font-size:9px;font-weight:900}
-.feature-btn.active,.feature-btn:hover{border-color:#b84dff;background:#2a1040;color:#fff}
-.feature-panel{display:none;margin-top:8px;padding:10px;border:1px solid #3e1a57;border-radius:11px;background:#09050e}
-.feature-panel.show{display:block}
-.feature-panel h3{font-size:13px;margin-bottom:4px}
-.feature-panel p{font-size:9px;line-height:1.45;color:#9d8eaa}
-.feature-list{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:7px}
-.feature-item{padding:8px;border:1px solid #321542;border-radius:9px;background:#0d0614}
-.feature-item b{display:block;color:#dca8ff;font-size:10px;margin-bottom:3px}
-.feature-item span{font-size:8px;color:#93849d}
-.feature-empty{padding:12px;text-align:center;border:1px dashed #4a2a61;border-radius:9px;color:#8f8198;font-size:9px;margin-top:7px}
+    .logo {
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 0.25rem;
+      background: linear-gradient(90deg, #a78bfa, #38bdf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
 
-.modal{
-  position:fixed;inset:0;z-index:100;display:none;align-items:flex-end;justify-content:center;
-  padding:8px;background:#000c;backdrop-filter:blur(8px)
-}
-.modal.show{display:flex}
-.modal-box{
-  width:min(760px,100%);max-height:94vh;overflow:auto;border:1px solid #a148e7;
-  border-radius:20px 20px 10px 10px;background:linear-gradient(145deg,#170a22,#08040e);
-  box-shadow:0 -8px 55px #8d32ff44
-}
-.modal-top{
-  display:flex;justify-content:space-between;align-items:center;padding:11px 13px;
-  border-bottom:1px solid #321545;position:sticky;top:0;background:#110719ed;
-  backdrop-filter:blur(9px);z-index:2
-}
-.modal-top strong{font-size:13px}
-.close{border:1px solid #5e2787;background:#160a21;color:#fff;border-radius:8px;padding:5px 9px}
-.modal-content{display:grid;grid-template-columns:220px 1fr;gap:15px;padding:14px}
-.modal-img{
-  width:100%;aspect-ratio:5/7;height:auto;object-fit:cover;object-position:center;
-  border-radius:15px;border:1px solid #7126bc;background:#08040d
-}
-.modal-content h2{font-size:27px;margin:4px 0}
-.modal-meta{color:#a996b3;font-size:11px;line-height:1.5;margin-bottom:9px}
-.big-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:8px 0}
-.big-stat{
-  padding:8px 5px;border:1px solid #301442;border-radius:9px;background:#0d0614;text-align:center
-}
-.big-stat span{display:block;color:#8f7f99;font-size:9px}
-.big-stat b{font-size:14px;color:#d9b0ff}
-.xp-panel{padding:9px;border:1px solid #412058;border-radius:10px;background:#0d0614;margin:8px 0}
-.xp-row{display:flex;justify-content:space-between;font-size:9px;color:#aa9bae}
-.ability{
-  padding:9px;border:1px solid #4c1c76;border-radius:10px;background:#130820;
-  margin:9px 0;font-size:10px;line-height:1.4
-}
-.ability b{color:#bd73ff}
-.care{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:8px 0}
-.care-box{
-  border:1px solid #3b1c50;border-radius:9px;padding:7px;text-align:center;
-  background:#0d0614;font-size:9px;color:#97889e
-}
-.care-box b{display:block;color:#baff82;font-size:12px;margin-top:3px}
-.modal-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:9px}
-.notice{font-size:9px;color:#81728a;margin-top:8px;line-height:1.4}
-@media(max-width:980px){.grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
-@media(max-width:720px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:560px){
-  .header{padding:7px}.brand-mark{width:36px;height:36px;flex-basis:36px;font-size:19px}
-  .brand h1{font-size:16px}.brand p{font-size:9px}.nav button{padding:7px 8px;font-size:10px}
-  .balance{font-size:9px;padding:7px 8px}.wrap{padding:8px 7px 35px}
-  .hero{padding:17px 13px}.hero h2{font-size:28px}
-  .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
-  .pet-img-wrap{min-height:0;aspect-ratio:5/6}.card-body{padding:7px}.card h3{font-size:12px}
-  .btn{font-size:9px;padding:6px 3px}.profile-grid{grid-template-columns:1fr 1fr}
-  .modal{padding:0}.modal-box{border-radius:18px 18px 0 0}
-  .modal-content{grid-template-columns:120px 1fr;gap:10px;padding:11px}
-  .modal-content h2{font-size:20px}.big-stats{grid-template-columns:repeat(2,1fr)}
-}
-@media(max-width:360px){
-  .nav button{display:none}.balance{display:none}
-  .card h3{font-size:11px}.card-meta{display:block}.price{display:block;margin-top:3px}
-}
+    .subtitle {
+      font-size: 0.95rem;
+      color: #94a3b8;
+      margin-bottom: 2rem;
+    }
 
-/* Pi authentication splash / loading gate */
-#piGate{
-  position:fixed;inset:0;z-index:9999;display:grid;place-items:center;
-  padding:22px;background:
-    radial-gradient(circle at 50% 20%,#5b1aa0 0,transparent 34%),
-    linear-gradient(160deg,#08020e,#020106 72%);
-  transition:opacity .35s ease,visibility .35s ease;
-}
-#piGate.hide{opacity:0;visibility:hidden;pointer-events:none}
-.pi-gate-card{
-  width:min(390px,92vw);text-align:center;padding:28px 20px 22px;
-  border:1px solid #7432a8;border-radius:24px;
-  background:linear-gradient(155deg,#180927,#09040f);
-  box-shadow:0 18px 70px #000b,0 0 45px #9d3cff25;
-}
-.pi-logo{
-  width:72px;height:72px;margin:0 auto 13px;border-radius:22px;
-  display:grid;place-items:center;font-size:38px;
-  background:radial-gradient(circle at 35% 25%,#d66cff,#7b22c9 50%,#190a28);
-  border:1px solid #d06cff;box-shadow:0 0 30px #a52dff66;
-}
-.pi-gate-card h1{font-size:25px;letter-spacing:.3px}
-.pi-gate-card .sub{font-size:11px;color:#b8a6c3;margin-top:6px}
-.pi-loader{
-  width:42px;height:42px;margin:19px auto 12px;border-radius:50%;
-  border:3px solid #3a194f;border-top-color:#c45bff;
-  animation:piSpin .8s linear infinite;
-}
-@keyframes piSpin{to{transform:rotate(360deg)}}
-.pi-status{font-size:11px;color:#d9cce0;min-height:16px}
-.pi-login{
-  display:none;width:100%;margin-top:16px;padding:12px 14px;border:0;
-  border-radius:12px;background:linear-gradient(135deg,#7421db,#b238f4);
-  color:#fff;font-weight:900;font-size:13px;box-shadow:0 8px 24px #8e32d94a;
-}
-.pi-login.show{display:block}
-.pi-small{font-size:8px;color:#776b81;margin-top:12px;line-height:1.4}
-body.app-locked>header,body.app-locked>main,body.app-locked>.modal{visibility:hidden}
+    .avatar-wrap {
+      position: relative;
+      width: 110px;
+      height: 110px;
+      margin: 0 auto 1.5rem;
+    }
 
-</style>
+    .avatar {
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid #6366f1;
+      background: #1e293b;
+      display: block;
+    }
+
+    .avatar-placeholder {
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      background: #1e293b;
+      border: 3px dashed #475569;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      color: #64748b;
+    }
+
+    .avatar-btn {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      background: #6366f1;
+      color: white;
+      border: none;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+
+    .avatar-btn:hover { background: #4f46e5; }
+
+    input[type="file"] { display: none; }
+
+    .info {
+      background: rgba(30, 41, 59, 0.6);
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+      margin-bottom: 1.25rem;
+      font-size: 0.9rem;
+      text-align: left;
+    }
+
+    .info strong { color: #a5b4fc; }
+
+    .btn {
+      width: 100%;
+      padding: 0.95rem 1.25rem;
+      border: none;
+      border-radius: 14px;
+      font-size: 1.05rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 0.75rem;
+    }
+
+    .btn-primary {
+      background: linear-gradient(90deg, #6366f1, #8b5cf6);
+      color: white;
+    }
+    .btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid #475569;
+      color: #cbd5e1;
+    }
+    .btn-secondary:hover { background: rgba(71, 85, 105, 0.3); }
+
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.92);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .loading-overlay.active { display: flex; }
+
+    .spinner {
+      width: 56px;
+      height: 56px;
+      border: 4px solid #334155;
+      border-top-color: #8b5cf6;
+      border-radius: 50%;
+      animation: spin 0.85s linear infinite;
+      margin-bottom: 1.25rem;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text {
+      font-size: 1.15rem;
+      color: #e2e8f0;
+      font-weight: 500;
+    }
+
+    .hidden { display: none !important; }
+
+    .marketplace {
+      display: none;
+      width: 100%;
+      max-width: 900px;
+      padding: 1.5rem;
+    }
+
+    .marketplace.active { display: block; }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      background: rgba(15, 23, 42, 0.7);
+      padding: 0.85rem 1.25rem;
+      border-radius: 16px;
+    }
+
+    .topbar img {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid #6366f1;
+    }
+
+    .topbar .name { font-weight: 600; font-size: 1.1rem; }
+    .topbar .meta { font-size: 0.85rem; color: #94a3b8; }
+
+    .pets-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 1rem;
+    }
+
+    .pet-card {
+      background: rgba(30, 41, 59, 0.7);
+      border-radius: 14px;
+      padding: 1rem;
+      text-align: center;
+      border: 1px solid rgba(148, 163, 184, 0.15);
+    }
+
+    .pet-card img {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+      margin-bottom: 0.5rem;
+    }
+
+    .pet-card h3 { font-size: 0.95rem; margin-bottom: 0.25rem; }
+    .pet-card .price { color: #a78bfa; font-weight: 600; font-size: 0.9rem; }
+
+    .error {
+      background: rgba(239, 68, 68, 0.15);
+      color: #fca5a5;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+      display: none;
+    }
+    .error.show { display: block; }
+  </style>
 </head>
+<body>
 
-<body class="app-locked">
+  <!-- LOGIN SCREEN -->
+  <div class="card" id="loginScreen">
+    <div class="logo">AMT Pets</div>
+    <div class="subtitle">Pet Marketplace on Pi Testnet</div>
 
-<div id="piGate">
-  <div class="pi-gate-card">
-    <div class="pi-logo">🐾</div>
-    <h1>AMT PETS</h1>
-    <div class="sub">Marketplace • Battle • Collect</div>
-    <div class="pi-loader" id="piLoader"></div>
-    <div class="pi-status" id="piStatus">Ready — tap LOGIN WITH PI</div>
-    <button class="pi-login" id="piLogin" type="button">🔐 LOGIN WITH PI</button>
-    <div class="pi-small">Secure Pioneer authentication. Your Pi access token is sent to the AMT backend for verification.</div>
-  </div>
-</div>
-
-<header class="header">
-  <div class="brand">
-    <div class="brand-mark">🐾</div>
-    <div><h1>AMT PETS</h1><p>Marketplace • Battle • Collect</p></div>
-  </div>
-  <div class="nav">
-    <div class="balance" id="amtBalance">🪙 — AMT</div>
-    <button onclick="toggleProfile()">👤 Profile</button>
-  </div>
-</header>
-
-<main class="wrap">
-
-  <section class="hero">
-    <div class="eyebrow">ALBERTO • AMT PET WORLD</div>
-    <h2>Raise Your Own Legend.</h2>
-    <p>Every starter pet begins as <b>Common • Level 1</b>. The Pioneer who owns the pet earns its growth through care, training and battle progression.</p>
-    <div class="hero-row">
-      <span class="hero-pill">🐾 <strong>70</strong> Starter Pets</span>
-      <span class="hero-pill">⭐ <strong>Common</strong> Start</span>
-      <span class="hero-pill">📈 <strong>Pioneer</strong> Progression</span>
-      <span class="hero-pill">🪙 <strong>AMT</strong> Economy</span>
+    <div class="avatar-wrap">
+      <div class="avatar-placeholder" id="avatarPlaceholder">👤</div>
+      <img class="avatar hidden" id="avatarPreview" alt="Profile" />
+      <button class="avatar-btn" id="avatarBtn" title="Choose profile picture">📷</button>
+      <input type="file" id="avatarInput" accept="image/*" />
     </div>
-  </section>
-  <div class="topbar">
-    <div>
-      <div class="topbar-title">🐾 70 Common Starter Pets</div>
-      <div class="topbar-sub">Choose a Common pet and build its story.</div>
+
+    <div class="info">
+      <div><strong>Price:</strong> 20 AMT per pet</div>
+      <div style="margin-top:4px"><strong>Network:</strong> Pi Testnet</div>
     </div>
-    <div class="status-dot">● TESTNET</div>
+
+    <div class="error" id="errorBox"></div>
+
+    <button class="btn btn-primary" id="loginBtn">
+      Login with Pi
+    </button>
+
+    <p style="font-size:0.8rem;color:#64748b;margin-top:0.5rem">
+      After login, you can sync your wallet & enter the marketplace
+    </p>
   </div>
 
-  <div class="feature-shortcuts" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:9px">
-    <button class="feature-btn" onclick="toggleProfile();openFeature('myPets')">🐾 My Pets</button>
-    <button class="feature-btn" onclick="toggleProfile();openFeature('breeding')">🧬 Breeding</button>
-    <button class="feature-btn" onclick="toggleProfile();openFeature('incubator')">🥚 Incubator</button>
-    <button class="feature-btn" onclick="toggleProfile();openFeature('sell')">🏪 Public Sell</button>
+  <!-- LOADING -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loadingText">Logging in...</div>
   </div>
 
-  <section id="profilePanel" class="profile-panel">
-    <div class="profile-head">
-      <div class="profile-head-left"><div class="profile-avatar" id="profileAvatar">🐾</div><div><h2>👤 Pioneer Profile</h2><button class="btn" type="button" style="margin-top:5px" onclick="chooseProfilePhoto()">📷 Profile Picture</button><input id="profilePhotoInput" type="file" accept="image/*" style="display:none"></div></div>
-      <button class="btn" onclick="toggleProfile()">Close</button>
-    </div>
-    <p class="profile-note">Your Pioneer identity comes from the existing Pi login. Pets start Common and Level 1; your own progression determines their future rarity.</p>
-    <div class="profile-grid">
-      <div class="profile-box">Pioneer<b id="walletValue">Not connected</b></div>
-      <div class="profile-box">🪙 AMT Balance<b id="profileAmt">—</b></div>
-      <div class="profile-box">🐾 My Pets<b id="petOwned">0</b></div>
-      <div class="profile-box">⚔️ Battles<b>0</b></div>
-    </div>
-    <div class="progress-box">
-      <div class="progress-top"><span>Starter progression</span><b>Common → Rare → Epic → Legendary → Mythic</b></div>
-      <div class="progress-bar"><div class="progress-fill" style="width:12%"></div></div>
-      <div class="roadmap">
-        <span class="current">Common • Lv.1</span><span>Rare</span><span>Epic</span><span>Legendary</span><span>Mythic</span>
-      </div>
-    </div>
-    <div class="feature-nav">
-      <button class="feature-btn active" data-feature="myPets">🐾 My Pets</button>
-      <button class="feature-btn" data-feature="breeding">🧬 Breeding</button>
-      <button class="feature-btn" data-feature="incubator">🥚 Egg Incubator</button>
-      <button class="feature-btn" data-feature="sell">🏪 Public Sell</button>
-    </div>
-
-    <div id="myPets" class="feature-panel show">
-      <h3>🐾 My Pets</h3>
-      <p>Your purchased/minted pets belong to your Pioneer profile. All new pets start <b>Common • Level 1</b>.</p>
-      <div id="myPetsList" class="feature-list">
-        <div class="feature-empty" style="grid-column:1/-1">Login with Pi to load your owned pets.</div>
-      </div>
-    </div>
-
-    <div id="breeding" class="feature-panel">
-      <h3>🧬 Pet Breeding</h3>
-      <p>Select two eligible owned pets to prepare a breeding pair. Breeding rules can be connected to the backend without changing the 70-pet starter catalog.</p>
-      <div class="feature-list">
-        <div class="feature-item"><b>Parent A</b><span>Select from My Pets</span></div>
-        <div class="feature-item"><b>Parent B</b><span>Select from My Pets</span></div>
-      </div>
-      <button class="btn primary" style="margin-top:7px;width:100%" onclick="openBreeding()">🧬 Choose Parents</button>
-    </div>
-
-    <div id="incubator" class="feature-panel">
-      <h3>🥚 Egg Incubator</h3>
-      <p>Eggs will hatch through an incubation timer. This panel keeps the feature visible now and is ready for the real egg/hatching backend.</p>
-      <div class="feature-list">
-        <div class="feature-item"><b>🥚 Empty Slot</b><span>No egg incubating</span></div>
-        <div class="feature-item"><b>⏱️ Hatch Timer</b><span>Waiting for an egg</span></div>
-      </div>
-      <button class="btn primary" style="margin-top:7px;width:100%" onclick="openIncubator()">🥚 Open Incubator</button>
-    </div>
-
-    <div id="sell" class="feature-panel">
-      <h3>🏪 Public Sell</h3>
-      <p>List a Pioneer-owned pet for public sale. The marketplace will only sell pets that are actually owned by the logged-in Pioneer.</p>
-      <div id="sellList" class="feature-list">
-        <div class="feature-empty" style="grid-column:1/-1">Login with Pi to load pets eligible for public sale.</div>
-      </div>
-      <button class="btn primary" style="margin-top:7px;width:100%" onclick="openPublicSell()">🏪 Create Public Listing</button>
-    </div>
-
-    <div class="profile-actions">
-      <button class="btn primary" onclick="alert('Battle module remains available for the Pioneer pet progression system.')">⚔️ Pet Battle</button>
-    </div>
-  </section>
-
-  <div class="search"><span>🔎</span><input id="searchInput" type="search" placeholder="Search pets..."></div>
-
-  <div class="filters" id="filters">
-    <button class="filter active" data-element="All">✨ All</button>
-    <button class="filter" data-element="Fire">🔥 Fire</button>
-    <button class="filter" data-element="Thunder">⚡ Thunder</button>
-    <button class="filter" data-element="Wind">🌪️ Wind</button>
-    <button class="filter" data-element="Water">💧 Water</button>
-    <button class="filter" data-element="Nature">🌿 Nature</button>
-    <button class="filter" data-element="Ice">❄️ Ice</button>
-    <button class="filter" data-element="Earth">🪨 Earth</button>
-  </div>
-
-  <div class="section-head">
-    <h2>Pets</h2><span class="count" id="count">0 pets</span>
-  </div>
-
-  <section class="grid" id="petGrid"></section>
-  <div class="empty" id="empty">No pets found. Try another search or element.</div>
-</main>
-
-
-<div class="modal" id="featureModal">
-  <div class="modal-box feature-modal-box">
-    <div class="modal-top">
-      <strong id="featureModalTitle">AMT PETS</strong>
-      <button class="close" onclick="closeFeatureModal()">✕</button>
-    </div>
-    <div class="feature-modal-content" id="featureModalContent"></div>
-  </div>
-</div>
-
-<div class="modal" id="petModal">
-  <div class="modal-box">
-    <div class="modal-top">
-      <strong>🐾 Pet Details</strong>
-      <button class="close" onclick="closeModal()">✕</button>
-    </div>
-    <div class="modal-content">
-      <img class="modal-img" id="modalImg" alt="">
+  <!-- MARKETPLACE (simple demo) -->
+  <div class="marketplace" id="marketplace">
+    <div class="topbar">
+      <img id="userAvatar" src="" alt="" />
       <div>
-        <div class="kicker">AMT PETS • COMMON START</div>
-        <h2 id="modalName"></h2>
-        <div class="modal-meta" id="modalMeta"></div>
-        <div class="big-stats" id="modalStats"></div>
-        <div class="xp-panel">
-          <div class="xp-row"><span>Level 1 • Common Starter</span><b id="modalXp">0 / 100 XP</b></div>
-          <div class="progress-bar"><div class="progress-fill" id="modalXpBar"></div></div>
-        </div>
-        <div class="ability"><b>✨ Ability</b><br><span id="modalAbility"></span></div>
-        <div class="care">
-          <div class="care-box">🍖 Hunger<b>100%</b></div>
-          <div class="care-box">😊 Happy<b>100%</b></div>
-          <div class="care-box">⚡ Energy<b>100%</b></div>
-        </div>
-        <div class="modal-actions">
-          <button class="btn" onclick="alert('Feed will update the pet care state through the backend.')">🍖 Feed</button>
-          <button class="btn" onclick="alert('Care will update the pet care state through the backend.')">❤️ Care</button>
-          <button class="btn primary" id="modalBuy">Buy</button>
-        </div>
-        <p class="notice">The Buy button preserves the existing <code>marketplace.js</code> payment flow. AMT settlement should be verified by the backend before changing ownership or rewards.</p>
+        <div class="name" id="userName">Pioneer</div>
+        <div class="meta" id="userMeta">Loading...</div>
       </div>
+    </div>
+
+    <h2 style="margin-bottom:1rem;font-size:1.3rem">Pet Marketplace</h2>
+    <div class="pets-grid" id="petsGrid">
+      <!-- pets will be loaded here -->
     </div>
   </div>
-</div>
 
-<script>
-/* 70-pet starter catalog. Every pet is intentionally Common / Level 1. Pioneer progression comes later. */
-const pets = [
-  ["earth-01","Terrax","Earth","terrax.png",120,20,22],["earth-02","Rockhorn","Earth","rockhorn.png",125,19,24],["earth-03","Stonefist","Earth","stonefist.png",130,22,25],["earth-04","Earthdrake","Earth","earthdrake.png",128,23,23],["earth-05","Boulderlynx","Earth","boulderlynx.png",118,24,20],["earth-06","Terrapin","Earth","terrapin.png",140,16,28],["earth-07","Gravelpaw","Earth","gravelpaw.png",115,21,21],["earth-08","Pebblix","Earth","pebblix.png",110,18,20],["earth-09","Mountainhoof","Earth","mountainhoof.png",145,18,30],["earth-10","Terroscale","Earth","terroscale.png",135,25,24],
-  ["water-01","Aqualis","Water","aqualis.png",110,23,18],["water-02","Tideback","Water","tideback.png",135,18,27],["water-03","Oceanix","Water","oceanix.png",125,24,20],["water-04","Neptunox","Water","neptunox.png",130,27,21],["water-05","Jellyfin","Water","jellyfin.png",105,19,19],["water-06","Sharky","Water","sharky.png",120,29,17],["water-07","Seapony","Water","seapony.png",115,22,21],["water-08","Krakenling","Water","krakenling.png",140,26,23],["water-09","Riptide","Water","riptide.png",118,30,18],["water-10","Abyssal","Water","abyssal.png",145,28,25],
-  ["nature-01","Leaflyn","Nature","leaflyn.png",115,20,22],["nature-02","Treetle","Nature","treetle.png",130,18,27],["nature-03","Sylvann","Nature","sylvann.png",120,25,20],["nature-04","Verdira","Nature","verdira.png",118,23,23],["nature-05","Bloomtail","Nature","bloomtail.png",112,21,22],["nature-06","Groveon","Nature","groveon.png",128,22,25],["nature-07","Nutty","Nature","nutty.png",108,19,20],["nature-08","Flora","Nature","flora.png",110,26,19],["nature-09","Forestfang","Nature","forestfang.png",125,28,21],["nature-10","Everbloom","Nature","everbloom.png",138,25,26],
-  ["ice-01","Frostbite","Ice","frostbite.png",115,24,21],["ice-02","Glaciard","Ice","glaciard.png",130,20,27],["ice-03","Snowwing","Ice","snowwing.png",108,27,18],["ice-04","Frostdrake","Ice","frostdrake.png",135,28,24],["ice-05","Chillpengu","Ice","chillpengu.png",105,19,20],["ice-06","Frostwolf","Ice","frostwolf.png",125,30,21],["ice-07","Icetusk","Ice","icetusk.png",142,22,29],["ice-08","Frostseal","Ice","frostseal.png",120,21,25],["ice-09","Glacieron","Ice","glacieron.png",132,26,26],["ice-10","Frostbear","Ice","frostbear.png",150,24,31],
-  ["fire-01","Flammy","Fire","flammy.png",108,27,17],["fire-02","Pyroclaw","Fire","pyroclaw.png",115,30,18],["fire-03","Blazewing","Fire","blazewing.png",110,32,17],["fire-04","Infernox","Fire","infernox.png",128,31,21],["fire-05","Phoenixia","Fire","phoenixia.png",125,34,20],["fire-06","Magmortar","Fire","magmortar.png",145,28,28],["fire-07","Salamorra","Fire","salamorra.png",130,33,23],["fire-08","Emberhorn","Fire","emberhorn.png",120,29,22],["fire-09","Flamefang","Fire","flamefang.png",118,35,19],["fire-10","Pyromite","Fire","pyromite.png",135,32,25],
-  ["wind-01","Zephyrin","Wind","zephyrin.png",105,25,18],["wind-02","Skyflare","Wind","skyflare.png",110,29,17],["wind-03","Windrake","Wind","windrake.png",125,30,21],["wind-04","Aerolith","Wind","aerolith.png",115,26,22],["wind-05","Skywhisp","Wind","skywhisp.png",100,24,16],["wind-06","Stormtalon","Wind","stormtalon.png",120,34,19],["wind-07","Cloudstride","Wind","cloudstride.png",112,28,20],["wind-08","Breezeling","Wind","breezeling.png",102,23,18],["wind-09","Tornadope","Wind","tornadope.png",118,33,18],["wind-10","Zephyria","Wind","zephyria.png",130,31,23],
-  ["thunder-01","Voltix","Thunder","voltix.png",110,30,18],["thunder-02","Zephron","Thunder","zephron.png",115,28,19],["thunder-03","Stormee","Thunder","stormee.png",108,32,17],["thunder-04","Thunderdrake","Thunder","thunderdrake.png",130,35,23],["thunder-05","Sparkster","Thunder","sparkster.png",105,29,18],["thunder-06","Raihorn","Thunder","raihorn.png",140,27,30],["thunder-07","Voltlynx","Thunder","voltlynx.png",118,34,20],["thunder-08","Electrix","Thunder","electrix.png",112,31,19],["thunder-09","Skyshock","Thunder","skyshock.png",120,36,18],["thunder-10","Thunderix","Thunder","thunderix.png",135,38,24]
-].map((x,i)=>({code:x[0],name:x[1],element:x[2],file:x[3],rarity:"Common",level:1,hp:x[4],attack:x[5],defense:x[6],speed:100+(i%10)*5,ability:"Elemental Bond",rep:80,price:10,amt:100,desc:"A Common starter pet from the AMT Pet World."}));
+  <script>
+    // ========== CONFIG ==========
+    // Palitan mo ito ng actual backend URL mo (Render / local)
+    const API_BASE = "https://your-backend.onrender.com";   // <-- PALITAN
 
-let activeElement="All", currentPet=null;
+    // ========== STATE ==========
+    let accessToken = null;
+    let pioneer = null;
+    let profilePictureData = null; // base64 or url
 
-function elementIcon(e){
-  return {Wind:"🌪️",Fire:"🔥",Earth:"🪨",Water:"💧",Nature:"🌿",Ice:"❄️",Thunder:"⚡"}[e]||"✨";
-}
+    // ========== ELEMENTS ==========
+    const loginScreen = document.getElementById("loginScreen");
+    const loadingOverlay = document.getElementById("loadingOverlay");
+    const loadingText = document.getElementById("loadingText");
+    const marketplace = document.getElementById("marketplace");
+    const errorBox = document.getElementById("errorBox");
+    const avatarInput = document.getElementById("avatarInput");
+    const avatarPreview = document.getElementById("avatarPreview");
+    const avatarPlaceholder = document.getElementById("avatarPlaceholder");
+    const loginBtn = document.getElementById("loginBtn");
 
-function card(p,index){
-  return `<article class="card" onclick="openModal(${index})" data-name="${p.name.toLowerCase()}" data-element="${p.element}">
-    <div class="pet-img-wrap">
-      <img class="pet-img" src="${p.file}" alt="${p.name}" loading="lazy"
-        onclick="event.stopPropagation();openModal(${index})"
-        onerror="this.parentElement.innerHTML='<div style=&quot;height:100%;display:grid;place-items:center;color:#8e789d;padding:12px;text-align:center;font-size:10px&quot;>Image not found<br>${p.file}</div>'">
-      <span class="element">${elementIcon(p.element)} ${p.element}</span>
-      <span class="badge">${p.rarity}</span>
-    </div>
-    <div class="card-body">
-      <div class="kicker">PET #${String(index+1).padStart(3,"0")}</div>
-      <h3>${p.name}</h3>
-      <div class="card-meta"><span class="level">Lv. ${p.level} • ${p.rarity}</span><span class="price">${p.amt.toLocaleString()} AMT <small>• ${p.price} Pi</small></span></div>
-      <div class="actions">
-        <button class="btn" onclick="event.stopPropagation();openModal(${index})">Details</button>
-        <button class="btn primary buy-btn" data-pet-index="${index}" data-price-pi="${p.price}" data-price-amt="${p.amt}" onclick="event.stopPropagation();buyPet(${index})">Buy</button>
-      </div>
-    </div>
-  </article>`;
-}
+    // ========== HELPERS ==========
+    function showError(msg) {
+      errorBox.textContent = msg;
+      errorBox.classList.add("show");
+    }
+    function hideError() {
+      errorBox.classList.remove("show");
+    }
 
+    function showLoading(text = "Loading...") {
+      loadingText.textContent = text;
+      loadingOverlay.classList.add("active");
+    }
+    function hideLoading() {
+      loadingOverlay.classList.remove("active");
+    }
 
-/* --------------------------------------------------------------------------
-   PI LOGIN GATE
-   Marketplace stays locked until Pi authentication succeeds.
---------------------------------------------------------------------------- */
-const PI_API_BASE = "https://amtpet09-github-io.onrender.com";
-const piGate = document.getElementById("piGate");
-const piStatus = document.getElementById("piStatus");
-const piLogin = document.getElementById("piLogin");
-const piLoader = document.getElementById("piLoader");
-
-function setPiStatus(message, showButton=false){
-  if(piStatus) piStatus.textContent=message;
-  if(piLoader) piLoader.style.display=showButton?"none":"block";
-  if(piLogin) piLogin.classList.toggle("show",showButton);
-}
-
-function enterMarketplace(){
-  document.body.classList.remove("app-locked");
-  setTimeout(()=>piGate && piGate.classList.add("hide"),50);
-  refreshBalance();
-  loadMyPets();
-}
-
-async function verifyPiSession(auth){
-  const token=auth?.accessToken || auth?.access_token || "";
-  const user=auth?.user || {};
-  if(!token) throw new Error("Pi access token was not returned.");
-
-  localStorage.setItem("piToken",token);
-  localStorage.setItem("pi_uid",user.uid || "");
-  localStorage.setItem("piUserId",user.uid || "");
-  localStorage.setItem("piUser",user.username || "");
-
-  const controller=new AbortController();
-  const timeout=setTimeout(()=>controller.abort(),15000);
-  let r;
-  try{
-    r=await fetch(PI_API_BASE+"/api/auth/verify",{
-      method:"POST",
-      headers:{
-        "Content-Type":"application/json",
-        "Authorization":"Bearer "+token
-      },
-      signal:controller.signal
+    // ========== PROFILE PICTURE ==========
+    document.getElementById("avatarBtn").addEventListener("click", () => {
+      avatarInput.click();
     });
-  }catch(err){
-    if(err.name==="AbortError") throw new Error("AMT backend took too long to respond. Please try LOGIN WITH PI again.");
-    throw new Error("Could not reach the AMT backend. Please try again.");
-  }finally{
-    clearTimeout(timeout);
-  }
-  const d=await r.json().catch(()=>({}));
-  if(!r.ok || !d.ok) throw new Error(d.error || "AMT backend could not verify Pi login.");
 
-  const uid=d.uid || user.uid || "";
-  const username=d.username || user.username || "";
-  const wallet=d.walletAddress || d.wallet_address || "";
+    avatarInput.addEventListener("change", (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
 
-  if(uid) {
-    localStorage.setItem("pi_uid",uid);
-    localStorage.setItem("piUserId",uid);
-  }
-  if(username) localStorage.setItem("piUser",username);
-  if(wallet) {
-    localStorage.setItem("piWalletAddress",wallet);
-    localStorage.setItem("walletAddress",wallet);
-  }
+      if (file.size > 2 * 1024 * 1024) {
+        showError("Image too large (max 2MB)");
+        return;
+      }
 
-  return d;
-}
+      const reader = new FileReader();
+      reader.onload = () => {
+        profilePictureData = reader.result; // data:image/...;base64,...
+        avatarPreview.src = profilePictureData;
+        avatarPreview.classList.remove("hidden");
+        avatarPlaceholder.classList.add("hidden");
+      };
+      reader.readAsDataURL(file);
+    });
 
-async function startPiLogin(){
-  const loginButton=document.getElementById("piLogin");
-  if(loginButton) loginButton.classList.add("show");
-  try{
-    if(!window.Pi || typeof Pi.init!=="function" || typeof Pi.authenticate!=="function"){
-      throw new Error("Pi SDK is not available. Please open AMT Pets inside Pi Browser.");
+    // ========== LOGIN FLOW ==========
+    loginBtn.addEventListener("click", async () => {
+      hideError();
+      showLoading("Connecting to Pi Network...");
+
+      try {
+        // -------------------------------------------------
+        // DITO MO I-CONNECT ANG ACTUAL PI SDK
+        // Halimbawa:
+        // const authResult = await window.Pi.authenticate([...scopes], onIncompletePaymentFound);
+        // accessToken = authResult.accessToken;
+        // -------------------------------------------------
+
+        // TEMPORARY DEMO (tanggalin mo ito kapag may real Pi SDK na)
+        // Simulan mo muna ng dummy token para testing
+        await new Promise(r => setTimeout(r, 1200)); // simulate delay
+
+        // Kapag may real Pi SDK na, gamitin mo ang accessToken mula sa Pi
+        // accessToken = authResult.accessToken;
+
+        // Para sa demo, huwag muna i-call ang backend kung wala pang real token.
+        // Kapag ready na ang Pi SDK, i-uncomment ang code sa baba.
+
+        /*
+        showLoading("Verifying Pioneer...");
+
+        const res = await fetch(API_BASE + "/api/auth/verify", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + accessToken
+          },
+          body: JSON.stringify({ accessToken })
+        });
+
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Authentication failed");
+
+        pioneer = data.pioneer;
+
+        // Save profile picture if selected
+        if (profilePictureData) {
+          showLoading("Saving profile picture...");
+          await fetch(API_BASE + "/api/profile/picture", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer " + accessToken
+            },
+            body: JSON.stringify({ profile_picture: profilePictureData })
+          });
+        }
+
+        // Enter marketplace
+        showLoading("Entering AMT Pet Marketplace...");
+        await new Promise(r => setTimeout(r, 800));
+
+        enterMarketplace(data);
+        */
+
+        // DEMO ONLY – tanggalin kapag may real Pi login na
+        showLoading("Entering AMT Pet Marketplace...");
+        await new Promise(r => setTimeout(r, 1000));
+        enterMarketplace({
+          username: "DemoPioneer",
+          profilePicture: profilePictureData,
+          walletSynced: false,
+          needsWalletSync: true
+        });
+
+      } catch (err) {
+        hideLoading();
+        showError(err.message || "Login failed");
+      }
+    });
+
+    function enterMarketplace(data) {
+      hideLoading();
+      loginScreen.classList.add("hidden");
+      marketplace.classList.add("active");
+
+      // Top bar
+      const name = data.username || data.pioneer?.username || "Pioneer";
+      document.getElementById("userName").textContent = name;
+
+      const pic = data.profilePicture || data.profile_picture || profilePictureData;
+      if (pic) {
+        document.getElementById("userAvatar").src = pic;
+      } else {
+        document.getElementById("userAvatar").src = "https://via.placeholder.com/48/6366f1/ffffff?text=P";
+      }
+
+      const meta = data.walletSynced
+        ? "Wallet synchronized • Ready to buy"
+        : "Wallet not yet synced • Sync to use AMT";
+      document.getElementById("userMeta").textContent = meta;
+
+      // Load pets (demo)
+      loadPets();
     }
 
-    if(!window.__PI_READY__){
-      try{
-        Pi.init({version:"2.0",sandbox:true});
-        window.__PI_READY__=true;
-      }catch(err){
-        throw new Error("Pi SDK could not initialize. Please reopen this page in Pi Browser.");
+    async function loadPets() {
+      const grid = document.getElementById("petsGrid");
+      grid.innerHTML = "<p style='grid-column:1/-1;color:#94a3b8'>Loading pets...</p>";
+
+      try {
+        // Real call:
+        // const res = await fetch(API_BASE + "/api/pets");
+        // const data = await res.json();
+
+        // Demo data
+        const demoPets = [
+          { name: "Terrax", element: "Earth", price: 20 },
+          { name: "Aqualis", element: "Water", price: 20 },
+          { name: "Flammy", element: "Fire", price: 20 },
+          { name: "Zephyrin", element: "Wind", price: 20 },
+          { name: "Frostbite", element: "Ice", price: 20 },
+          { name: "Voltix", element: "Thunder", price: 20 }
+        ];
+
+        grid.innerHTML = demoPets.map(p => `
+          <div class="pet-card">
+            <div style="font-size:2.5rem;margin-bottom:0.4rem">🐾</div>
+            <h3>${p.name}</h3>
+            <div style="font-size:0.8rem;color:#94a3b8">${p.element}</div>
+            <div class="price">${p.price} AMT</div>
+          </div>
+        `).join("");
+      } catch (e) {
+        grid.innerHTML = "<p style='color:#fca5a5'>Failed to load pets</p>";
       }
     }
-
-    setPiStatus("Opening Pi authentication...");
-    const auth=await Pi.authenticate(
-      ["username","payments"],
-      function(payment){
-        console.log("Incomplete Pi payment:",payment);
-      }
-    );
-
-    setPiStatus("Verifying your Pioneer account...");
-    await verifyPiSession(auth);
-
-    setPiStatus("Loading AMT Pet Marketplace...");
-    enterMarketplace();
-  }catch(e){
-    console.error("Pi login:",e);
-    setPiStatus(e.message || "Pi login failed. Please try again.",true);
-  }
-}
-
-piLogin.addEventListener("click",startPiLogin);
-
-/* Login starts only after the Pioneer taps LOGIN WITH PI. */
-
-const API_BASE = "https://amtpet09-github-io.onrender.com";
-async function loadServerCatalog(){
-  try{
-    const r=await fetch(API_BASE+"/api/pets");
-    const d=await r.json();
-    if(d.ok && Array.isArray(d.pets) && d.pets.length){
-      pets.splice(0,pets.length,...d.pets.map((p,i)=>({code:p.pet_code,name:p.name,element:p.element,file:p.image,rarity:"Common",level:1,hp:p.base_hp,attack:p.base_atk,defense:p.base_def,speed:100+(i%10)*5,ability:"Elemental Bond",rep:80,price:10,amt:100,desc:"A Common starter pet from the AMT Pet World."})));
-    }
-  }catch(e){ console.log("Using 70-pet local catalog",e); }
-  render();
-}
-
-function render(){
-  const q=document.getElementById("searchInput").value.trim().toLowerCase();
-  let shown=0;
-  document.getElementById("petGrid").innerHTML=pets.map((p,i)=>{
-    const ok=(activeElement==="All"||p.element===activeElement)&&
-      (!q||p.name.toLowerCase().includes(q)||p.element.toLowerCase().includes(q)||p.rarity.toLowerCase().includes(q));
-    if(ok)shown++;
-    return ok?card(p,i):"";
-  }).join("");
-  document.getElementById("count").textContent=shown+" pet"+(shown===1?"":"s");
-  document.getElementById("empty").style.display=shown?"none":"block";
-}
-
-function openModal(i){
-  currentPet=pets[i]; const p=currentPet;
-  document.getElementById("modalImg").src=p.file;
-  document.getElementById("modalImg").alt=p.name;
-  document.getElementById("modalName").textContent=p.name;
-  document.getElementById("modalMeta").innerHTML=`${elementIcon(p.element)} ${p.element} • ⭐ Common • Level 1<br>${p.desc}`;
-  document.getElementById("modalStats").innerHTML=[
-    ["HP",p.hp],["Attack",p.attack],["Defense",p.defense],["Speed",p.speed]
-  ].map(x=>`<div class="big-stat"><span>${x[0]}</span><b>${x[1]}</b></div>`).join("");
-  document.getElementById("modalAbility").textContent=p.ability;
-  document.getElementById("modalXp").textContent="0 / 100 XP";
-  document.getElementById("modalXpBar").style.width="0%";
-  document.getElementById("modalBuy").onclick=()=>buyPet(i);
-  document.getElementById("petModal").classList.add("show");
-}
-
-function closeModal(){document.getElementById("petModal").classList.remove("show")}
-document.getElementById("petModal").addEventListener("click",e=>{if(e.target.id==="petModal")closeModal()});
-
-function buyPet(i){
-  const btn=document.querySelector(`.buy-btn[data-pet-index="${i}"]`);
-  if(btn){
-    closeModal();
-    btn.dataset.triggeredByDetails="true";
-    btn.click();
-    return;
-  }
-  alert("Buy button is unavailable.");
-}
-
-
-
-let featureState={parentA:null,parentB:null,eggStarted:false,eggEnds:0};
-
-function getOwnedPets(){
-  const raw=window.__MY_PETS__||[];
-  return Array.isArray(raw)?raw:[];
-}
-function closeFeatureModal(){document.getElementById("featureModal").classList.remove("show")}
-document.getElementById("featureModal").addEventListener("click",e=>{
-  if(e.target.id==="featureModal") closeFeatureModal();
-});
-
-function openBreeding(){
-  openFeature("breeding");
-  const pets=getOwnedPets();
-  const content=document.getElementById("featureModalContent");
-  document.getElementById("featureModalTitle").textContent="🧬 Pet Breeding";
-  if(pets.length<2){
-    content.innerHTML=`<h3>Choose 2 Parents</h3><p class="feature-empty">You need at least 2 owned pets before breeding can start. Buy or mint another Common starter pet.</p><div class="feature-modal-actions"><button class="btn" onclick="closeFeatureModal()">Close</button></div>`;
-  }else{
-    content.innerHTML=`<p>Select two owned pets. Breeding confirmation is kept separate from payment until the real breeding endpoint is enabled.</p><div class="feature-choice-grid">${pets.map((p,i)=>`<button class="choice" onclick="selectBreedingParent(${i})"><b>🐾 ${p.name}</b><span>Lv. ${p.level||1} • ${p.rarity||"Common"} • ${p.element}</span></button>`).join("")}</div><div id="breedSelected" class="feature-empty">Select Parent A and Parent B.</div><div class="feature-modal-actions"><button class="btn" onclick="closeFeatureModal()">Cancel</button><button class="btn primary" onclick="confirmBreeding()">🧬 Confirm Pair</button></div>`;
-  }
-  document.getElementById("featureModal").classList.add("show");
-}
-
-function selectBreedingParent(i){
-  const pets=getOwnedPets(), p=pets[i];
-  if(!featureState.parentA || (featureState.parentA && featureState.parentB)){
-    featureState.parentA=i;featureState.parentB=null;
-  }else if(featureState.parentA===i){
-    featureState.parentA=null;
-  }else{
-    featureState.parentB=i;
-  }
-  document.querySelectorAll("#featureModal .choice").forEach((el,n)=>el.classList.toggle("selected",n===featureState.parentA||n===featureState.parentB));
-  const a=featureState.parentA!==null?pets[featureState.parentA].name:"—";
-  const b=featureState.parentB!==null?pets[featureState.parentB].name:"—";
-  document.getElementById("breedSelected").textContent=`Parent A: ${a}  •  Parent B: ${b}`;
-}
-function confirmBreeding(){
-  if(featureState.parentA===null||featureState.parentB===null){alert("Please select two different pets.");return}
-  closeFeatureModal();
-  alert("Breeding pair prepared. No egg is created or AMT is charged yet; final breeding will require the verified backend action.");
-}
-
-function openIncubator(){
-  openFeature("incubator");
-  const content=document.getElementById("featureModalContent");
-  document.getElementById("featureModalTitle").textContent="🥚 Egg Incubator";
-  if(!featureState.eggStarted){
-    content.innerHTML=`<h3>Incubator Slot 1</h3><p>Place a breeding egg here to begin incubation. The timer below is a safe local preview until the server-side egg record is connected.</p><div class="timer">🥚 READY</div><div class="feature-modal-actions"><button class="btn" onclick="closeFeatureModal()">Close</button><button class="btn primary" onclick="startIncubation()">🥚 Start Incubation</button></div>`;
-  }else{
-    renderIncubator();
-  }
-  document.getElementById("featureModal").classList.add("show");
-}
-function startIncubation(){
-  featureState.eggStarted=true;
-  featureState.eggEnds=Date.now()+5*60*1000;
-  renderIncubator();
-}
-function renderIncubator(){
-  const content=document.getElementById("featureModalContent");
-  const left=Math.max(0,featureState.eggEnds-Date.now());
-  if(left<=0){
-    content.innerHTML=`<h3>🥚 Egg Ready!</h3><p>Your preview incubation timer is complete.</p><div class="timer">✨ READY TO HATCH</div><div class="feature-modal-actions"><button class="btn" onclick="closeFeatureModal()">Close</button><button class="btn primary" onclick="hatchEgg()">🐣 Hatch Egg</button></div>`;
-    return;
-  }
-  const sec=Math.ceil(left/1000),m=Math.floor(sec/60),s=sec%60;
-  content.innerHTML=`<h3>🥚 Incubating Egg</h3><p>Keep the incubator open or return later. This is a UI timer only; no blockchain transaction occurs.</p><div class="timer">⏱️ ${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}</div><div class="feature-modal-actions"><button class="btn" onclick="closeFeatureModal()">Close</button><button class="btn" onclick="renderIncubator()">Refresh Timer</button></div>`;
-  clearTimeout(window.__incTimer); window.__incTimer=setTimeout(()=>renderIncubator(),1000);
-}
-function hatchEgg(){
-  featureState.eggStarted=false;featureState.eggEnds=0;
-  closeFeatureModal();
-  alert("🥚 Egg hatched in preview mode. The real hatch result will be recorded by the backend when the egg endpoint is connected.");
-}
-
-function openPublicSell(){
-  openFeature("sell");
-  const pets=getOwnedPets();
-  const content=document.getElementById("featureModalContent");
-  document.getElementById("featureModalTitle").textContent="🏪 Public Sell";
-  if(!pets.length){
-    content.innerHTML=`<h3>No pets available</h3><p class="feature-empty">Login with Pi and own a pet before creating a public listing.</p><div class="feature-modal-actions"><button class="btn" onclick="closeFeatureModal()">Close</button></div>`;
-  }else{
-    content.innerHTML=`<p>Select a pet and set an asking price. This prepares the listing UI; it does not transfer ownership or charge AMT until the verified marketplace listing/payment endpoint is active.</p><div class="feature-choice-grid">${pets.map((p,i)=>`<button class="choice" onclick="selectSellPet(${i})"><b>🏪 ${p.name}</b><span>Lv. ${p.level||1} • ${p.rarity||"Common"} • ${p.element}</span></button>`).join("")}</div><div id="sellSelected" class="feature-empty">Select a pet to list.</div><input id="sellPrice" class="sell-price" type="number" min="1" step="1" placeholder="Asking price in AMT"><div class="feature-modal-actions"><button class="btn" onclick="closeFeatureModal()">Cancel</button><button class="btn primary" onclick="confirmPublicSell()">🏪 Prepare Listing</button></div>`;
-  }
-  document.getElementById("featureModal").classList.add("show");
-}
-let selectedSell=-1;
-function selectSellPet(i){
-  selectedSell=i;
-  document.querySelectorAll("#featureModal .choice").forEach((el,n)=>el.classList.toggle("selected",n===i));
-  const p=getOwnedPets()[i];
-  document.getElementById("sellSelected").textContent=`Selected: ${p.name} • Lv. ${p.level||1} • ${p.rarity||"Common"}`;
-}
-function confirmPublicSell(){
-  if(selectedSell<0){alert("Please select a pet.");return}
-  const price=Number(document.getElementById("sellPrice").value);
-  if(!Number.isFinite(price)||price<=0){alert("Enter a valid AMT asking price.");return}
-  closeFeatureModal();
-  alert("Public listing prepared. No ownership transfer has happened yet; the verified backend listing flow must complete before the pet is publicly sold.");
-}
-
-function openFeature(id){
-  const panel=document.getElementById("profilePanel");
-  if(!panel.classList.contains("show")) panel.classList.add("show");
-  document.querySelectorAll(".feature-panel").forEach(x=>x.classList.remove("show"));
-  document.querySelectorAll(".feature-btn[data-feature]").forEach(x=>x.classList.remove("active"));
-  const target=document.getElementById(id);
-  if(target) target.classList.add("show");
-  const btn=document.querySelector(`.feature-btn[data-feature="${id}"]`);
-  if(btn) btn.classList.add("active");
-  if(panel) panel.scrollIntoView({behavior:"smooth",block:"start"});
-}
-
-document.querySelectorAll(".feature-btn[data-feature]").forEach(btn=>{
-  btn.addEventListener("click",()=>openFeature(btn.dataset.feature));
-});
-
-window.__MY_PETS__=[];
-async function loadMyPets(){
-  const uid=localStorage.getItem("pi_uid") || localStorage.getItem("piUserId");
-  const username=localStorage.getItem("piUser");
-  const list=document.getElementById("myPetsList");
-  const sell=document.getElementById("sellList");
-  if(!list || !sell) return;
-  if(!uid){
-    list.innerHTML='<div class="feature-empty" style="grid-column:1/-1">Login with Pi to load your owned pets.</div>';
-    sell.innerHTML='<div class="feature-empty" style="grid-column:1/-1">Login with Pi to load pets eligible for public sale.</div>';
-    return;
-  }
-  try{
-    const r=await fetch(API_BASE+"/api/my-pets/"+encodeURIComponent(uid));
-    const d=await r.json();
-    if(!d.ok || !Array.isArray(d.pets)) throw new Error("Unable to load owned pets");
-    window.__MY_PETS__=d.pets;
-    document.getElementById("petOwned").textContent=d.count||d.pets.length;
-    if(!d.pets.length){
-      window.__MY_PETS__=[];
-      list.innerHTML='<div class="feature-empty" style="grid-column:1/-1">No owned pets yet. Buy or mint a Common starter pet first.</div>';
-      sell.innerHTML='<div class="feature-empty" style="grid-column:1/-1">No owned pets available for public sale.</div>';
-      return;
-    }
-    list.innerHTML=d.pets.map(p=>`<div class="feature-item"><b>🐾 ${p.name}</b><span>Lv. ${p.level||1} • ${p.rarity||"Common"} • ${p.element}</span></div>`).join("");
-    sell.innerHTML=d.pets.map(p=>`<div class="feature-item"><b>🏪 ${p.name}</b><span>Lv. ${p.level||1} • ${p.rarity||"Common"}<br>Ready for listing review</span></div>`).join("");
-  }catch(e){
-    console.log("My pets endpoint unavailable:",e);
-  }
-}
-
-
-function refreshProfileAvatar(){
-  const el=document.getElementById("profileAvatar");
-  if(!el) return;
-  const saved=localStorage.getItem("piUser")||"";
-  const photo=localStorage.getItem("piProfilePhoto")||"";
-  if(photo){el.innerHTML=`<img src="${photo.replace(/"/g,"&quot;")}" alt="Pioneer">`;return}
-  const initials=(saved||"Pioneer").trim().slice(0,2).toUpperCase();
-  el.textContent=initials||"🐾";
-}
-
-function chooseProfilePhoto(){
-  const input=document.getElementById("profilePhotoInput");
-  if(input) input.click();
-}
-
-const profilePhotoInput=document.getElementById("profilePhotoInput");
-if(profilePhotoInput){
-  profilePhotoInput.addEventListener("change",function(){
-    const file=this.files && this.files[0];
-    if(!file) return;
-    if(!file.type.startsWith("image/")){alert("Please choose an image file.");return;}
-    if(file.size>2*1024*1024){alert("Profile picture must be 2 MB or smaller.");return;}
-    const reader=new FileReader();
-    reader.onload=function(){
-      localStorage.setItem("piProfilePhoto",reader.result);
-      refreshProfileAvatar();
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-function toggleProfile(){
-  const panel=document.getElementById("profilePanel");
-  panel.classList.toggle("show");
-  if(panel.classList.contains("show")) panel.scrollIntoView({behavior:"smooth",block:"start"});
-  const saved=localStorage.getItem("piUser");
-  refreshProfileAvatar();
-  document.getElementById("walletValue").textContent=saved?saved:"Not connected";
-  document.getElementById("profileAmt").textContent=readAMTBalance();
-}
-
-function readAMTBalance(){
-  /* Never invent a wallet balance. Your real backend can populate localStorage
-     after verified Pi/AMT wallet synchronization. */
-  const raw=localStorage.getItem("amtBalance");
-  if(raw===null||raw==="") return "—";
-  const n=Number(raw);
-  return Number.isFinite(n)?n.toLocaleString()+" AMT":String(raw);
-}
-
-function refreshBalance(){
-  const text=readAMTBalance();
-  document.getElementById("amtBalance").textContent="🪙 "+(text==="—"?"— AMT":text);
-  document.getElementById("profileAmt").textContent=text;
-}
-
-document.querySelectorAll(".filter").forEach(btn=>{
-  btn.addEventListener("click",()=>{
-    document.querySelectorAll(".filter").forEach(x=>x.classList.remove("active"));
-    btn.classList.add("active");
-    activeElement=btn.dataset.element;
-    render();
-  });
-});
-document.getElementById("searchInput").addEventListener("input",render);
-
-refreshBalance();
-render();
-loadServerCatalog();
-</script>
-
-<!-- IMPORTANT: keep your existing payment/backend file -->
-<script src="marketplace.js"></script>
+  </script>
 </body>
 </html>
