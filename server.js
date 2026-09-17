@@ -11,42 +11,75 @@ const DATABASE_URL = process.env.DATABASE_URL || "";
 const PI_API_KEY = process.env.PI_API_KEY || "";
 const PI_API_BASE = process.env.PI_API_BASE || "https://api.minepi.com";
 const PI_AUTH_TIMEOUT_MS = Number(process.env.PI_AUTH_TIMEOUT_MS || 15000);
+
 const PI_PAYMENT_CURRENCY = "Pi";
 const PET_PI_PRICE = "10";
 const PET_AMT_PRICE = "20";
 
 const AMT_ASSET_CODE = process.env.AMT_ASSET_CODE || "AMT";
-const AMT_ISSUER = process.env.AMT_ISSUER || "GCDV5VKFE4EPQFRPDDZN64RXZMH2T4EHP47PMZ7KJMILR5DQICONMFP5";
+
+const AMT_ISSUER =
+  process.env.AMT_ISSUER ||
+  "GCDV5VKFE4EPQFRPDDZN64RXZMH2T4EHP47PMZ7KJMILR5DQICONMFP5";
+
 const AMT_RECEIVER =
   process.env.AMT_RECEIVER ||
   process.env.AMT_DISTRIBUTOR ||
   "GAVFYNEHSTW4P65DM75P4TYAC6PNO5A6LGSYSGEFNN3O7A23XHWABSBP";
+
 const AMT_HORIZON_URL =
-  process.env.AMT_HORIZON_URL || "https://api.testnet.minepi.com";
+  process.env.AMT_HORIZON_URL ||
+  "https://api.testnet.minepi.com";
+
+/*
+ * Development routes are OFF by default.
+ *
+ * Render:
+ * ALLOW_DEV_ENDPOINTS=false
+ *
+ * Only set true temporarily if you specifically need the development
+ * helper. Never enable it for a public production deployment.
+ */
+const ALLOW_DEV_ENDPOINTS =
+  String(process.env.ALLOW_DEV_ENDPOINTS || "false").toLowerCase() === "true";
 
 app.use(cors({
   origin: "*",
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
+
 app.use(express.json({ limit: "1mb" }));
 
+/* -------------------------------------------------------------------------- */
+/* DATABASE                                                                    */
+/* -------------------------------------------------------------------------- */
+
 let pool = null;
+
 if (DATABASE_URL) {
   pool = new Pool({
     connectionString: DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: {
+      rejectUnauthorized: false
+    }
   });
-  pool.on("error", err => console.error("PostgreSQL pool error:", err));
+
+  pool.on("error", err => {
+    console.error("PostgreSQL pool error:", err);
+  });
 }
 
 async function dbQuery(text, params = []) {
-  if (!pool) throw new Error("DATABASE_URL is not configured.");
+  if (!pool) {
+    throw new Error("DATABASE_URL is not configured.");
+  }
+
   return pool.query(text, params);
 }
 
 /* -------------------------------------------------------------------------- */
-/* PET CATALOG - same 70 pets, compact format                                 */
+/* PET CATALOG - 70 PETS                                                      */
 /* -------------------------------------------------------------------------- */
 
 const PET_SEED = [
@@ -126,12 +159,18 @@ const PET_SEED = [
   ["thunder-08","Electrix","Thunder","electrix.png",112,31,19],
   ["thunder-09","Skyshock","Thunder","skyshock.png",120,36,18],
   ["thunder-10","Thunderix","Thunder","thunderix.png",135,38,24]
-].map(([code,name,element,image,hp,atk,def]) =>
-  ({ code, name, element, image, hp, atk, def })
-);
+].map(([code,name,element,image,hp,atk,def]) => ({
+  code,
+  name,
+  element,
+  image,
+  hp,
+  atk,
+  def
+}));
 
 /* -------------------------------------------------------------------------- */
-/* DATABASE                                                                    */
+/* DATABASE INITIALIZATION                                                     */
 /* -------------------------------------------------------------------------- */
 
 async function initializeDatabase() {
@@ -140,82 +179,105 @@ async function initializeDatabase() {
     return;
   }
 
-  await dbQuery(`CREATE TABLE IF NOT EXISTS pioneers(
-    id BIGSERIAL PRIMARY KEY,
-    pi_uid TEXT UNIQUE NOT NULL,
-    username TEXT,
-    wallet_address TEXT,
-    profile_picture TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );`);
+  await dbQuery(`
+    CREATE TABLE IF NOT EXISTS pioneers(
+      id BIGSERIAL PRIMARY KEY,
+      pi_uid TEXT UNIQUE NOT NULL,
+      username TEXT,
+      wallet_address TEXT,
+      profile_picture TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
 
-  // Safe migration for existing databases
-  await dbQuery(`ALTER TABLE pioneers ADD COLUMN IF NOT EXISTS profile_picture TEXT;`);
+  await dbQuery(`
+    ALTER TABLE pioneers
+    ADD COLUMN IF NOT EXISTS profile_picture TEXT;
+  `);
 
-  await dbQuery(`CREATE TABLE IF NOT EXISTS pets_catalog(
-    id BIGSERIAL PRIMARY KEY,
-    pet_code TEXT UNIQUE NOT NULL,
-    name TEXT NOT NULL,
-    element TEXT NOT NULL,
-    rarity TEXT NOT NULL DEFAULT 'Common',
-    image TEXT NOT NULL,
-    base_hp INTEGER NOT NULL DEFAULT 100,
-    base_atk INTEGER NOT NULL DEFAULT 10,
-    base_def INTEGER NOT NULL DEFAULT 10,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );`);
+  await dbQuery(`
+    CREATE TABLE IF NOT EXISTS pets_catalog(
+      id BIGSERIAL PRIMARY KEY,
+      pet_code TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      element TEXT NOT NULL,
+      rarity TEXT NOT NULL DEFAULT 'Common',
+      image TEXT NOT NULL,
+      base_hp INTEGER NOT NULL DEFAULT 100,
+      base_atk INTEGER NOT NULL DEFAULT 10,
+      base_def INTEGER NOT NULL DEFAULT 10,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
 
-  await dbQuery(`CREATE TABLE IF NOT EXISTS user_pets(
-    id BIGSERIAL PRIMARY KEY,
-    pioneer_id BIGINT NOT NULL REFERENCES pioneers(id) ON DELETE CASCADE,
-    pet_code TEXT NOT NULL REFERENCES pets_catalog(pet_code),
-    rarity TEXT NOT NULL DEFAULT 'Common',
-    level INTEGER NOT NULL DEFAULT 1,
-    xp BIGINT NOT NULL DEFAULT 0,
-    hp INTEGER NOT NULL DEFAULT 100,
-    atk INTEGER NOT NULL DEFAULT 10,
-    def INTEGER NOT NULL DEFAULT 10,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );`);
+  await dbQuery(`
+    CREATE TABLE IF NOT EXISTS user_pets(
+      id BIGSERIAL PRIMARY KEY,
+      pioneer_id BIGINT NOT NULL REFERENCES pioneers(id) ON DELETE CASCADE,
+      pet_code TEXT NOT NULL REFERENCES pets_catalog(pet_code),
+      rarity TEXT NOT NULL DEFAULT 'Common',
+      level INTEGER NOT NULL DEFAULT 1,
+      xp BIGINT NOT NULL DEFAULT 0,
+      hp INTEGER NOT NULL DEFAULT 100,
+      atk INTEGER NOT NULL DEFAULT 10,
+      def INTEGER NOT NULL DEFAULT 10,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
 
-  await dbQuery(`CREATE TABLE IF NOT EXISTS pet_payments(
-    id BIGSERIAL PRIMARY KEY,
-    payment_id TEXT UNIQUE NOT NULL,
-    pi_uid TEXT NOT NULL,
-    username TEXT,
-    pet_code TEXT NOT NULL REFERENCES pets_catalog(pet_code),
-    currency TEXT NOT NULL,
-    amount NUMERIC(30,8) NOT NULL,
-    status TEXT NOT NULL DEFAULT 'CREATED',
-    transaction_id TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    completed_at TIMESTAMPTZ
-  );`);
+  await dbQuery(`
+    CREATE TABLE IF NOT EXISTS pet_payments(
+      id BIGSERIAL PRIMARY KEY,
+      payment_id TEXT UNIQUE NOT NULL,
+      pi_uid TEXT NOT NULL,
+      username TEXT,
+      pet_code TEXT NOT NULL REFERENCES pets_catalog(pet_code),
+      currency TEXT NOT NULL,
+      amount NUMERIC(30,8) NOT NULL,
+      status TEXT NOT NULL DEFAULT 'CREATED',
+      transaction_id TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      completed_at TIMESTAMPTZ
+    );
+  `);
 
-  await dbQuery(`CREATE TABLE IF NOT EXISTS amt_payments(
-    id BIGSERIAL PRIMARY KEY,
-    pi_uid TEXT NOT NULL,
-    pet_code TEXT NOT NULL REFERENCES pets_catalog(pet_code),
-    amount NUMERIC(30,8) NOT NULL,
-    asset_code TEXT NOT NULL DEFAULT 'AMT',
-    receiver TEXT NOT NULL,
-    txid TEXT UNIQUE,
-    status TEXT NOT NULL DEFAULT 'PREPARED',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    completed_at TIMESTAMPTZ
-  );`);
+  await dbQuery(`
+    CREATE TABLE IF NOT EXISTS amt_payments(
+      id BIGSERIAL PRIMARY KEY,
+      pi_uid TEXT NOT NULL,
+      pet_code TEXT NOT NULL REFERENCES pets_catalog(pet_code),
+      amount NUMERIC(30,8) NOT NULL,
+      asset_code TEXT NOT NULL DEFAULT 'AMT',
+      receiver TEXT NOT NULL,
+      txid TEXT UNIQUE,
+      status TEXT NOT NULL DEFAULT 'PREPARED',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      completed_at TIMESTAMPTZ
+    );
+  `);
 
-  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_pets_catalog_element
-    ON pets_catalog(element);`);
-  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_user_pets_pioneer
-    ON user_pets(pioneer_id);`);
-  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_pet_payments_uid
-    ON pet_payments(pi_uid);`);
-  await dbQuery(`CREATE INDEX IF NOT EXISTS idx_amt_payments_uid
-    ON amt_payments(pi_uid);`);
+  await dbQuery(`
+    CREATE INDEX IF NOT EXISTS idx_pets_catalog_element
+    ON pets_catalog(element);
+  `);
+
+  await dbQuery(`
+    CREATE INDEX IF NOT EXISTS idx_user_pets_pioneer
+    ON user_pets(pioneer_id);
+  `);
+
+  await dbQuery(`
+    CREATE INDEX IF NOT EXISTS idx_pet_payments_uid
+    ON pet_payments(pi_uid);
+  `);
+
+  await dbQuery(`
+    CREATE INDEX IF NOT EXISTS idx_amt_payments_uid
+    ON amt_payments(pi_uid);
+  `);
 
   console.log("Database tables ready.");
 }
@@ -224,9 +286,11 @@ async function seedPetCatalog() {
   if (!pool) return;
 
   for (const pet of PET_SEED) {
-    await dbQuery(`INSERT INTO pets_catalog
-      (pet_code,name,element,rarity,image,base_hp,base_atk,base_def)
-      VALUES($1,$2,$3,'Common',$4,$5,$6,$7)
+    await dbQuery(`
+      INSERT INTO pets_catalog
+        (pet_code,name,element,rarity,image,base_hp,base_atk,base_def)
+      VALUES
+        ($1,$2,$3,'Common',$4,$5,$6,$7)
       ON CONFLICT(pet_code) DO UPDATE SET
         name=EXCLUDED.name,
         element=EXCLUDED.element,
@@ -234,16 +298,23 @@ async function seedPetCatalog() {
         image=EXCLUDED.image,
         base_hp=EXCLUDED.base_hp,
         base_atk=EXCLUDED.base_atk,
-        base_def=EXCLUDED.base_def`,
-      [pet.code,pet.name,pet.element,pet.image,pet.hp,pet.atk,pet.def]
-    );
+        base_def=EXCLUDED.base_def
+    `, [
+      pet.code,
+      pet.name,
+      pet.element,
+      pet.image,
+      pet.hp,
+      pet.atk,
+      pet.def
+    ]);
   }
 
   console.log(`Pet catalog ready: ${PET_SEED.length} pets.`);
 }
 
 /* -------------------------------------------------------------------------- */
-/* PI AUTH                                                                     */
+/* PI API                                                                      */
 /* -------------------------------------------------------------------------- */
 
 async function piFetch(path, options = {}) {
@@ -252,50 +323,88 @@ async function piFetch(path, options = {}) {
   }
 
   const controller = new AbortController();
-  const timeoutMs = Number(options.timeoutMs || PI_AUTH_TIMEOUT_MS);
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const { timeoutMs: _ignoredTimeout, signal: callerSignal, ...fetchOptions } = options;
+
+  const timeoutMs = Number(
+    options.timeoutMs || PI_AUTH_TIMEOUT_MS
+  );
+
+  const timer = setTimeout(
+    () => controller.abort(),
+    timeoutMs
+  );
+
+  const {
+    timeoutMs: _ignoredTimeout,
+    signal: callerSignal,
+    ...fetchOptions
+  } = options;
+
   if (callerSignal) {
-    if (callerSignal.aborted) controller.abort();
-    else callerSignal.addEventListener("abort", () => controller.abort(), { once: true });
+    if (callerSignal.aborted) {
+      controller.abort();
+    } else {
+      callerSignal.addEventListener(
+        "abort",
+        () => controller.abort(),
+        { once: true }
+      );
+    }
   }
 
-  let r;
+  let response;
+
   try {
-    r = await fetch(PI_API_BASE + path, {
-      ...fetchOptions,
-      signal: controller.signal,
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        Authorization: "Key " + PI_API_KEY,
-        ...(fetchOptions.headers || {})
+    response = await fetch(
+      PI_API_BASE + path,
+      {
+        ...fetchOptions,
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: "Key " + PI_API_KEY,
+          ...(fetchOptions.headers || {})
+        }
       }
-    });
+    );
   } catch (e) {
     if (e.name === "AbortError") {
-      throw new Error(`Pi Platform API timeout after ${timeoutMs}ms while calling ${path}.`);
+      throw new Error(
+        `Pi Platform API timeout after ${timeoutMs}ms while calling ${path}.`
+      );
     }
-    throw new Error(`Pi Platform API connection failed: ${e.message}`);
+
+    throw new Error(
+      `Pi Platform API connection failed: ${e.message}`
+    );
   } finally {
     clearTimeout(timer);
   }
 
-  const text = await r.text();
+  const text = await response.text();
+
   let data;
+
   try {
     data = text ? JSON.parse(text) : {};
   } catch {
-    data = { raw: text };
+    data = {
+      raw: text
+    };
   }
 
-  if (!r.ok) {
-    const err = new Error(
-      data?.error_message || data?.error || data?.message || `Pi API HTTP ${r.status}`
+  if (!response.ok) {
+    const error = new Error(
+      data?.error_message ||
+      data?.error ||
+      data?.message ||
+      `Pi API HTTP ${response.status}`
     );
-    err.status = r.status;
-    err.data = data;
-    throw err;
+
+    error.status = response.status;
+    error.data = data;
+
+    throw error;
   }
 
   return data;
@@ -303,32 +412,59 @@ async function piFetch(path, options = {}) {
 
 async function piVerifyFetch(path, token) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), PI_AUTH_TIMEOUT_MS);
+
+  const timer = setTimeout(
+    () => controller.abort(),
+    PI_AUTH_TIMEOUT_MS
+  );
+
   try {
-    const r = await fetch(PI_API_BASE + path, {
-      method: "GET",
-      signal: controller.signal,
-      headers: {
-        Authorization: "Bearer " + token,
-        Accept: "application/json"
+    const response = await fetch(
+      PI_API_BASE + path,
+      {
+        method: "GET",
+        signal: controller.signal,
+        headers: {
+          Authorization: "Bearer " + token,
+          Accept: "application/json"
+        }
       }
-    });
-    const text = await r.text();
+    );
+
+    const text = await response.text();
+
     let data = {};
-    try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
-    if (!r.ok) {
-      const err = new Error(
-        data?.error_message || data?.error || data?.message || `Pi authentication HTTP ${r.status}`
-      );
-      err.status = r.status;
-      err.data = data;
-      throw err;
+
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = {
+        raw: text
+      };
     }
+
+    if (!response.ok) {
+      const error = new Error(
+        data?.error_message ||
+        data?.error ||
+        data?.message ||
+        `Pi authentication HTTP ${response.status}`
+      );
+
+      error.status = response.status;
+      error.data = data;
+
+      throw error;
+    }
+
     return data;
   } catch (e) {
     if (e.name === "AbortError") {
-      throw new Error(`Pi authentication verification timed out after ${PI_AUTH_TIMEOUT_MS}ms.`);
+      throw new Error(
+        `Pi authentication verification timed out after ${PI_AUTH_TIMEOUT_MS}ms.`
+      );
     }
+
     throw e;
   } finally {
     clearTimeout(timer);
@@ -336,14 +472,30 @@ async function piVerifyFetch(path, token) {
 }
 
 async function verifyPiAccessToken(token) {
-  if (!token) throw new Error("Missing Pi access token.");
-  if (!PI_API_KEY) throw new Error("PI_API_KEY is not configured.");
+  if (!token) {
+    throw new Error("Missing Pi access token.");
+  }
 
-  const data = await piVerifyFetch("/v2/me", token);
+  if (!PI_API_KEY) {
+    throw new Error("PI_API_KEY is not configured.");
+  }
+
+  const data = await piVerifyFetch(
+    "/v2/me",
+    token
+  );
 
   return {
-    uid: data.uid || data.user?.uid || "",
-    username: data.username || data.user?.username || "",
+    uid:
+      data.uid ||
+      data.user?.uid ||
+      "",
+
+    username:
+      data.username ||
+      data.user?.username ||
+      "",
+
     wallet_address:
       data.wallet_address ||
       data.walletAddress ||
@@ -353,29 +505,116 @@ async function verifyPiAccessToken(token) {
   };
 }
 
-async function upsertPioneer(pi_uid, username, wallet_address, profile_picture = null) {
-  const r = await dbQuery(`INSERT INTO pioneers
-      (pi_uid,username,wallet_address,profile_picture)
-      VALUES($1,$2,$3,$4)
-      ON CONFLICT(pi_uid) DO UPDATE SET
-        username=COALESCE(NULLIF(EXCLUDED.username,''),pioneers.username),
-        wallet_address=COALESCE(NULLIF(EXCLUDED.wallet_address,''),pioneers.wallet_address),
-        profile_picture=COALESCE(NULLIF(EXCLUDED.profile_picture,''),pioneers.profile_picture),
-        updated_at=NOW()
-      RETURNING id,pi_uid,username,wallet_address,profile_picture,created_at,updated_at`,
-    [pi_uid, username || null, wallet_address || null, profile_picture || null]
-  );
+/* -------------------------------------------------------------------------- */
+/* PIONEER                                                                      */
+/* -------------------------------------------------------------------------- */
 
-  return r.rows[0];
+async function getPioneerByUid(pi_uid) {
+  const result = await dbQuery(`
+    SELECT
+      id,
+      pi_uid,
+      username,
+      wallet_address,
+      profile_picture,
+      created_at,
+      updated_at
+    FROM pioneers
+    WHERE pi_uid=$1
+    LIMIT 1
+  `, [pi_uid]);
+
+  return result.rows[0] || null;
 }
+
+async function upsertPioneer(
+  pi_uid,
+  username,
+  wallet_address,
+  profile_picture = null
+) {
+  const existing = await getPioneerByUid(pi_uid);
+
+  /*
+   * Important:
+   * If the Pioneer already has a wallet saved, we do NOT silently replace
+   * it with another wallet address.
+   *
+   * This prevents an authenticated user from accidentally overwriting
+   * an existing synchronized wallet.
+   */
+  let finalWallet = existing?.wallet_address || null;
+
+  if (!finalWallet && wallet_address) {
+    finalWallet = wallet_address;
+  }
+
+  const result = await dbQuery(`
+    INSERT INTO pioneers
+      (
+        pi_uid,
+        username,
+        wallet_address,
+        profile_picture
+      )
+    VALUES
+      ($1,$2,$3,$4)
+
+    ON CONFLICT(pi_uid) DO UPDATE SET
+      username =
+        COALESCE(
+          NULLIF(EXCLUDED.username,''),
+          pioneers.username
+        ),
+
+      wallet_address =
+        COALESCE(
+          pioneers.wallet_address,
+          NULLIF(EXCLUDED.wallet_address,'')
+        ),
+
+      profile_picture =
+        COALESCE(
+          NULLIF(EXCLUDED.profile_picture,''),
+          pioneers.profile_picture
+        ),
+
+      updated_at=NOW()
+
+    RETURNING
+      id,
+      pi_uid,
+      username,
+      wallet_address,
+      profile_picture,
+      created_at,
+      updated_at
+  `, [
+    pi_uid,
+    username || null,
+    finalWallet,
+    profile_picture || null
+  ]);
+
+  return result.rows[0];
+}
+
+/* -------------------------------------------------------------------------- */
+/* PI AUTH MIDDLEWARE                                                          */
+/* -------------------------------------------------------------------------- */
 
 async function requirePiAuth(req, res, next) {
   try {
-    let token = (req.headers.authorization || "")
+    let token = String(
+      req.headers.authorization || ""
+    )
       .replace(/^Bearer\s+/i, "")
       .trim();
 
-    /* Allows the existing frontend to send the Pi token in JSON too. */
+    /*
+     * Backward compatibility:
+     * Existing frontend may send accessToken in JSON.
+     */
     if (!token) {
       token = String(
         req.body?.accessToken ||
@@ -410,100 +649,187 @@ async function requirePiAuth(req, res, next) {
     req.piUser = piUser;
     req.pioneer = pioneer;
     req.piToken = token;
+
     next();
   } catch (e) {
     console.error("Pi auth:", e.message);
+
     return res.status(401).json({
       ok: false,
-      error: e.message || "Pi authentication failed."
+      error:
+        e.message ||
+        "Pi authentication failed."
     });
   }
 }
 
 /* -------------------------------------------------------------------------- */
-/* WALLET                                                                      */
+/* WALLET HELPERS                                                              */
 /* -------------------------------------------------------------------------- */
 
 function isPublicStellarAddress(value) {
-  return typeof value === "string" &&
-    /^G[A-Z2-7]{55}$/.test(value.trim());
+  return (
+    typeof value === "string" &&
+    /^G[A-Z2-7]{55}$/.test(value.trim())
+  );
+}
+
+function normalizeWallet(value) {
+  return String(value || "").trim();
 }
 
 async function horizonGet(path) {
-  const r = await fetch(AMT_HORIZON_URL + path, {
-    headers: { Accept: "application/json" }
-  });
+  const response = await fetch(
+    AMT_HORIZON_URL + path,
+    {
+      headers: {
+        Accept: "application/json"
+      }
+    }
+  );
 
-  const text = await r.text();
+  const text = await response.text();
+
   let data;
+
   try {
     data = text ? JSON.parse(text) : {};
   } catch {
     data = {};
   }
 
-  if (!r.ok) {
-    const e = new Error(
+  if (!response.ok) {
+    const error = new Error(
       data?.title ||
       data?.detail ||
-      `Pi Testnet Horizon HTTP ${r.status}`
+      `Pi Testnet Horizon HTTP ${response.status}`
     );
-    e.status = r.status;
-    throw e;
+
+    error.status = response.status;
+
+    throw error;
   }
 
   return data;
 }
 
-async function verifyAMTTransfer(txid, { from, to, amount }) {
-  if (!txid) throw new Error("AMT transaction hash is required.");
-
-  if (!isPublicStellarAddress(from)) {
-    throw new Error("No valid Pioneer wallet is synchronized.");
-  }
-
-  if (!isPublicStellarAddress(to)) {
-    throw new Error("AMT receiver is not configured correctly.");
-  }
-
-  const ops = await horizonGet(
-    "/operations?transaction_hash=" +
-    encodeURIComponent(txid) +
-    "&limit=100"
-  );
-
-  const wanted = Number(amount);
-
-  const op = (ops._embedded?.records || []).find(x =>
-    x.type === "payment" &&
-    x.asset_type === "credit_alphanum4" &&
-    x.asset_code === AMT_ASSET_CODE &&
-    x.asset_issuer === AMT_ISSUER &&
-    x.source_account === from &&
-    x.to === to &&
-    Number(x.amount) === wanted
-  );
-
-  if (!op) {
+async function getAMTBalance(wallet) {
+  if (!isPublicStellarAddress(wallet)) {
     throw new Error(
-      "AMT transfer not found for this Pioneer wallet, receiver, asset, and amount."
+      "No valid Pioneer wallet is synchronized."
     );
   }
 
-  const tx = await horizonGet(
-    "/transactions/" + encodeURIComponent(txid)
+  const account = await horizonGet(
+    "/accounts/" +
+    encodeURIComponent(wallet)
   );
 
-  if (tx.successful !== true) {
-    throw new Error("AMT transaction is not successful on Pi Testnet.");
+  const balances = Array.isArray(account.balances)
+    ? account.balances
+    : [];
+
+  const matching = balances.filter(b =>
+    b.asset_type === "credit_alphanum4" &&
+    b.asset_code === AMT_ASSET_CODE &&
+    b.asset_issuer === AMT_ISSUER
+  );
+
+  /*
+   * Keep balance as a Number for frontend compatibility.
+   * The actual purchase is still verified against the exact Horizon
+   * payment operation before ownership is granted.
+   */
+  const balance = matching.reduce(
+    (sum, item) =>
+      sum + Number(item.balance || 0),
+    0
+  );
+
+  return {
+    balance,
+    balances: matching
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* AMT TRANSACTION VERIFICATION                                                */
+/* -------------------------------------------------------------------------- */
+
+async function verifyAMTTransfer(
+  txid,
+  {
+    from,
+    to,
+    amount
+  }
+) {
+  const transactionHash = String(
+    txid || ""
+  ).trim();
+
+  if (!transactionHash) {
+    throw new Error(
+      "AMT transaction hash is required."
+    );
+  }
+
+  if (!isPublicStellarAddress(from)) {
+    throw new Error(
+      "No valid Pioneer wallet is synchronized."
+    );
+  }
+
+  if (!isPublicStellarAddress(to)) {
+    throw new Error(
+      "AMT receiver is not configured correctly."
+    );
+  }
+
+  const operations = await horizonGet(
+    "/operations?transaction_hash=" +
+    encodeURIComponent(transactionHash) +
+    "&limit=100"
+  );
+
+  const wantedAmount = Number(amount);
+
+  const records =
+    operations?._embedded?.records || [];
+
+  const operation = records.find(operation =>
+    operation.type === "payment" &&
+    operation.asset_type === "credit_alphanum4" &&
+    operation.asset_code === AMT_ASSET_CODE &&
+    operation.asset_issuer === AMT_ISSUER &&
+    operation.source_account === from &&
+    operation.to === to &&
+    Number(operation.amount) === wantedAmount
+  );
+
+  if (!operation) {
+    throw new Error(
+      "AMT transfer not found for this Pioneer wallet, receiver, asset, and exact amount."
+    );
+  }
+
+  const transaction = await horizonGet(
+    "/transactions/" +
+    encodeURIComponent(transactionHash)
+  );
+
+  if (transaction.successful !== true) {
+    throw new Error(
+      "AMT transaction is not successful on Pi Testnet."
+    );
   }
 
   return {
-    txid,
-    operationId: op.id,
+    txid: transactionHash,
+    operationId: operation.id,
     from,
     to,
-    amount: wanted
+    amount: wantedAmount
   };
 }
 
@@ -511,32 +837,117 @@ async function verifyAMTTransfer(txid, { from, to, amount }) {
 /* PET HELPERS                                                                 */
 /* -------------------------------------------------------------------------- */
 
-async function grantPet(pi_uid, pet_code) {
-  const p = await dbQuery(`SELECT pet_code,name,element,rarity,image,
-      base_hp,base_atk,base_def
-      FROM pets_catalog WHERE pet_code=$1 LIMIT 1`, [pet_code]);
+async function getCatalogPet(petCode) {
+  const result = await dbQuery(`
+    SELECT
+      pet_code,
+      name,
+      element,
+      rarity,
+      image,
+      base_hp,
+      base_atk,
+      base_def
+    FROM pets_catalog
+    WHERE pet_code=$1
+    LIMIT 1
+  `, [petCode]);
 
-  if (!p.rows.length) throw new Error("Pet not found.");
+  return result.rows[0] || null;
+}
 
-  const pioneer = await dbQuery(
-    "SELECT id FROM pioneers WHERE pi_uid=$1 LIMIT 1",
-    [pi_uid]
-  );
+/*
+ * Creates a pet for a Pioneer.
+ *
+ * Important:
+ * We use a transaction for payment-driven grants so the payment record
+ * and pet ownership are committed together.
+ */
+async function grantPet(
+  pi_uid,
+  pet_code,
+  client = pool
+) {
+  if (!client) {
+    throw new Error(
+      "Database is not configured."
+    );
+  }
 
-  if (!pioneer.rows.length) throw new Error("Pioneer not found.");
+  const petResult = await client.query(`
+    SELECT
+      pet_code,
+      name,
+      element,
+      rarity,
+      image,
+      base_hp,
+      base_atk,
+      base_def
+    FROM pets_catalog
+    WHERE pet_code=$1
+    LIMIT 1
+  `, [pet_code]);
 
-  const pet = p.rows[0];
-  const pid = pioneer.rows[0].id;
+  if (!petResult.rows.length) {
+    throw new Error(
+      "Pet not found."
+    );
+  }
 
-  const r = await dbQuery(`INSERT INTO user_pets
-      (pioneer_id,pet_code,rarity,level,xp,hp,atk,def)
-      VALUES($1,$2,'Common',1,0,$3,$4,$5)
-      RETURNING *`,
-    [pid, pet.pet_code, pet.base_hp, pet.base_atk, pet.base_def]
-  );
+  const pioneerResult = await client.query(`
+    SELECT id
+    FROM pioneers
+    WHERE pi_uid=$1
+    LIMIT 1
+  `, [pi_uid]);
+
+  if (!pioneerResult.rows.length) {
+    throw new Error(
+      "Pioneer not found."
+    );
+  }
+
+  const pet = petResult.rows[0];
+  const pioneerId = pioneerResult.rows[0].id;
+
+  const result = await client.query(`
+    INSERT INTO user_pets
+      (
+        pioneer_id,
+        pet_code,
+        rarity,
+        level,
+        xp,
+        hp,
+        atk,
+        def
+      )
+    VALUES
+      ($1,$2,'Common',1,0,$3,$4,$5)
+
+    RETURNING
+      id,
+      pioneer_id,
+      pet_code,
+      rarity,
+      level,
+      xp,
+      hp,
+      atk,
+      def,
+      created_at,
+      updated_at
+  `, [
+    pioneerId,
+    pet.pet_code,
+    pet.base_hp,
+    pet.base_atk,
+    pet.base_def
+  ]);
 
   return {
-    ...r.rows[0],
+    ...result.rows[0],
     name: pet.name,
     element: pet.element,
     image: pet.image
@@ -544,81 +955,142 @@ async function grantPet(pi_uid, pet_code) {
 }
 
 function getRequestedPetId(req) {
-  return req.body?.pet_id ||
+  return (
+    req.body?.pet_id ||
     req.body?.petId ||
     req.body?.id ||
-    null;
+    null
+  );
 }
 
 function getRequestedPetCode(req) {
-  return req.body?.pet_code ||
+  return (
+    req.body?.pet_code ||
     req.body?.petCode ||
-    null;
+    null
+  );
 }
 
-async function findOwnedPet(pi_uid, req) {
-  const petId = getRequestedPetId(req);
-  const petCode = getRequestedPetCode(req);
+async function findOwnedPet(
+  pi_uid,
+  req
+) {
+  const petId =
+    getRequestedPetId(req);
+
+  const petCode =
+    getRequestedPetCode(req);
 
   if (!petId && !petCode) {
-    throw new Error("pet_id or pet_code is required.");
+    throw new Error(
+      "pet_id or pet_code is required."
+    );
   }
 
-  let r;
+  let result;
 
   if (petId) {
-    r = await dbQuery(`SELECT
-        up.id,up.pet_code,up.level,up.xp,up.hp,up.atk,up.def,
-        pc.name,pc.element,pc.image,pc.base_hp,pc.base_atk,pc.base_def
-        FROM user_pets up
-        JOIN pioneers p ON p.id=up.pioneer_id
-        JOIN pets_catalog pc ON pc.pet_code=up.pet_code
-        WHERE up.id=$1 AND p.pi_uid=$2
-        LIMIT 1`,
-      [Number(petId), pi_uid]
-    );
+    result = await dbQuery(`
+      SELECT
+        up.id,
+        up.pet_code,
+        up.level,
+        up.xp,
+        up.hp,
+        up.atk,
+        up.def,
+        pc.name,
+        pc.element,
+        pc.image,
+        pc.base_hp,
+        pc.base_atk,
+        pc.base_def
+
+      FROM user_pets up
+
+      JOIN pioneers p
+        ON p.id=up.pioneer_id
+
+      JOIN pets_catalog pc
+        ON pc.pet_code=up.pet_code
+
+      WHERE
+        up.id=$1
+        AND p.pi_uid=$2
+
+      LIMIT 1
+    `, [
+      Number(petId),
+      pi_uid
+    ]);
   } else {
-    r = await dbQuery(`SELECT
-        up.id,up.pet_code,up.level,up.xp,up.hp,up.atk,up.def,
-        pc.name,pc.element,pc.image,pc.base_hp,pc.base_atk,pc.base_def
-        FROM user_pets up
-        JOIN pioneers p ON p.id=up.pioneer_id
-        JOIN pets_catalog pc ON pc.pet_code=up.pet_code
-        WHERE up.pet_code=$1 AND p.pi_uid=$2
-        ORDER BY up.created_at DESC
-        LIMIT 1`,
-      [petCode, pi_uid]
+    result = await dbQuery(`
+      SELECT
+        up.id,
+        up.pet_code,
+        up.level,
+        up.xp,
+        up.hp,
+        up.atk,
+        up.def,
+        pc.name,
+        pc.element,
+        pc.image,
+        pc.base_hp,
+        pc.base_atk,
+        pc.base_def
+
+      FROM user_pets up
+
+      JOIN pioneers p
+        ON p.id=up.pioneer_id
+
+      JOIN pets_catalog pc
+        ON pc.pet_code=up.pet_code
+
+      WHERE
+        up.pet_code=$1
+        AND p.pi_uid=$2
+
+      ORDER BY up.created_at DESC
+
+      LIMIT 1
+    `, [
+      petCode,
+      pi_uid
+    ]);
+  }
+
+  if (!result.rows.length) {
+    throw new Error(
+      "Owned pet not found."
     );
   }
 
-  if (!r.rows.length) {
-    throw new Error("Owned pet not found.");
-  }
-
-  return r.rows[0];
+  return result.rows[0];
 }
 
 /* -------------------------------------------------------------------------- */
-/* CORE ROUTES                                                                 */
+/* CORE                                                                        */
 /* -------------------------------------------------------------------------- */
 
 app.get("/", (req, res) => {
   res.json({
     ok: true,
     app: "AMT Pet Marketplace",
-    version: "2.1.0",
+    version: "2.2.0",
     network: "Pi Testnet",
     status: "online"
   });
 });
 
 app.get("/api/health", async (req, res) => {
-  let database = false;
+  let databaseConnected = false;
 
   if (pool) {
     try {
       await dbQuery("SELECT 1");
-      database = true;
+      databaseConnected = true;
     } catch {}
   }
 
@@ -626,7 +1098,7 @@ app.get("/api/health", async (req, res) => {
     ok: true,
     service: "amt-pet-marketplace",
     databaseConfigured: !!DATABASE_URL,
-    databaseConnected: database,
+    databaseConnected,
     piApiConfigured: !!PI_API_KEY,
     piApiBase: PI_API_BASE,
     piAuthTimeoutMs: PI_AUTH_TIMEOUT_MS,
@@ -635,24 +1107,58 @@ app.get("/api/health", async (req, res) => {
       pi: PET_PI_PRICE,
       amt: PET_AMT_PRICE
     },
+    amt: {
+      assetCode: AMT_ASSET_CODE,
+      issuer: AMT_ISSUER,
+      receiver: AMT_RECEIVER,
+      horizon: AMT_HORIZON_URL
+    },
+    devEndpointsEnabled: ALLOW_DEV_ENDPOINTS,
     timestamp: new Date().toISOString()
   });
 });
 
-/* Catalog */
+/* -------------------------------------------------------------------------- */
+/* PET CATALOG                                                                 */
+/* -------------------------------------------------------------------------- */
+
 app.get("/api/pets", async (req, res) => {
   try {
-    const r = await dbQuery(`SELECT pet_code,name,element,rarity,image,
-        base_hp,base_atk,base_def
-        FROM pets_catalog
-        ORDER BY CASE element
-          WHEN 'Earth' THEN 1 WHEN 'Water' THEN 2 WHEN 'Nature' THEN 3
-          WHEN 'Ice' THEN 4 WHEN 'Fire' THEN 5 WHEN 'Wind' THEN 6
-          WHEN 'Thunder' THEN 7 ELSE 99 END,pet_code`);
+    const result = await dbQuery(`
+      SELECT
+        pet_code,
+        name,
+        element,
+        rarity,
+        image,
+        base_hp,
+        base_atk,
+        base_def
 
-    res.json({ ok: true, count: r.rows.length, pets: r.rows });
+      FROM pets_catalog
+
+      ORDER BY
+        CASE element
+          WHEN 'Earth' THEN 1
+          WHEN 'Water' THEN 2
+          WHEN 'Nature' THEN 3
+          WHEN 'Ice' THEN 4
+          WHEN 'Fire' THEN 5
+          WHEN 'Wind' THEN 6
+          WHEN 'Thunder' THEN 7
+          ELSE 99
+        END,
+        pet_code
+    `);
+
+    res.json({
+      ok: true,
+      count: result.rows.length,
+      pets: result.rows
+    });
   } catch (e) {
-    console.error(e);
+    console.error("pets:", e);
+
     res.status(500).json({
       ok: false,
       error: "Unable to load pet catalog."
@@ -660,169 +1166,276 @@ app.get("/api/pets", async (req, res) => {
   }
 });
 
-app.get("/api/pets/element/:element", async (req, res) => {
-  try {
-    const r = await dbQuery(`SELECT pet_code,name,element,rarity,image,
-        base_hp,base_atk,base_def
+app.get(
+  "/api/pets/element/:element",
+  async (req, res) => {
+    try {
+      const result = await dbQuery(`
+        SELECT
+          pet_code,
+          name,
+          element,
+          rarity,
+          image,
+          base_hp,
+          base_atk,
+          base_def
+
         FROM pets_catalog
+
         WHERE LOWER(element)=LOWER($1)
-        ORDER BY pet_code`, [req.params.element]);
 
-    res.json({
-      ok: true,
-      element: req.params.element,
-      count: r.rows.length,
-      pets: r.rows
-    });
-  } catch (e) {
-    res.status(500).json({
-      ok: false,
-      error: "Unable to load pets."
-    });
-  }
-});
+        ORDER BY pet_code
+      `, [
+        req.params.element
+      ]);
 
-app.get("/api/pets/:petCode", async (req, res) => {
-  try {
-    const r = await dbQuery(`SELECT pet_code,name,element,rarity,image,
-        base_hp,base_atk,base_def
-        FROM pets_catalog WHERE pet_code=$1 LIMIT 1`,
-      [req.params.petCode]
-    );
-
-    if (!r.rows.length) {
-      return res.status(404).json({
+      res.json({
+        ok: true,
+        element: req.params.element,
+        count: result.rows.length,
+        pets: result.rows
+      });
+    } catch (e) {
+      res.status(500).json({
         ok: false,
-        error: "Pet not found."
+        error: "Unable to load pets."
       });
     }
-
-    res.json({ ok: true, pet: r.rows[0] });
-  } catch (e) {
-    res.status(500).json({
-      ok: false,
-      error: "Unable to load pet."
-    });
   }
-});
+);
 
-/* Auth diagnostics */
+app.get(
+  "/api/pets/:petCode",
+  async (req, res) => {
+    try {
+      const pet =
+        await getCatalogPet(
+          req.params.petCode
+        );
+
+      if (!pet) {
+        return res.status(404).json({
+          ok: false,
+          error: "Pet not found."
+        });
+      }
+
+      res.json({
+        ok: true,
+        pet
+      });
+    } catch (e) {
+      res.status(500).json({
+        ok: false,
+        error: "Unable to load pet."
+      });
+    }
+  }
+);
+
+/* -------------------------------------------------------------------------- */
+/* AUTH                                                                        */
+/* -------------------------------------------------------------------------- */
+
 app.get("/api/auth/status", async (req, res) => {
   res.json({
     ok: true,
     piApiBase: PI_API_BASE,
     piApiConfigured: !!PI_API_KEY,
     timeoutMs: PI_AUTH_TIMEOUT_MS,
-    message: "Backend is ready for Pi token verification."
+    message:
+      "Backend is ready for Pi token verification."
   });
 });
 
-/* Auth */
-app.post("/api/auth/verify", requirePiAuth, async (req, res) => {
-  const wallet =
-    req.pioneer.wallet_address ||
-    req.piUser.wallet_address ||
-    "";
+app.post(
+  "/api/auth/verify",
+  requirePiAuth,
+  async (req, res) => {
+    const wallet =
+      req.pioneer.wallet_address ||
+      req.piUser.wallet_address ||
+      "";
 
-  const walletSynced =
-    typeof wallet === "string" && /^G[A-Z2-7]{55}$/.test(wallet.trim());
-
-  res.json({
-    ok: true,
-    uid: req.piUser.uid,
-    username: req.piUser.username || req.pioneer.username || null,
-    walletAddress: walletSynced ? wallet : null,
-    wallet_address: walletSynced ? wallet : null,
-    profilePicture: req.pioneer.profile_picture || null,
-    profile_picture: req.pioneer.profile_picture || null,
-    walletSynced,
-    needsWalletSync: !walletSynced,
-    message: walletSynced
-      ? "Pioneer authenticated and wallet already synchronized."
-      : "Pioneer authenticated. Please sync your public Pi Testnet wallet (G...) to use AMT.",
-    pioneer: req.pioneer
-  });
-});
-
-/* Update profile picture */
-app.post("/api/profile/picture", requirePiAuth, async (req, res) => {
-  try {
-    const picture = String(
-      req.body?.profile_picture ||
-      req.body?.profilePicture ||
-      req.body?.picture ||
-      req.body?.url ||
-      ""
-    ).trim();
-
-    if (!picture) {
-      return res.status(400).json({
-        ok: false,
-        error: "profile_picture (URL or base64) is required."
-      });
-    }
-
-    // Basic validation – accept http(s) URL or data:image base64
-    const isUrl = /^https?:\/\/.+/i.test(picture);
-    const isBase64 = /^data:image\/(png|jpeg|jpg|gif|webp);base64,/i.test(picture);
-
-    if (!isUrl && !isBase64) {
-      return res.status(400).json({
-        ok: false,
-        error: "profile_picture must be a valid image URL or base64 data URI."
-      });
-    }
-
-    const pioneer = await upsertPioneer(
-      req.piUser.uid,
-      req.piUser.username,
-      req.pioneer.wallet_address || req.piUser.wallet_address || null,
-      picture
-    );
+    const walletSynced =
+      isPublicStellarAddress(wallet);
 
     res.json({
       ok: true,
-      message: "Profile picture saved successfully.",
-      profilePicture: pioneer.profile_picture,
-      profile_picture: pioneer.profile_picture,
-      pioneer
-    });
-  } catch (e) {
-    console.error("profile picture:", e);
-    res.status(400).json({
-      ok: false,
-      error: e.message || "Unable to save profile picture."
+
+      uid:
+        req.piUser.uid,
+
+      username:
+        req.piUser.username ||
+        req.pioneer.username ||
+        null,
+
+      walletAddress:
+        walletSynced
+          ? wallet
+          : null,
+
+      wallet_address:
+        walletSynced
+          ? wallet
+          : null,
+
+      profilePicture:
+        req.pioneer.profile_picture ||
+        null,
+
+      profile_picture:
+        req.pioneer.profile_picture ||
+        null,
+
+      walletSynced,
+
+      needsWalletSync:
+        !walletSynced,
+
+      message:
+        walletSynced
+          ? "Pioneer authenticated and wallet synchronized."
+          : "Pioneer authenticated. A public Pi Testnet wallet must be synchronized before using AMT.",
+
+      pioneer:
+        req.pioneer
     });
   }
-});
+);
 
-/* Wallet config */
-app.get("/api/wallet/config", (req, res) => {
-  res.json({
-    ok: true,
-    asset_code: AMT_ASSET_CODE,
-    issuer: AMT_ISSUER,
-    receiver: AMT_RECEIVER,
-    staking_receiver: AMT_RECEIVER,
-    horizon: AMT_HORIZON_URL,
-    network: "Pi Testnet"
-  });
-});
+/* -------------------------------------------------------------------------- */
+/* PROFILE PICTURE                                                             */
+/* -------------------------------------------------------------------------- */
 
-/*
- * Wallet synchronization.
- * Supports both /api/wallet/bind and /api/wallet/sync so an existing
- * frontend does not need to be rewritten.
- */
-async function walletBindHandler(req, res) {
+app.post(
+  "/api/profile/picture",
+  requirePiAuth,
+  async (req, res) => {
+    try {
+      const picture = String(
+        req.body?.profile_picture ||
+        req.body?.profilePicture ||
+        req.body?.picture ||
+        req.body?.url ||
+        ""
+      ).trim();
+
+      if (!picture) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "profile_picture (URL or base64) is required."
+        });
+      }
+
+      const isUrl =
+        /^https?:\/\/.+/i.test(picture);
+
+      const isBase64 =
+        /^data:image\/(png|jpeg|jpg|gif|webp);base64,/i.test(
+          picture
+        );
+
+      if (!isUrl && !isBase64) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "profile_picture must be a valid image URL or base64 data URI."
+        });
+      }
+
+      const pioneer =
+        await upsertPioneer(
+          req.piUser.uid,
+          req.piUser.username,
+          req.pioneer.wallet_address ||
+            req.piUser.wallet_address ||
+            null,
+          picture
+        );
+
+      res.json({
+        ok: true,
+        message:
+          "Profile picture saved successfully.",
+        profilePicture:
+          pioneer.profile_picture,
+        profile_picture:
+          pioneer.profile_picture,
+        pioneer
+      });
+    } catch (e) {
+      console.error(
+        "profile picture:",
+        e
+      );
+
+      res.status(400).json({
+        ok: false,
+        error:
+          e.message ||
+          "Unable to save profile picture."
+      });
+    }
+  }
+);
+
+/* -------------------------------------------------------------------------- */
+/* WALLET CONFIG                                                               */
+/* -------------------------------------------------------------------------- */
+
+app.get(
+  "/api/wallet/config",
+  (req, res) => {
+    res.json({
+      ok: true,
+      asset_code: AMT_ASSET_CODE,
+      issuer: AMT_ISSUER,
+      receiver: AMT_RECEIVER,
+      staking_receiver: AMT_RECEIVER,
+      horizon: AMT_HORIZON_URL,
+      network: "Pi Testnet"
+    });
+  }
+);
+
+/* -------------------------------------------------------------------------- */
+/* WALLET SYNCHRONIZATION                                                      */
+/* -------------------------------------------------------------------------- */
+
+async function walletBindHandler(
+  req,
+  res
+) {
   try {
-    const wallet = String(
-      req.body?.wallet_address ||
-      req.body?.walletAddress ||
-      req.body?.address ||
-      req.piUser.wallet_address ||
-      ""
-    ).trim();
+    const submittedWallet =
+      normalizeWallet(
+        req.body?.wallet_address ||
+        req.body?.walletAddress ||
+        req.body?.address
+      );
+
+    const authenticatedWallet =
+      normalizeWallet(
+        req.piUser.wallet_address
+      );
+
+    const existingWallet =
+      normalizeWallet(
+        req.pioneer.wallet_address
+      );
+
+    /*
+     * Preferred path:
+     * Use the wallet returned by Pi authentication.
+     */
+    const wallet =
+      authenticatedWallet ||
+      submittedWallet ||
+      existingWallet;
 
     if (!isPublicStellarAddress(wallet)) {
       return res.status(400).json({
@@ -832,215 +1445,447 @@ async function walletBindHandler(req, res) {
       });
     }
 
-    const pioneer = await upsertPioneer(
-      req.piUser.uid,
-      req.piUser.username,
-      wallet
-    );
+    /*
+     * If a wallet already exists and a different wallet is submitted,
+     * refuse to silently replace it.
+     */
+    if (
+      existingWallet &&
+      existingWallet !== wallet
+    ) {
+      return res.status(409).json({
+        ok: false,
+        error:
+          "A different wallet is already synchronized with this Pioneer account. The existing wallet was not replaced."
+      });
+    }
+
+    const pioneer =
+      await upsertPioneer(
+        req.piUser.uid,
+        req.piUser.username,
+        wallet
+      );
 
     res.json({
       ok: true,
       synced: true,
       uid: req.piUser.uid,
       username: req.piUser.username,
-      wallet_address: pioneer.wallet_address,
-      walletAddress: pioneer.wallet_address,
+      wallet_address:
+        pioneer.wallet_address,
+      walletAddress:
+        pioneer.wallet_address,
       network: "Pi Testnet",
-      message: "Public Pi Testnet wallet synchronized successfully."
+      message:
+        "Public Pi Testnet wallet synchronized successfully."
     });
   } catch (e) {
-    console.error("wallet sync:", e);
+    console.error(
+      "wallet sync:",
+      e
+    );
+
     res.status(400).json({
       ok: false,
-      error: e.message || "Unable to synchronize wallet."
+      error:
+        e.message ||
+        "Unable to synchronize wallet."
     });
   }
 }
 
-app.post("/api/wallet/bind", requirePiAuth, walletBindHandler);
-app.post("/api/wallet/sync", requirePiAuth, walletBindHandler);
+app.post(
+  "/api/wallet/bind",
+  requirePiAuth,
+  walletBindHandler
+);
 
-app.get("/api/wallet/sync", requirePiAuth, async (req, res) => {
-  try {
-    const wallet = req.pioneer.wallet_address || req.piUser.wallet_address || "";
+app.post(
+  "/api/wallet/sync",
+  requirePiAuth,
+  walletBindHandler
+);
 
-    if (!isPublicStellarAddress(wallet)) {
-      return res.status(200).json({
+app.get(
+  "/api/wallet/sync",
+  requirePiAuth,
+  async (req, res) => {
+    try {
+      const wallet =
+        req.pioneer.wallet_address ||
+        req.piUser.wallet_address ||
+        "";
+
+      if (!isPublicStellarAddress(wallet)) {
+        return res.json({
+          ok: true,
+          synced: false,
+          needsWalletSync: true,
+          uid: req.piUser.uid,
+          username: req.piUser.username,
+          wallet_address: null,
+          walletAddress: null,
+          message:
+            "No valid public Pi Testnet wallet is synchronized yet."
+        });
+      }
+
+      res.json({
         ok: true,
-        synced: false,
-        needsWalletSync: true,
+        synced: true,
+        needsWalletSync: false,
         uid: req.piUser.uid,
         username: req.piUser.username,
-        wallet_address: null,
-        walletAddress: null,
-        message: "No valid public Pi Testnet wallet is synchronized yet. Please bind your G... address."
+        wallet_address: wallet,
+        walletAddress: wallet,
+        network: "Pi Testnet",
+        message:
+          "Wallet already synchronized."
       });
-    }
-
-    res.json({
-      ok: true,
-      synced: true,
-      needsWalletSync: false,
-      uid: req.piUser.uid,
-      username: req.piUser.username,
-      wallet_address: wallet,
-      walletAddress: wallet,
-      network: "Pi Testnet",
-      message: "Wallet already synchronized."
-    });
-  } catch (e) {
-    res.status(400).json({ ok: false, error: e.message });
-  }
-});
-
-app.get("/api/wallet/onchain", requirePiAuth, async (req, res) => {
-  try {
-    const wallet = req.pioneer.wallet_address || "";
-
-    if (!isPublicStellarAddress(wallet)) {
-      return res.status(400).json({
+    } catch (e) {
+      res.status(400).json({
         ok: false,
-        error: "No synchronized public Pi Testnet wallet address found for this Pioneer."
+        error: e.message
       });
     }
+  }
+);
 
-    const account = await horizonGet(
-      "/accounts/" + encodeURIComponent(wallet)
-    );
+/* -------------------------------------------------------------------------- */
+/* ACTUAL ON-CHAIN AMT BALANCE                                                 */
+/* -------------------------------------------------------------------------- */
 
-    const balances = Array.isArray(account.balances)
-      ? account.balances
-      : [];
+app.get(
+  "/api/wallet/onchain",
+  requirePiAuth,
+  async (req, res) => {
+    try {
+      const wallet =
+        req.pioneer.wallet_address ||
+        req.piUser.wallet_address ||
+        "";
 
-    const balance = balances
-      .filter(b =>
-        b.asset_type === "credit_alphanum4" &&
-        b.asset_code === AMT_ASSET_CODE &&
-        b.asset_issuer === AMT_ISSUER
-      )
-      .reduce((sum, b) => sum + Number(b.balance || 0), 0);
-
-    res.json({
-      ok: true,
-      pi_uid: req.piUser.uid,
-      username: req.piUser.username,
-      wallet_address: wallet,
-      walletAddress: wallet,
-      amt: {
-        wallet,
-        asset_code: AMT_ASSET_CODE,
-        issuer: AMT_ISSUER,
-        balance
+      if (!isPublicStellarAddress(wallet)) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "No synchronized public Pi Testnet wallet address found for this Pioneer."
+        });
       }
-    });
-  } catch (e) {
-    res.status(400).json({
-      ok: false,
-      error: e.message
-    });
-  }
-});
 
-/* Pioneer */
-app.post("/api/pioneers", async (req, res) => {
-  try {
-    const { pi_uid, username, wallet_address } = req.body || {};
+      const result =
+        await getAMTBalance(wallet);
 
-    if (!pi_uid) {
-      return res.status(400).json({
+      res.json({
+        ok: true,
+        pi_uid: req.piUser.uid,
+        username: req.piUser.username,
+        wallet_address: wallet,
+        walletAddress: wallet,
+
+        amt: {
+          wallet,
+          asset_code: AMT_ASSET_CODE,
+          issuer: AMT_ISSUER,
+          balance: result.balance
+        }
+      });
+    } catch (e) {
+      console.error(
+        "onchain balance:",
+        e
+      );
+
+      res.status(400).json({
         ok: false,
-        error: "pi_uid is required."
+        error: e.message
       });
     }
-
-    const pioneer = await upsertPioneer(
-      pi_uid,
-      username,
-      wallet_address
-    );
-
-    res.json({ ok: true, pioneer });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({
-      ok: false,
-      error: "Unable to save Pioneer."
-    });
   }
-});
+);
 
-app.get("/api/pioneers/:pi_uid", async (req, res) => {
-  try {
-    const r = await dbQuery(`SELECT id,pi_uid,username,wallet_address,
-        profile_picture,created_at,updated_at
-        FROM pioneers WHERE pi_uid=$1 LIMIT 1`,
-      [req.params.pi_uid]
-    );
+/* -------------------------------------------------------------------------- */
+/* PIONEER ROUTES - NOW AUTHENTICATED                                          */
+/* -------------------------------------------------------------------------- */
 
-    if (!r.rows.length) {
-      return res.status(404).json({
+/*
+ * Legacy endpoint preserved.
+ *
+ * It is now protected and the submitted pi_uid MUST equal the authenticated
+ * Pi account UID.
+ */
+app.post(
+  "/api/pioneers",
+  requirePiAuth,
+  async (req, res) => {
+    try {
+      const requestedUid =
+        String(
+          req.body?.pi_uid || ""
+        ).trim();
+
+      if (
+        requestedUid &&
+        requestedUid !== req.piUser.uid
+      ) {
+        return res.status(403).json({
+          ok: false,
+          error:
+            "You can only modify your own Pioneer record."
+        });
+      }
+
+      const pioneer =
+        await upsertPioneer(
+          req.piUser.uid,
+          req.piUser.username,
+          req.piUser.wallet_address
+        );
+
+      res.json({
+        ok: true,
+        pioneer
+      });
+    } catch (e) {
+      console.error(
+        "pioneer save:",
+        e
+      );
+
+      res.status(500).json({
         ok: false,
-        error: "Pioneer not found."
+        error:
+          "Unable to save Pioneer."
       });
     }
-
-    res.json({ ok: true, pioneer: r.rows[0] });
-  } catch (e) {
-    res.status(500).json({
-      ok: false,
-      error: "Unable to load Pioneer."
-    });
   }
-});
+);
 
-/* My pets */
-app.get("/api/my-pets/:pi_uid", async (req, res) => {
-  try {
-    const r = await dbQuery(`SELECT
-        up.id,up.pet_code,pc.name,pc.element,pc.image,up.rarity,
-        up.level,up.xp,up.hp,up.atk,up.def,up.created_at,up.updated_at
+/*
+ * Legacy GET endpoint preserved.
+ */
+app.get(
+  "/api/pioneers/:pi_uid",
+  requirePiAuth,
+  async (req, res) => {
+    try {
+      if (
+        req.params.pi_uid !==
+        req.piUser.uid
+      ) {
+        return res.status(403).json({
+          ok: false,
+          error:
+            "You can only view your own Pioneer record."
+        });
+      }
+
+      const pioneer =
+        await getPioneerByUid(
+          req.piUser.uid
+        );
+
+      if (!pioneer) {
+        return res.status(404).json({
+          ok: false,
+          error:
+            "Pioneer not found."
+        });
+      }
+
+      res.json({
+        ok: true,
+        pioneer
+      });
+    } catch (e) {
+      res.status(500).json({
+        ok: false,
+        error:
+          "Unable to load Pioneer."
+      });
+    }
+  }
+);
+
+/* -------------------------------------------------------------------------- */
+/* MY PETS                                                                     */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * New secure endpoint.
+ *
+ * The server obtains the UID from the verified Pi token.
+ * The frontend does not need to send another person's UID.
+ */
+app.get(
+  "/api/my-pets",
+  requirePiAuth,
+  async (req, res) => {
+    try {
+      const result = await dbQuery(`
+        SELECT
+          up.id,
+          up.pet_code,
+          pc.name,
+          pc.element,
+          pc.image,
+          up.rarity,
+          up.level,
+          up.xp,
+          up.hp,
+          up.atk,
+          up.def,
+          up.created_at,
+          up.updated_at
+
         FROM user_pets up
-        JOIN pioneers p ON p.id=up.pioneer_id
-        JOIN pets_catalog pc ON pc.pet_code=up.pet_code
+
+        JOIN pioneers p
+          ON p.id=up.pioneer_id
+
+        JOIN pets_catalog pc
+          ON pc.pet_code=up.pet_code
+
         WHERE p.pi_uid=$1
-        ORDER BY up.created_at DESC`,
-      [req.params.pi_uid]
-    );
 
-    res.json({
-      ok: true,
-      count: r.rows.length,
-      pets: r.rows
-    });
-  } catch (e) {
-    res.status(500).json({
-      ok: false,
-      error: "Unable to load Pioneer pets."
-    });
+        ORDER BY up.created_at DESC
+      `, [
+        req.piUser.uid
+      ]);
+
+      res.json({
+        ok: true,
+        count: result.rows.length,
+        pets: result.rows
+      });
+    } catch (e) {
+      console.error(
+        "my pets:",
+        e
+      );
+
+      res.status(500).json({
+        ok: false,
+        error:
+          "Unable to load Pioneer pets."
+      });
+    }
   }
-});
+);
+
+/*
+ * Legacy endpoint preserved, but now secured.
+ */
+app.get(
+  "/api/my-pets/:pi_uid",
+  requirePiAuth,
+  async (req, res) => {
+    try {
+      if (
+        req.params.pi_uid !==
+        req.piUser.uid
+      ) {
+        return res.status(403).json({
+          ok: false,
+          error:
+            "You can only view your own pets."
+        });
+      }
+
+      const result = await dbQuery(`
+        SELECT
+          up.id,
+          up.pet_code,
+          pc.name,
+          pc.element,
+          pc.image,
+          up.rarity,
+          up.level,
+          up.xp,
+          up.hp,
+          up.atk,
+          up.def,
+          up.created_at,
+          up.updated_at
+
+        FROM user_pets up
+
+        JOIN pioneers p
+          ON p.id=up.pioneer_id
+
+        JOIN pets_catalog pc
+          ON pc.pet_code=up.pet_code
+
+        WHERE p.pi_uid=$1
+
+        ORDER BY up.created_at DESC
+      `, [
+        req.piUser.uid
+      ]);
+
+      res.json({
+        ok: true,
+        count: result.rows.length,
+        pets: result.rows
+      });
+    } catch (e) {
+      res.status(500).json({
+        ok: false,
+        error:
+          "Unable to load Pioneer pets."
+      });
+    }
+  }
+);
 
 /* -------------------------------------------------------------------------- */
-/* CARE + TRAIN - fixes "Endpoint not found"                                  */
+/* CARE                                                                       */
 /* -------------------------------------------------------------------------- */
 
-async function carePetHandler(req, res) {
+async function carePetHandler(
+  req,
+  res
+) {
   try {
-    const pet = await findOwnedPet(req.piUser.uid, req);
+    const pet =
+      await findOwnedPet(
+        req.piUser.uid,
+        req
+      );
 
-    const r = await dbQuery(`UPDATE user_pets
-      SET hp=$1,updated_at=NOW()
+    const result = await dbQuery(`
+      UPDATE user_pets
+
+      SET
+        hp=$1,
+        updated_at=NOW()
+
       WHERE id=$2
-      RETURNING id,pet_code,rarity,level,xp,hp,atk,def,updated_at`,
-      [pet.base_hp, pet.id]
-    );
+
+      RETURNING
+        id,
+        pet_code,
+        rarity,
+        level,
+        xp,
+        hp,
+        atk,
+        def,
+        updated_at
+    `, [
+      pet.base_hp,
+      pet.id
+    ]);
 
     res.json({
       ok: true,
       action: "CARE",
-      message: "Pet cared for successfully. HP restored.",
+      message:
+        "Pet cared for successfully. HP restored.",
+
       pet: {
-        ...r.rows[0],
+        ...result.rows[0],
         name: pet.name,
         element: pet.element,
         image: pet.image,
@@ -1048,57 +1893,116 @@ async function carePetHandler(req, res) {
       }
     });
   } catch (e) {
-    console.error("care:", e);
+    console.error(
+      "care:",
+      e
+    );
+
     res.status(400).json({
       ok: false,
-      error: e.message || "Unable to care for pet."
+      error:
+        e.message ||
+        "Unable to care for pet."
     });
   }
 }
 
-async function trainPetHandler(req, res) {
+/* -------------------------------------------------------------------------- */
+/* TRAIN                                                                      */
+/* -------------------------------------------------------------------------- */
+
+async function trainPetHandler(
+  req,
+  res
+) {
   try {
-    const pet = await findOwnedPet(req.piUser.uid, req);
+    const pet =
+      await findOwnedPet(
+        req.piUser.uid,
+        req
+      );
 
     const XP_GAIN = 25;
-    const oldXp = Number(pet.xp || 0);
-    const oldLevel = Number(pet.level || 1);
-    const totalXp = oldXp + XP_GAIN;
 
-    /*
-     * 100 XP per level.
-     * Example: level 1 + 25 XP = level 1 / 25 XP.
-     * Level increases automatically whenever a 100 XP boundary is reached.
-     */
-    const newLevel = Math.max(1, Math.floor(totalXp / 100) + 1);
-    const levelUps = Math.max(0, newLevel - oldLevel);
+    const oldXp =
+      Number(pet.xp || 0);
 
-    const newAtk = Number(pet.atk) + (levelUps * 2);
-    const newDef = Number(pet.def) + (levelUps * 2);
-    const newMaxHp = Number(pet.base_hp) + (levelUps * 5);
+    const oldLevel =
+      Number(pet.level || 1);
 
-    const r = await dbQuery(`UPDATE user_pets
-      SET xp=$1,
-          level=$2,
-          atk=$3,
-          def=$4,
-          hp=LEAST(hp,$5),
-          updated_at=NOW()
+    const totalXp =
+      oldXp + XP_GAIN;
+
+    const newLevel =
+      Math.max(
+        1,
+        Math.floor(totalXp / 100) + 1
+      );
+
+    const levelUps =
+      Math.max(
+        0,
+        newLevel - oldLevel
+      );
+
+    const newAtk =
+      Number(pet.atk) +
+      levelUps * 2;
+
+    const newDef =
+      Number(pet.def) +
+      levelUps * 2;
+
+    const newMaxHp =
+      Number(pet.base_hp) +
+      levelUps * 5;
+
+    const result = await dbQuery(`
+      UPDATE user_pets
+
+      SET
+        xp=$1,
+        level=$2,
+        atk=$3,
+        def=$4,
+        hp=LEAST(hp,$5),
+        updated_at=NOW()
+
       WHERE id=$6
-      RETURNING id,pet_code,rarity,level,xp,hp,atk,def,updated_at`,
-      [totalXp,newLevel,newAtk,newDef,newMaxHp,pet.id]
-    );
+
+      RETURNING
+        id,
+        pet_code,
+        rarity,
+        level,
+        xp,
+        hp,
+        atk,
+        def,
+        updated_at
+    `, [
+      totalXp,
+      newLevel,
+      newAtk,
+      newDef,
+      newMaxHp,
+      pet.id
+    ]);
 
     res.json({
       ok: true,
       action: "TRAIN",
-      message: levelUps > 0
-        ? `Training complete. Pet reached Level ${newLevel}!`
-        : "Training complete. XP gained.",
+
+      message:
+        levelUps > 0
+          ? `Training complete. Pet reached Level ${newLevel}!`
+          : "Training complete. XP gained.",
+
       xpGained: XP_GAIN,
       levelUps,
+
       pet: {
-        ...r.rows[0],
+        ...result.rows[0],
         name: pet.name,
         element: pet.element,
         image: pet.image,
@@ -1106,572 +2010,317 @@ async function trainPetHandler(req, res) {
       }
     });
   } catch (e) {
-    console.error("train:", e);
+    console.error(
+      "train:",
+      e
+    );
+
     res.status(400).json({
       ok: false,
-      error: e.message || "Unable to train pet."
+      error:
+        e.message ||
+        "Unable to train pet."
     });
   }
 }
 
-/*
- * Multiple compatible paths are intentionally provided.
- * This prevents the current frontend from breaking if it calls one of
- * the common names below.
- */
-app.post("/api/care", requirePiAuth, carePetHandler);
-app.post("/api/care/pet", requirePiAuth, carePetHandler);
-app.post("/api/pets/care", requirePiAuth, carePetHandler);
+app.post(
+  "/api/care",
+  requirePiAuth,
+  carePetHandler
+);
 
-app.post("/api/train", requirePiAuth, trainPetHandler);
-app.post("/api/train/pet", requirePiAuth, trainPetHandler);
-app.post("/api/pets/train", requirePiAuth, trainPetHandler);
+app.post(
+  "/api/care/pet",
+  requirePiAuth,
+  carePetHandler
+);
+
+app.post(
+  "/api/pets/care",
+  requirePiAuth,
+  carePetHandler
+);
+
+app.post(
+  "/api/train",
+  requirePiAuth,
+  trainPetHandler
+);
+
+app.post(
+  "/api/train/pet",
+  requirePiAuth,
+  trainPetHandler
+);
+
+app.post(
+  "/api/pets/train",
+  requirePiAuth,
+  trainPetHandler
+);
 
 /* -------------------------------------------------------------------------- */
 /* PI PAYMENTS                                                                 */
 /* -------------------------------------------------------------------------- */
 
-app.post("/api/payments/pi/prepare", requirePiAuth, async (req, res) => {
-  try {
-    const { payment_id, pet_code } = req.body || {};
+app.post(
+  "/api/payments/pi/prepare",
+  requirePiAuth,
+  async (req, res) => {
+    try {
+      const {
+        payment_id,
+        pet_code
+      } = req.body || {};
 
-    if (!payment_id || !pet_code) {
-      return res.status(400).json({
-        ok: false,
-        error: "payment_id and pet_code are required."
-      });
-    }
+      if (!payment_id || !pet_code) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "payment_id and pet_code are required."
+        });
+      }
 
-    const pet = await dbQuery(
-      "SELECT pet_code,name FROM pets_catalog WHERE pet_code=$1 LIMIT 1",
-      [pet_code]
-    );
+      const pet =
+        await getCatalogPet(
+          pet_code
+        );
 
-    if (!pet.rows.length) {
-      return res.status(404).json({
-        ok: false,
-        error: "Pet not found."
-      });
-    }
+      if (!pet) {
+        return res.status(404).json({
+          ok: false,
+          error:
+            "Pet not found."
+        });
+      }
 
-    const payment = await piFetch(
-      "/v2/payments/" + encodeURIComponent(payment_id)
-    );
+      const payment =
+        await piFetch(
+          "/v2/payments/" +
+          encodeURIComponent(
+            payment_id
+          )
+        );
 
-    const amount = String(payment.amount ?? "");
-    const metadata = payment.metadata || {};
+      const amount =
+        String(
+          payment.amount ?? ""
+        );
 
-    if (Number(amount) !== Number(PET_PI_PRICE)) {
-      return res.status(400).json({
-        ok: false,
-        error: `Payment amount must be ${PET_PI_PRICE} Pi Test.`
-      });
-    }
+      const metadata =
+        payment.metadata || {};
 
-    if (metadata.pet_code && metadata.pet_code !== pet_code) {
-      return res.status(400).json({
-        ok: false,
-        error: "Payment pet does not match."
-      });
-    }
+      if (
+        Number(amount) !==
+        Number(PET_PI_PRICE)
+      ) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            `Payment amount must be ${PET_PI_PRICE} Pi Test.`
+        });
+      }
 
-    await dbQuery(`INSERT INTO pet_payments
-      (payment_id,pi_uid,username,pet_code,currency,amount,status)
-      VALUES($1,$2,$3,$4,'PI',$5,'CREATED')
-      ON CONFLICT(payment_id) DO UPDATE SET
-        pet_code=EXCLUDED.pet_code,
-        updated_at=NOW()`,
-      [
+      if (
+        metadata.pet_code &&
+        metadata.pet_code !==
+        pet_code
+      ) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "Payment pet does not match."
+        });
+      }
+
+      await dbQuery(`
+        INSERT INTO pet_payments
+          (
+            payment_id,
+            pi_uid,
+            username,
+            pet_code,
+            currency,
+            amount,
+            status
+          )
+
+        VALUES
+          ($1,$2,$3,$4,'PI',$5,'CREATED')
+
+        ON CONFLICT(payment_id)
+        DO UPDATE SET
+          updated_at=NOW()
+      `, [
         payment_id,
         req.piUser.uid,
         req.piUser.username,
         pet_code,
         Number(PET_PI_PRICE)
-      ]
-    );
+      ]);
 
-    res.json({
-      ok: true,
-      paymentId: payment_id,
-      pet_code,
-      amount: Number(PET_PI_PRICE),
-      currency: PI_PAYMENT_CURRENCY,
-      status: "CREATED"
-    });
-  } catch (e) {
-    console.error("prepare pi:", e);
-    res.status(400).json({
-      ok: false,
-      error: e.message || "Unable to prepare Pi payment."
-    });
-  }
-});
-
-app.post("/api/payments/pi/approve", requirePiAuth, async (req, res) => {
-  try {
-    const { payment_id, pet_code } = req.body || {};
-
-    if (!payment_id || !pet_code) {
-      return res.status(400).json({
-        ok: false,
-        error: "payment_id and pet_code are required."
-      });
-    }
-
-    const row = await dbQuery(
-      `SELECT * FROM pet_payments
-       WHERE payment_id=$1 AND pi_uid=$2 LIMIT 1`,
-      [payment_id, req.piUser.uid]
-    );
-
-    if (!row.rows.length) {
-      return res.status(404).json({
-        ok: false,
-        error: "Payment intent not found. Prepare it first."
-      });
-    }
-
-    const payment = await piFetch(
-      "/v2/payments/" + encodeURIComponent(payment_id)
-    );
-
-    if (Number(payment.amount) !== Number(PET_PI_PRICE)) {
-      return res.status(400).json({
-        ok: false,
-        error: `Payment amount is not ${PET_PI_PRICE} Pi Test.`
-      });
-    }
-
-    const approved = await piFetch(
-      "/v2/payments/" + encodeURIComponent(payment_id) + "/approve",
-      { method: "POST" }
-    );
-
-    await dbQuery(
-      `UPDATE pet_payments
-       SET status='APPROVED',updated_at=NOW()
-       WHERE payment_id=$1`,
-      [payment_id]
-    );
-
-    res.json({
-      ok: true,
-      paymentId: payment_id,
-      status: "APPROVED",
-      pi: approved
-    });
-  } catch (e) {
-    console.error("approve pi:", e);
-    res.status(400).json({
-      ok: false,
-      error: e.message || "Pi approval failed."
-    });
-  }
-});
-
-app.post("/api/payments/pi/complete", requirePiAuth, async (req, res) => {
-  try {
-    const { payment_id, pet_code, txid } = req.body || {};
-
-    if (!payment_id || !pet_code) {
-      return res.status(400).json({
-        ok: false,
-        error: "payment_id and pet_code are required."
-      });
-    }
-
-    const row = await dbQuery(
-      `SELECT * FROM pet_payments
-       WHERE payment_id=$1 AND pi_uid=$2 LIMIT 1`,
-      [payment_id, req.piUser.uid]
-    );
-
-    if (!row.rows.length) {
-      return res.status(404).json({
-        ok: false,
-        error: "Payment intent not found."
-      });
-    }
-
-    if (row.rows[0].status === "COMPLETED") {
-      return res.json({
+      res.json({
         ok: true,
-        status: "COMPLETED",
-        message: "Payment already completed; pet ownership already granted."
+        paymentId: payment_id,
+        pet_code,
+        amount:
+          Number(PET_PI_PRICE),
+        currency:
+          PI_PAYMENT_CURRENCY,
+        status: "CREATED"
       });
-    }
+    } catch (e) {
+      console.error(
+        "prepare pi:",
+        e
+      );
 
-    const payment = await piFetch(
-      "/v2/payments/" + encodeURIComponent(payment_id)
-    );
-
-    const transactionId =
-      txid ||
-      payment.transaction?.txid ||
-      payment.txid ||
-      "";
-
-    const status = payment.status || {};
-
-    if (!transactionId) {
-      return res.status(409).json({
+      res.status(400).json({
         ok: false,
-        error: "Pi transaction ID is not available yet. Please wait for the blockchain transaction."
+        error:
+          e.message ||
+          "Unable to prepare Pi payment."
       });
     }
-
-    if (status.cancelled === true || status.cancelled === 1) {
-      return res.status(409).json({
-        ok: false,
-        error: "Pi payment was cancelled."
-      });
-    }
-
-    const completed = await piFetch(
-      "/v2/payments/" + encodeURIComponent(payment_id) + "/complete",
-      {
-        method: "POST",
-        body: JSON.stringify({ txid: transactionId })
-      }
-    );
-
-    const pet = await grantPet(req.piUser.uid, pet_code);
-
-    await dbQuery(`UPDATE pet_payments
-      SET status='COMPLETED',
-          transaction_id=$1,
-          completed_at=NOW(),
-          updated_at=NOW()
-      WHERE payment_id=$2`,
-      [transactionId, payment_id]
-    );
-
-    res.json({
-      ok: true,
-      status: "COMPLETED",
-      paymentId: payment_id,
-      transactionId,
-      pi: completed,
-      pet
-    });
-  } catch (e) {
-    console.error("complete pi:", e);
-    res.status(400).json({
-      ok: false,
-      error: e.message || "Pi completion verification failed."
-    });
   }
-});
+);
 
-app.post("/api/payments/pi/callback", async (req, res) => {
-  try {
-    const { payment_id, txid } = req.body || {};
+app.post(
+  "/api/payments/pi/approve",
+  requirePiAuth,
+  async (req, res) => {
+    try {
+      const {
+        payment_id,
+        pet_code
+      } = req.body || {};
 
-    if (!payment_id) {
-      return res.status(400).json({
-        ok: false,
-        error: "payment_id is required."
-      });
-    }
-
-    const payment = await piFetch(
-      "/v2/payments/" + encodeURIComponent(payment_id)
-    );
-
-    const row = await dbQuery(
-      "SELECT * FROM pet_payments WHERE payment_id=$1 LIMIT 1",
-      [payment_id]
-    );
-
-    if (!row.rows.length) {
-      return res.status(404).json({
-        ok: false,
-        error: "Payment intent not found."
-      });
-    }
-
-    if (row.rows[0].status !== "COMPLETED") {
-      const transactionId =
-        txid ||
-        payment.transaction?.txid ||
-        payment.txid ||
-        "";
-
-      const status = payment.status || {};
-
-      if (status.cancelled === true || status.cancelled === 1) {
-        return res.status(409).json({
+      if (!payment_id || !pet_code) {
+        return res.status(400).json({
           ok: false,
-          error: "Pi payment was cancelled."
+          error:
+            "payment_id and pet_code are required."
         });
       }
 
-      if (transactionId) {
+      const row =
+        await dbQuery(`
+          SELECT *
+          FROM pet_payments
+          WHERE
+            payment_id=$1
+            AND pi_uid=$2
+          LIMIT 1
+        `, [
+          payment_id,
+          req.piUser.uid
+        ]);
+
+      if (!row.rows.length) {
+        return res.status(404).json({
+          ok: false,
+          error:
+            "Payment intent not found. Prepare it first."
+        });
+      }
+
+      if (
+        row.rows[0].pet_code !==
+        pet_code
+      ) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "Payment pet does not match."
+        });
+      }
+
+      const payment =
         await piFetch(
-          "/v2/payments/" + encodeURIComponent(payment_id) + "/complete",
+          "/v2/payments/" +
+          encodeURIComponent(
+            payment_id
+          )
+        );
+
+      if (
+        Number(payment.amount) !==
+        Number(PET_PI_PRICE)
+      ) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            `Payment amount is not ${PET_PI_PRICE} Pi Test.`
+        });
+      }
+
+      const approved =
+        await piFetch(
+          "/v2/payments/" +
+          encodeURIComponent(
+            payment_id
+          ) +
+          "/approve",
           {
-            method: "POST",
-            body: JSON.stringify({ txid: transactionId })
+            method: "POST"
           }
         );
 
-        const pet = await grantPet(
-          row.rows[0].pi_uid,
-          row.rows[0].pet_code
-        );
+      await dbQuery(`
+        UPDATE pet_payments
+        SET
+          status='APPROVED',
+          updated_at=NOW()
+        WHERE payment_id=$1
+      `, [
+        payment_id
+      ]);
 
-        await dbQuery(`UPDATE pet_payments
-          SET status='COMPLETED',
-              transaction_id=$1,
-              completed_at=NOW(),
-              updated_at=NOW()
-          WHERE payment_id=$2`,
-          [transactionId, payment_id]
-        );
+      res.json({
+        ok: true,
+        paymentId: payment_id,
+        status: "APPROVED",
+        pi: approved
+      });
+    } catch (e) {
+      console.error(
+        "approve pi:",
+        e
+      );
 
-        return res.json({
-          ok: true,
-          status: "COMPLETED",
-          pet
+      res.status(400).json({
+        ok: false,
+        error:
+          e.message ||
+          "Pi approval failed."
+      });
+    }
+  }
+);
+
+app.post(
+  "/api/payments/pi/complete",
+  requirePiAuth,
+  async (req, res) => {
+    const client =
+      await pool.connect();
+
+    try {
+      const {
+        payment_id,
+        pet_code,
+        txid
+      } = req.body || {};
+
+      if (!payment_id || !pet_code) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "payment_id and pet_code are required."
         });
       }
-    }
 
-    res.json({
-      ok: true,
-      status: row.rows[0].status
-    });
-  } catch (e) {
-    console.error("callback:", e);
-    res.status(400).json({
-      ok: false,
-      error: e.message || "Callback verification failed."
-    });
-  }
-});
-
-/* -------------------------------------------------------------------------- */
-/* AMT PAYMENTS                                                                */
-/* -------------------------------------------------------------------------- */
-
-app.post("/api/payments/amt/prepare", requirePiAuth, async (req, res) => {
-  try {
-    const { pet_code } = req.body || {};
-
-    if (!pet_code) {
-      return res.status(400).json({
-        ok: false,
-        error: "pet_code is required."
-      });
-    }
-
-    const pet = await dbQuery(
-      "SELECT pet_code,name FROM pets_catalog WHERE pet_code=$1 LIMIT 1",
-      [pet_code]
-    );
-
-    if (!pet.rows.length) {
-      return res.status(404).json({
-        ok: false,
-        error: "Pet not found."
-      });
-    }
-
-    const wallet = req.pioneer.wallet_address || "";
-
-    if (!isPublicStellarAddress(wallet)) {
-      return res.status(400).json({
-        ok: false,
-        error: "Sync your public Pi Testnet wallet first."
-      });
-    }
-
-    res.json({
-      ok: true,
-      pet_code,
-      amount: Number(PET_AMT_PRICE),
-      currency: AMT_ASSET_CODE,
-      from_wallet: wallet,
-      receiver: AMT_RECEIVER,
-      issuer: AMT_ISSUER,
-      horizon: AMT_HORIZON_URL,
-      status: "READY_FOR_VERIFIED_AMT_TRANSFER",
-      message:
-        "Send the exact AMT amount to the receiver, then submit the transaction hash. Ownership is granted only after server-side on-chain verification."
-    });
-  } catch (e) {
-    res.status(400).json({
-      ok: false,
-      error: e.message
-    });
-  }
-});
-
-app.post("/api/payments/amt/complete", requirePiAuth, async (req, res) => {
-  try {
-    const { pet_code, txid } = req.body || {};
-
-    if (!pet_code || !txid) {
-      return res.status(400).json({
-        ok: false,
-        error: "pet_code and txid are required."
-      });
-    }
-
-    const pet = await dbQuery(
-      "SELECT pet_code,name FROM pets_catalog WHERE pet_code=$1 LIMIT 1",
-      [pet_code]
-    );
-
-    if (!pet.rows.length) {
-      return res.status(404).json({
-        ok: false,
-        error: "Pet not found."
-      });
-    }
-
-    const wallet = req.pioneer.wallet_address || "";
-
-    if (!isPublicStellarAddress(wallet)) {
-      return res.status(400).json({
-        ok: false,
-        error: "Sync your public Pi Testnet wallet first."
-      });
-    }
-
-    const used = await dbQuery(
-      "SELECT id,pi_uid,pet_code FROM amt_payments WHERE txid=$1 LIMIT 1",
-      [txid]
-    );
-
-    if (used.rows.length) {
-      return res.status(409).json({
-        ok: false,
-        error: "This AMT transaction hash has already been used."
-      });
-    }
-
-    const verified = await verifyAMTTransfer(
-      String(txid).trim(),
-      {
-        from: wallet,
-        to: AMT_RECEIVER,
-        amount: Number(PET_AMT_PRICE)
-      }
-    );
-
-    await dbQuery(`INSERT INTO amt_payments
-      (pi_uid,pet_code,amount,asset_code,receiver,txid,status,completed_at)
-      VALUES($1,$2,$3,$4,$5,$6,'COMPLETED',NOW())`,
-      [
-        req.piUser.uid,
-        pet_code,
-        Number(PET_AMT_PRICE),
-        AMT_ASSET_CODE,
-        AMT_RECEIVER,
-        verified.txid
-      ]
-    );
-
-    const petRow = await grantPet(req.piUser.uid, pet_code);
-
-    res.json({
-      ok: true,
-      status: "COMPLETED",
-      transactionId: verified.txid,
-      pet: petRow
-    });
-  } catch (e) {
-    console.error("complete amt:", e);
-    res.status(400).json({
-      ok: false,
-      error: e.message || "AMT transfer verification failed."
-    });
-  }
-});
-
-/* Development helper */
-app.post("/api/dev/give-pet", async (req, res) => {
-  try {
-    const {
-      pi_uid,
-      pet_code,
-      username,
-      wallet_address
-    } = req.body || {};
-
-    if (!pi_uid || !pet_code) {
-      return res.status(400).json({
-        ok: false,
-        error: "pi_uid and pet_code are required."
-      });
-    }
-
-    await upsertPioneer(
-      pi_uid,
-      username,
-      wallet_address
-    );
-
-    const pet = await grantPet(pi_uid, pet_code);
-
-    res.json({
-      ok: true,
-      message: "Pet added to Pioneer collection.",
-      pet
-    });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({
-      ok: false,
-      error: "Unable to give pet."
-    });
-  }
-});
-
-/* -------------------------------------------------------------------------- */
-/* 404                                                                        */
-/* -------------------------------------------------------------------------- */
-
-app.use((req, res) => {
-  res.status(404).json({
-    ok: false,
-    error: "Endpoint not found.",
-    path: req.originalUrl
-  });
-});
-
-/* -------------------------------------------------------------------------- */
-/* START                                                                       */
-/* -------------------------------------------------------------------------- */
-
-async function startServer() {
-  try {
-    await initializeDatabase();
-    await seedPetCatalog();
-
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log("======================================");
-      console.log("       AMT PET MARKETPLACE");
-      console.log("======================================");
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Database configured: ${!!DATABASE_URL}`);
-      console.log(`Pi API key configured: ${!!PI_API_KEY}`);
-      console.log(`Pi API base: ${PI_API_BASE}`);
-      console.log(`Pi auth timeout: ${PI_AUTH_TIMEOUT_MS}ms`);
-      console.log(`Pet catalog: ${PET_SEED.length} pets`);
-      console.log("Pi network: Testnet");
-      console.log("Pet Pi price: " + PET_PI_PRICE);
-      console.log("Pet AMT price: " + PET_AMT_PRICE);
-      console.log("Care endpoints: /api/care, /api/care/pet, /api/pets/care");
-      console.log("Train endpoints: /api/train, /api/train/pet, /api/pets/train");
-      console.log("Wallet endpoints: /api/wallet/bind, /api/wallet/sync");
-      console.log("======================================");
-    });
-  } catch (e) {
-    console.error("SERVER STARTUP ERROR:", e);
-    process.exit(1);
-  }
-}
-
-startServer();
+      await client.query(
+        "BEGIN"
+     
