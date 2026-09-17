@@ -2323,4 +2323,939 @@ app.post(
 
       await client.query(
         "BEGIN"
-     
+      );
+
+      const row =
+        await client.query(`
+          SELECT *
+          FROM pet_payments
+          WHERE
+            payment_id=$1
+            AND pi_uid=$2
+          FOR UPDATE
+        `, [
+          payment_id,
+          req.piUser.uid
+        ]);
+
+      if (!row.rows.length) {
+        await client.query(
+          "ROLLBACK"
+        );
+
+        return res.status(404).json({
+          ok: false,
+          error:
+            "Payment intent not found."
+        });
+      }
+
+      const paymentRow =
+        row.rows[0];
+
+      if (
+        paymentRow.pet_code !==
+        pet_code
+      ) {
+        await client.query(
+          "ROLLBACK"
+        );
+
+        return res.status(400).json({
+          ok: false,
+          error:
+            "Payment pet does not match."
+        });
+      }
+
+      if (
+        paymentRow.status ===
+        "COMPLETED"
+      ) {
+        await client.query(
+          "ROLLBACK"
+        );
+
+        return res.json({
+          ok: true,
+          status: "COMPLETED",
+          message:
+            "Payment already completed."
+        });
+      }
+
+      const payment =
+        await piFetch(
+          "/v2/payments/" +
+          encodeURIComponent(
+            payment_id
+          )
+        );
+
+      const transactionId =
+        txid ||
+        payment.transaction?.txid ||
+        payment.txid ||
+        "";
+
+      if (!transactionId) {
+        await client.query(
+          "ROLLBACK"
+        );
+
+        return res.status(409).json({
+          ok: false,
+          error:
+            "Pi transaction ID is not available yet."
+        });
+      }
+
+      const status =
+        payment.status || {};
+
+      if (
+        status.cancelled === true ||
+        status.cancelled === 1
+      ) {
+        await client.query(
+          "ROLLBACK"
+        );
+
+        return res.status(409).json({
+          ok: false,
+          error:
+            "Pi payment was cancelled."
+        });
+      }
+
+      const completed =
+        await piFetch(
+          "/v2/payments/" +
+          encodeURIComponent(
+            payment_id
+          ) +
+          "/complete",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              txid: transactionId
+            })
+          }
+        );
+
+      const pet =
+        await grantPet(
+          req.piUser.uid,
+          pet_code,
+          client
+        );
+
+      await client.query(`
+        UPDATE pet_payments
+        SET
+          status='COMPLETED',
+          transaction_id=$1,
+          completed_at=NOW(),
+          updated_at=NOW()
+
+        WHERE payment_id=$2
+      `, [
+        transactionId,
+        payment_id
+      ]);
+
+      await client.query(
+        "COMMIT"
+      );
+
+      res.json({
+        ok: true,
+        status: "COMPLETED",
+        paymentId: payment_id,
+        transactionId,
+        pi: completed,
+        pet
+      });
+    } catch (e) {
+      try {
+        await client.query(
+          "ROLLBACK"
+        );
+      } catch {}
+
+      console.error(
+        "complete pi:",
+        e
+      );
+
+      res.status(400).json({
+        ok: false,
+        error:
+          e.message ||
+          "Pi completion verification failed."
+      });
+    } finally {
+      client.release();
+    }
+  }
+);
+
+app.post(
+  "/api/payments/pi/callback",
+  async (req, res) => {
+    try {
+      const {
+        payment_id,
+        txid
+      } = req.body || {};
+
+      if (!payment_id) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "payment_id is required."
+        });
+      }
+
+      const payment =
+        await piFetch(
+          "/v2/payments/" +
+          encodeURIComponent(
+            payment_id
+          )
+        );
+
+      const row =
+        await dbQuery(`
+          SELECT *
+          FROM pet_payments
+          WHERE payment_id=$1
+          LIMIT 1
+        `, [
+          payment_id
+        ]);
+
+      if (!row.rows.length) {
+        return res.status(404).json({
+          ok: false,
+          error:
+            "Payment intent not found."
+        });
+      }
+
+      if (
+        row.rows[0].status !==
+        "COMPLETED"
+      ) {
+        const transactionId =
+          txid ||
+          payment.transaction?.txid ||
+          payment.txid ||
+          "";
+
+        const status =
+          payment.status || {};
+
+        if (
+          status.cancelled === true ||
+          status.cancelled === 1
+        ) {
+          return res.status(409).json({
+            ok: false,
+            error:
+              "Pi payment was cancelled."
+          });
+        }
+
+        if (transactionId) {
+          await piFetch(
+            "/v2/payments/" +
+            encodeURIComponent(
+              payment_id
+            ) +
+            "/complete",
+            {
+              method: "POST",
+              body: JSON.stringify({
+                txid: transactionId
+              })
+            }
+          );
+
+          const existing =
+            await dbQuery(`
+              SELECT id
+              FROM user_pets up
+              JOIN pioneers p
+                ON p.id=up.pioneer_id
+              WHERE
+                p.pi_uid=$1
+                AND up.pet_code=$2
+              LIMIT 1
+            `, [
+              row.rows[0].pi_uid,
+              row.rows[0].pet_code
+            ]);
+
+          let pet = null;
+
+          if (!existing.rows.length) {
+            pet =
+              await grantPet(
+                row.rows[0].pi_uid,
+                row.rows[0].pet_code
+              );
+          }
+
+          await dbQuery(`
+            UPDATE pet_payments
+            SET
+              status='COMPLETED',
+              transaction_id=$1,
+              completed_at=NOW(),
+              updated_at=NOW()
+
+            WHERE payment_id=$2
+          `, [
+            transactionId,
+            payment_id
+          ]);
+
+          return res.json({
+            ok: true,
+            status: "COMPLETED",
+            pet
+          });
+        }
+      }
+
+      res.json({
+        ok: true,
+        status:
+          row.rows[0].status
+      });
+    } catch (e) {
+      console.error(
+        "callback:",
+        e
+      );
+
+      res.status(400).json({
+        ok: false,
+        error:
+          e.message ||
+          "Callback verification failed."
+      });
+    }
+  }
+);
+
+/* -------------------------------------------------------------------------- */
+/* AMT PAYMENT PREPARE                                                         */
+/* -------------------------------------------------------------------------- */
+
+app.post(
+  "/api/payments/amt/prepare",
+  requirePiAuth,
+  async (req, res) => {
+    try {
+      const {
+        pet_code
+      } = req.body || {};
+
+      if (!pet_code) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "pet_code is required."
+        });
+      }
+
+      const pet =
+        await getCatalogPet(
+          pet_code
+        );
+
+      if (!pet) {
+        return res.status(404).json({
+          ok: false,
+          error:
+            "Pet not found."
+        });
+      }
+
+      const wallet =
+        req.pioneer.wallet_address ||
+        req.piUser.wallet_address ||
+        "";
+
+      if (!isPublicStellarAddress(wallet)) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "Sync your public Pi Testnet wallet first."
+        });
+      }
+
+      /*
+       * Informational balance check.
+       *
+       * The balance is checked again indirectly by Horizon when the actual
+       * transaction is submitted and verified.
+       */
+      const onchain =
+        await getAMTBalance(
+          wallet
+        );
+
+      const required =
+        Number(PET_AMT_PRICE);
+
+      const sufficient =
+        onchain.balance >= required;
+
+      res.json({
+        ok: true,
+
+        pet_code,
+
+        amount:
+          required,
+
+        currency:
+          AMT_ASSET_CODE,
+
+        from_wallet:
+          wallet,
+
+        receiver:
+          AMT_RECEIVER,
+
+        issuer:
+          AMT_ISSUER,
+
+        horizon:
+          AMT_HORIZON_URL,
+
+        current_balance:
+          onchain.balance,
+
+        required_balance:
+          required,
+
+        sufficient_balance:
+          sufficient,
+
+        status:
+          sufficient
+            ? "READY_FOR_VERIFIED_AMT_TRANSFER"
+            : "INSUFFICIENT_AMT_BALANCE",
+
+        message:
+          sufficient
+            ? "Send the exact AMT amount to the receiver, then submit the transaction hash."
+            : `Your current AMT balance is ${onchain.balance}. You need ${required} AMT.`
+      });
+    } catch (e) {
+      console.error(
+        "prepare amt:",
+        e
+      );
+
+      res.status(400).json({
+        ok: false,
+        error:
+          e.message ||
+          "Unable to prepare AMT payment."
+      });
+    }
+  }
+);
+
+/* -------------------------------------------------------------------------- */
+/* AMT PAYMENT COMPLETE                                                        */
+/* -------------------------------------------------------------------------- */
+
+app.post(
+  "/api/payments/amt/complete",
+  requirePiAuth,
+  async (req, res) => {
+    const client =
+      await pool.connect();
+
+    try {
+      const {
+        pet_code,
+        txid
+      } = req.body || {};
+
+      const transactionHash =
+        String(txid || "").trim();
+
+      if (
+        !pet_code ||
+        !transactionHash
+      ) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "pet_code and txid are required."
+        });
+      }
+
+      const pet =
+        await getCatalogPet(
+          pet_code
+        );
+
+      if (!pet) {
+        return res.status(404).json({
+          ok: false,
+          error:
+            "Pet not found."
+        });
+      }
+
+      const wallet =
+        req.pioneer.wallet_address ||
+        req.piUser.wallet_address ||
+        "";
+
+      if (!isPublicStellarAddress(wallet)) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "Sync your public Pi Testnet wallet first."
+        });
+      }
+
+      /*
+       * First check if this exact transaction has already been used.
+       */
+      const used =
+        await client.query(`
+          SELECT
+            id,
+            pi_uid,
+            pet_code,
+            status
+
+          FROM amt_payments
+
+          WHERE txid=$1
+
+          LIMIT 1
+        `, [
+          transactionHash
+        ]);
+
+      if (used.rows.length) {
+        return res.status(409).json({
+          ok: false,
+          error:
+            "This AMT transaction hash has already been used."
+        });
+      }
+
+      /*
+       * Verify directly against Pi Testnet Horizon.
+       *
+       * The transaction must be:
+       *
+       * Pioneer wallet
+       *       ↓
+       * AMT receiver
+       *
+       * Asset:
+       * AMT
+       * exact issuer
+       * exact amount = 20
+       */
+      const verified =
+        await verifyAMTTransfer(
+          transactionHash,
+          {
+            from: wallet,
+            to: AMT_RECEIVER,
+            amount:
+              Number(PET_AMT_PRICE)
+          }
+        );
+
+      await client.query(
+        "BEGIN"
+      );
+
+      /*
+       * Race-condition protection:
+       * lock any matching transaction before granting ownership.
+       */
+      const locked =
+        await client.query(`
+          SELECT
+            id,
+            pi_uid,
+            pet_code,
+            status
+
+          FROM amt_payments
+
+          WHERE txid=$1
+
+          FOR UPDATE
+        `, [
+          verified.txid
+        ]);
+
+      if (locked.rows.length) {
+        await client.query(
+          "ROLLBACK"
+        );
+
+        return res.status(409).json({
+          ok: false,
+          error:
+            "This AMT transaction hash has already been processed."
+        });
+      }
+
+      /*
+       * Record the verified blockchain payment.
+       */
+      const paymentInsert =
+        await client.query(`
+          INSERT INTO amt_payments
+            (
+              pi_uid,
+              pet_code,
+              amount,
+              asset_code,
+              receiver,
+              txid,
+              status,
+              completed_at
+            )
+
+          VALUES
+            (
+              $1,
+              $2,
+              $3,
+              $4,
+              $5,
+              $6,
+              'COMPLETED',
+              NOW()
+            )
+
+          RETURNING
+            id,
+            pi_uid,
+            pet_code,
+            amount,
+            asset_code,
+            receiver,
+            txid,
+            status,
+            completed_at
+        `, [
+          req.piUser.uid,
+          pet_code,
+          Number(PET_AMT_PRICE),
+          AMT_ASSET_CODE,
+          AMT_RECEIVER,
+          verified.txid
+        ]);
+
+      /*
+       * Grant the purchased pet only after the verified payment record
+       * has been created inside the same DB transaction.
+       */
+      const petRow =
+        await grantPet(
+          req.piUser.uid,
+          pet_code,
+          client
+        );
+
+      await client.query(
+        "COMMIT"
+      );
+
+      res.json({
+        ok: true,
+        status: "COMPLETED",
+
+        transactionId:
+          verified.txid,
+
+        payment:
+          paymentInsert.rows[0],
+
+        pet:
+          petRow
+      });
+    } catch (e) {
+      try {
+        await client.query(
+          "ROLLBACK"
+        );
+      } catch {}
+
+      /*
+       * PostgreSQL unique violation can happen if two requests arrive at
+       * exactly the same time using the same txid.
+       */
+      if (e.code === "23505") {
+        return res.status(409).json({
+          ok: false,
+          error:
+            "This AMT transaction has already been processed."
+        });
+      }
+
+      console.error(
+        "complete amt:",
+        e
+      );
+
+      res.status(400).json({
+        ok: false,
+        error:
+          e.message ||
+          "AMT transfer verification failed."
+      });
+    } finally {
+      client.release();
+    }
+  }
+);
+
+/* -------------------------------------------------------------------------- */
+/* DEVELOPMENT HELPER                                                         */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * IMPORTANT:
+ *
+ * This route is disabled unless:
+ *
+ * ALLOW_DEV_ENDPOINTS=true
+ *
+ * Keep it false on Render production.
+ */
+app.post(
+  "/api/dev/give-pet",
+  async (req, res) => {
+    if (!ALLOW_DEV_ENDPOINTS) {
+      return res.status(404).json({
+        ok: false,
+        error:
+          "Endpoint not available."
+      });
+    }
+
+    try {
+      const {
+        pi_uid,
+        pet_code,
+        username,
+        wallet_address
+      } = req.body || {};
+
+      if (!pi_uid || !pet_code) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "pi_uid and pet_code are required."
+        });
+      }
+
+      await upsertPioneer(
+        pi_uid,
+        username,
+        wallet_address
+      );
+
+      const pet =
+        await grantPet(
+          pi_uid,
+          pet_code
+        );
+
+      res.json({
+        ok: true,
+        message:
+          "Pet added to Pioneer collection.",
+        pet
+      });
+    } catch (e) {
+      console.error(
+        "dev give pet:",
+        e
+      );
+
+      res.status(500).json({
+        ok: false,
+        error:
+          "Unable to give pet."
+      });
+    }
+  }
+);
+
+/* -------------------------------------------------------------------------- */
+/* 404                                                                         */
+/* -------------------------------------------------------------------------- */
+
+app.use(
+  (req, res) => {
+    res.status(404).json({
+      ok: false,
+      error:
+        "Endpoint not found.",
+      path:
+        req.originalUrl
+    });
+  }
+);
+
+/* -------------------------------------------------------------------------- */
+/* GLOBAL ERROR HANDLER                                                        */
+/* -------------------------------------------------------------------------- */
+
+app.use(
+  (err, req, res, next) => {
+    console.error(
+      "Unhandled server error:",
+      err
+    );
+
+    if (res.headersSent) {
+      return next(err);
+    }
+
+    res.status(500).json({
+      ok: false,
+      error:
+        "Internal server error."
+    });
+  }
+);
+
+/* -------------------------------------------------------------------------- */
+/* START                                                                       */
+/* -------------------------------------------------------------------------- */
+
+async function startServer() {
+  try {
+    await initializeDatabase();
+
+    await seedPetCatalog();
+
+    app.listen(
+      PORT,
+      "0.0.0.0",
+      () => {
+        console.log(
+          "======================================"
+        );
+
+        console.log(
+          "       AMT PET MARKETPLACE"
+        );
+
+        console.log(
+          "======================================"
+        );
+
+        console.log(
+          `Server running on port ${PORT}`
+        );
+
+        console.log(
+          `Database configured: ${!!DATABASE_URL}`
+        );
+
+        console.log(
+          `Pi API key configured: ${!!PI_API_KEY}`
+        );
+
+        console.log(
+          `Pi API base: ${PI_API_BASE}`
+        );
+
+        console.log(
+          `Pi auth timeout: ${PI_AUTH_TIMEOUT_MS}ms`
+        );
+
+        console.log(
+          `Pet catalog: ${PET_SEED.length} pets`
+        );
+
+        console.log(
+          "Pi network: Testnet"
+        );
+
+        console.log(
+          "Pet Pi price: " +
+          PET_PI_PRICE
+        );
+
+        console.log(
+          "Pet AMT price: " +
+          PET_AMT_PRICE
+        );
+
+        console.log(
+          `AMT asset: ${AMT_ASSET_CODE}`
+        );
+
+        console.log(
+          `AMT issuer: ${AMT_ISSUER}`
+        );
+
+        console.log(
+          `AMT receiver: ${AMT_RECEIVER}`
+        );
+
+        console.log(
+          `AMT Horizon: ${AMT_HORIZON_URL}`
+        );
+
+        console.log(
+          `Dev endpoints enabled: ${ALLOW_DEV_ENDPOINTS}`
+        );
+
+        console.log(
+          "Care endpoints: /api/care, /api/care/pet, /api/pets/care"
+        );
+
+        console.log(
+          "Train endpoints: /api/train, /api/train/pet, /api/pets/train"
+        );
+
+        console.log(
+          "Wallet endpoints: /api/wallet/bind, /api/wallet/sync"
+        );
+
+        console.log(
+          "Secure My Pets endpoint: /api/my-pets"
+        );
+
+        console.log(
+          "======================================"
+        );
+      }
+    );
+  } catch (e) {
+    console.error(
+      "SERVER STARTUP ERROR:",
+      e
+    );
+
+    process.exit(1);
+  }
+}
+
+startServer();
