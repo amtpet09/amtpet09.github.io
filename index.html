@@ -3,7 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="theme-color" content="#0b1120" />
   <title>AMT Pet Marketplace</title>
+
+  <!-- Pi Network SDK -->
+  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+
   <style>
     :root {
       --bg: #0b1120;
@@ -17,35 +22,63 @@
       --success: #22c55e;
       --danger: #ef4444;
       --accent: #38bdf8;
+      --warning: #f59e0b;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
       line-height: 1.45;
     }
-    button { font-family: inherit; cursor: pointer; }
-    img { max-width: 100%; }
 
-    /* ========== SCREENS ========== */
-    .screen { display: none; min-height: 100vh; }
-    .screen.active { display: block; }
+    button {
+      font-family: inherit;
+      cursor: pointer;
+    }
 
-    /* ========== LOGIN ========== */
+    img {
+      max-width: 100%;
+    }
+
+    .screen {
+      display: none;
+      min-height: 100vh;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    /* ============================================================
+       LOGIN
+    ============================================================ */
+
     #loginScreen {
       display: none;
       min-height: 100vh;
       align-items: center;
       justify-content: center;
       padding: 1.5rem;
-      background: linear-gradient(165deg, #0f172a 0%, #1e1b4b 55%, #312e81 100%);
+      background:
+        radial-gradient(circle at top, rgba(99,102,241,0.20), transparent 38%),
+        linear-gradient(165deg, #0f172a 0%, #1e1b4b 55%, #312e81 100%);
     }
-    #loginScreen.active { display: flex; }
+
+    #loginScreen.active {
+      display: flex;
+    }
 
     .login-card {
-      background: rgba(15,23,42,0.88);
+      background: rgba(15,23,42,0.92);
       border: 1px solid var(--border);
       border-radius: 24px;
       padding: 2.2rem 1.75rem;
@@ -54,6 +87,7 @@
       text-align: center;
       box-shadow: 0 25px 50px -12px rgba(0,0,0,0.55);
     }
+
     .logo {
       font-size: 2rem;
       font-weight: 800;
@@ -63,7 +97,12 @@
       -webkit-text-fill-color: transparent;
       margin-bottom: 0.2rem;
     }
-    .subtitle { color: var(--muted); font-size: 0.92rem; margin-bottom: 1.75rem; }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin-bottom: 1.75rem;
+    }
 
     .avatar-wrap {
       position: relative;
@@ -71,15 +110,24 @@
       height: 108px;
       margin: 0 auto 1.4rem;
     }
-    .avatar, .avatar-placeholder {
-      width: 108px; height: 108px; border-radius: 50%;
+
+    .avatar,
+    .avatar-placeholder {
+      width: 108px;
+      height: 108px;
+      border-radius: 50%;
     }
+
     .avatar {
       object-fit: cover;
       border: 3px solid var(--primary);
       display: none;
     }
-    .avatar.show { display: block; }
+
+    .avatar.show {
+      display: block;
+    }
+
     .avatar-placeholder {
       background: #1e293b;
       border: 3px dashed #475569;
@@ -89,16 +137,35 @@
       font-size: 2.4rem;
       color: #64748b;
     }
-    .avatar-placeholder.hide { display: none; }
+
+    .avatar-placeholder.hide {
+      display: none;
+    }
+
     .avatar-btn {
-      position: absolute; bottom: 0; right: 0;
-      width: 34px; height: 34px; border-radius: 50%;
-      background: var(--primary); color: #fff; border: none;
-      font-size: 1rem; display: flex; align-items: center; justify-content: center;
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       box-shadow: 0 4px 12px rgba(0,0,0,0.35);
     }
-    .avatar-btn:hover { background: #4f46e5; }
-    input[type="file"] { display: none; }
+
+    .avatar-btn:hover {
+      background: #4f46e5;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
 
     .info-box {
       background: rgba(30,41,59,0.65);
@@ -108,7 +175,17 @@
       font-size: 0.88rem;
       text-align: left;
     }
-    .info-box strong { color: #a5b4fc; }
+
+    .info-box strong {
+      color: #a5b4fc;
+    }
+
+    .security-note {
+      margin-top: 0.9rem;
+      font-size: 0.74rem;
+      line-height: 1.5;
+      color: #64748b;
+    }
 
     .btn {
       width: 100%;
@@ -119,19 +196,34 @@
       font-weight: 600;
       transition: all 0.18s;
     }
+
     .btn-primary {
       background: linear-gradient(90deg, var(--primary), var(--primary2));
       color: #fff;
     }
-    .btn-primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
-    .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+    .btn-primary:hover {
+      filter: brightness(1.08);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+    }
+
     .btn-secondary {
       background: transparent;
       border: 1px solid #475569;
       color: #cbd5e1;
       margin-top: 0.6rem;
     }
-    .btn-secondary:hover { background: rgba(71,85,105,0.25); }
+
+    .btn-secondary:hover {
+      background: rgba(71,85,105,0.25);
+    }
+
     .btn-sm {
       padding: 0.45rem 0.85rem;
       font-size: 0.85rem;
@@ -149,11 +241,18 @@
       display: none;
       text-align: left;
     }
-    .error-box.show { display: block; }
 
-    /* ========== LOADING ========== */
+    .error-box.show {
+      display: block;
+    }
+
+    /* ============================================================
+       LOADING
+    ============================================================ */
+
     #loadingOverlay {
-      position: fixed; inset: 0;
+      position: fixed;
+      inset: 0;
       background: rgba(11,17,32,0.94);
       display: none;
       flex-direction: column;
@@ -161,23 +260,47 @@
       justify-content: center;
       z-index: 200;
     }
-    #loadingOverlay.active { display: flex; }
+
+    #loadingOverlay.active {
+      display: flex;
+    }
+
     .spinner {
-      width: 54px; height: 54px;
+      width: 54px;
+      height: 54px;
       border: 4px solid #334155;
       border-top-color: #8b5cf6;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
       margin-bottom: 1.1rem;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .loading-text { font-size: 1.1rem; font-weight: 500; color: #e2e8f0; }
 
-    /* ========== APP (after login) ========== */
-    #appScreen { background: var(--bg); }
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .loading-text {
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: #e2e8f0;
+      text-align: center;
+      padding: 0 1rem;
+    }
+
+    /* ============================================================
+       APP
+    ============================================================ */
+
+    #appScreen {
+      background: var(--bg);
+    }
 
     .topbar {
-      position: sticky; top: 0; z-index: 50;
+      position: sticky;
+      top: 0;
+      z-index: 50;
       background: rgba(11,17,32,0.92);
       backdrop-filter: blur(10px);
       border-bottom: 1px solid var(--border);
@@ -186,15 +309,38 @@
       align-items: center;
       gap: 0.85rem;
     }
+
     .topbar-avatar {
-      width: 44px; height: 44px; border-radius: 50%;
-      object-fit: cover; border: 2px solid var(--primary);
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--primary);
       background: #1e293b;
     }
-    .topbar-info { flex: 1; min-width: 0; }
-    .topbar-name { font-weight: 650; font-size: 1.02rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .topbar-meta { font-size: 0.78rem; color: var(--muted); }
-    .topbar-actions { display: flex; gap: 0.4rem; }
+
+    .topbar-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .topbar-name {
+      font-weight: 650;
+      font-size: 1.02rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .topbar-meta {
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .topbar-actions {
+      display: flex;
+      gap: 0.4rem;
+    }
 
     .nav {
       display: flex;
@@ -204,6 +350,7 @@
       border-bottom: 1px solid var(--border);
       background: #0f172a;
     }
+
     .nav-btn {
       flex-shrink: 0;
       padding: 0.5rem 1rem;
@@ -214,13 +361,18 @@
       font-size: 0.9rem;
       font-weight: 550;
     }
+
     .nav-btn.active {
       background: rgba(99,102,241,0.18);
       color: #c7d2fe;
       border-color: rgba(99,102,241,0.35);
     }
 
-    .content { padding: 1rem; max-width: 960px; margin: 0 auto; }
+    .content {
+      padding: 1rem;
+      max-width: 960px;
+      margin: 0 auto;
+    }
 
     .section-title {
       font-size: 1.15rem;
@@ -232,18 +384,41 @@
       gap: 0.5rem;
     }
 
+    /* ============================================================
+       WALLET
+    ============================================================ */
+
     .wallet-banner {
-      background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(56,189,248,0.1));
+      background:
+        linear-gradient(
+          135deg,
+          rgba(99,102,241,0.15),
+          rgba(56,189,248,0.1)
+        );
       border: 1px solid rgba(99,102,241,0.25);
       border-radius: 14px;
       padding: 0.9rem 1rem;
       margin-bottom: 1.1rem;
       font-size: 0.9rem;
     }
+
     .wallet-banner.warning {
       background: rgba(245,158,11,0.1);
       border-color: rgba(245,158,11,0.3);
     }
+
+    .wallet-address-box {
+      margin-top: 0.7rem;
+      padding: 0.7rem;
+      border-radius: 10px;
+      background: rgba(15,23,42,0.65);
+      border: 1px solid rgba(148,163,184,0.12);
+      word-break: break-all;
+      font-family: monospace;
+      font-size: 0.78rem;
+      color: #cbd5e1;
+    }
+
     .wallet-banner input {
       width: 100%;
       margin-top: 0.55rem;
@@ -253,6 +428,40 @@
       background: #0f172a;
       color: var(--text);
       font-size: 0.88rem;
+    }
+
+    .balance-card {
+      background: linear-gradient(
+        135deg,
+        rgba(139,92,246,0.18),
+        rgba(59,130,246,0.08)
+      );
+      border: 1px solid rgba(139,92,246,0.25);
+      border-radius: 16px;
+      padding: 1.1rem;
+      margin-bottom: 1rem;
+    }
+
+    .balance-label {
+      color: var(--muted);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .balance-value {
+      font-size: 1.8rem;
+      font-weight: 800;
+      margin-top: 0.15rem;
+      color: #ddd6fe;
+    }
+
+    .balance-address {
+      margin-top: 0.5rem;
+      font-family: monospace;
+      font-size: 0.72rem;
+      color: #94a3b8;
+      word-break: break-all;
     }
 
     .balance-chip {
@@ -267,33 +476,53 @@
       font-weight: 600;
     }
 
-    /* Pets grid */
+    /* ============================================================
+       PETS
+    ============================================================ */
+
     .pets-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
       gap: 0.85rem;
     }
+
     .pet-card {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 14px;
       padding: 0.9rem 0.75rem;
       text-align: center;
-      transition: border-color 0.15s;
+      transition: border-color 0.15s, transform 0.15s;
     }
-    .pet-card:hover { border-color: rgba(99,102,241,0.4); }
-    .pet-emoji { font-size: 2.3rem; margin-bottom: 0.35rem; }
-    .pet-name { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.15rem; }
+
+    .pet-card:hover {
+      border-color: rgba(99,102,241,0.4);
+      transform: translateY(-2px);
+    }
+
+    .pet-emoji {
+      font-size: 2.3rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .pet-name {
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-bottom: 0.15rem;
+    }
+
     .pet-element {
       font-size: 0.75rem;
       color: var(--muted);
       margin-bottom: 0.35rem;
     }
+
     .pet-stats {
       font-size: 0.72rem;
       color: #94a3b8;
       margin-bottom: 0.55rem;
     }
+
     .pet-price {
       color: #c4b5fd;
       font-weight: 650;
@@ -307,6 +536,7 @@
       gap: 0.4rem;
       margin-bottom: 1rem;
     }
+
     .chip {
       padding: 0.3rem 0.7rem;
       border-radius: 999px;
@@ -315,13 +545,17 @@
       color: var(--muted);
       font-size: 0.8rem;
     }
+
     .chip.active {
       background: rgba(99,102,241,0.2);
       border-color: rgba(99,102,241,0.4);
       color: #c7d2fe;
     }
 
-    /* My pets */
+    /* ============================================================
+       MY PETS
+    ============================================================ */
+
     .my-pet-card {
       background: var(--card);
       border: 1px solid var(--border);
@@ -332,11 +566,31 @@
       margin-bottom: 0.75rem;
       align-items: center;
     }
-    .my-pet-emoji { font-size: 2.4rem; }
-    .my-pet-info { flex: 1; min-width: 0; }
-    .my-pet-name { font-weight: 650; }
-    .my-pet-meta { font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
-    .my-pet-actions { display: flex; flex-direction: column; gap: 0.35rem; }
+
+    .my-pet-emoji {
+      font-size: 2.4rem;
+    }
+
+    .my-pet-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .my-pet-name {
+      font-weight: 650;
+    }
+
+    .my-pet-meta {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.15rem;
+    }
+
+    .my-pet-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
 
     .empty {
       text-align: center;
@@ -344,9 +598,13 @@
       color: var(--muted);
     }
 
-    /* Modal */
+    /* ============================================================
+       MODAL
+    ============================================================ */
+
     .modal-backdrop {
-      position: fixed; inset: 0;
+      position: fixed;
+      inset: 0;
       background: rgba(0,0,0,0.65);
       display: none;
       align-items: center;
@@ -354,19 +612,77 @@
       z-index: 150;
       padding: 1rem;
     }
-    .modal-backdrop.active { display: flex; }
+
+    .modal-backdrop.active {
+      display: flex;
+    }
+
     .modal {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 18px;
       padding: 1.4rem;
       width: 100%;
-      max-width: 360px;
+      max-width: 380px;
     }
-    .modal h3 { margin-bottom: 0.6rem; font-size: 1.15rem; }
-    .modal p { font-size: 0.9rem; color: var(--muted); margin-bottom: 1rem; }
-    .modal-actions { display: flex; gap: 0.5rem; }
-    .modal-actions .btn { flex: 1; }
+
+    .modal h3 {
+      margin-bottom: 0.6rem;
+      font-size: 1.15rem;
+    }
+
+    .modal p {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .modal-actions .btn {
+      flex: 1;
+    }
+
+    .payment-info {
+      background: rgba(15,23,42,0.8);
+      border: 1px solid rgba(148,163,184,0.14);
+      border-radius: 10px;
+      padding: 0.75rem;
+      margin-bottom: 0.9rem;
+      font-size: 0.78rem;
+    }
+
+    .payment-info div {
+      margin-bottom: 0.3rem;
+      word-break: break-all;
+    }
+
+    .payment-info div:last-child {
+      margin-bottom: 0;
+    }
+
+    .payment-info strong {
+      color: #c4b5fd;
+    }
+
+    .tx-input {
+      width: 100%;
+      padding: 0.7rem;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: var(--text);
+      font-family: monospace;
+      font-size: 0.8rem;
+      margin-bottom: 0.8rem;
+    }
+
+    /* ============================================================
+       TOAST
+    ============================================================ */
 
     .toast {
       position: fixed;
@@ -386,176 +702,592 @@
       max-width: 90%;
       text-align: center;
     }
-    .toast.show { opacity: 1; }
+
+    .toast.show {
+      opacity: 1;
+    }
 
     @media (min-width: 640px) {
-      .pets-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+      .pets-grid {
+        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      }
     }
   </style>
 </head>
+
 <body>
 
-  <!-- ========== LOGIN SCREEN ========== -->
+  <!-- ============================================================
+       LOGIN SCREEN
+  ============================================================ -->
+
   <div id="loginScreen" class="screen active">
     <div class="login-card">
+
       <div class="logo">AMT Pets</div>
-      <div class="subtitle">Pet Marketplace · Pi Testnet</div>
+
+      <div class="subtitle">
+        Pet Marketplace · Pi Testnet
+      </div>
 
       <div class="avatar-wrap">
         <div class="avatar-placeholder" id="avatarPlaceholder">👤</div>
-        <img class="avatar" id="avatarPreview" alt="Profile" />
-        <button type="button" class="avatar-btn" id="avatarBtn" title="Choose profile picture">📷</button>
-        <input type="file" id="avatarInput" accept="image/*" />
+
+        <img
+          class="avatar"
+          id="avatarPreview"
+          alt="Profile"
+        />
+
+        <button
+          type="button"
+          class="avatar-btn"
+          id="avatarBtn"
+          title="Choose profile picture"
+        >
+          📷
+        </button>
+
+        <input
+          type="file"
+          id="avatarInput"
+          accept="image/*"
+        />
       </div>
 
       <div class="info-box">
-        <div><strong>Price:</strong> 20 AMT per pet</div>
-        <div style="margin-top:3px"><strong>Pets:</strong> 70 available</div>
-        <div style="margin-top:3px"><strong>Network:</strong> Pi Testnet</div>
+        <div>
+          <strong>Price:</strong> 20 AMT per pet
+        </div>
+
+        <div style="margin-top:3px">
+          <strong>Pets:</strong> 70 available
+        </div>
+
+        <div style="margin-top:3px">
+          <strong>Network:</strong> Pi Testnet
+        </div>
+
+        <div style="margin-top:3px">
+          <strong>Wallet:</strong> Your own Pioneer wallet
+        </div>
       </div>
 
       <div class="error-box" id="loginError"></div>
 
-      <button class="btn btn-primary" id="loginBtn">Login with Pi</button>
-      <p style="font-size:0.78rem;color:#64748b;margin-top:0.85rem">
-        Select a profile picture (optional), then login
+      <button
+        class="btn btn-primary"
+        id="loginBtn"
+      >
+        Login with Pi
+      </button>
+
+      <p class="security-note">
+        Your Pi account identifies your Pioneer.
+        Your own public wallet is used for AMT balance and payment verification.
+        Never enter or share your wallet passphrase.
       </p>
+
     </div>
   </div>
 
-  <!-- ========== LOADING ========== -->
+  <!-- ============================================================
+       LOADING
+  ============================================================ -->
+
   <div id="loadingOverlay">
     <div class="spinner"></div>
-    <div class="loading-text" id="loadingText">Loading...</div>
+    <div class="loading-text" id="loadingText">
+      Loading...
+    </div>
   </div>
 
-  <!-- ========== APP ========== -->
+  <!-- ============================================================
+       APP
+  ============================================================ -->
+
   <div id="appScreen" class="screen">
+
     <header class="topbar">
-      <img class="topbar-avatar" id="userAvatar" src="" alt="" />
+
+      <img
+        class="topbar-avatar"
+        id="userAvatar"
+        src=""
+        alt="Pioneer"
+      />
+
       <div class="topbar-info">
-        <div class="topbar-name" id="userName">Pioneer</div>
-        <div class="topbar-meta" id="userMeta">—</div>
+
+        <div
+          class="topbar-name"
+          id="userName"
+        >
+          Pioneer
+        </div>
+
+        <div
+          class="topbar-meta"
+          id="userMeta"
+        >
+          —
+        </div>
+
       </div>
+
       <div class="topbar-actions">
-        <span class="balance-chip" id="amtBalance" title="AMT Balance">AMT: —</span>
+
+        <span
+          class="balance-chip"
+          id="amtBalance"
+          title="Your AMT Balance"
+        >
+          AMT: —
+        </span>
+
       </div>
+
     </header>
 
     <nav class="nav">
-      <button class="nav-btn active" data-tab="market">Marketplace</button>
-      <button class="nav-btn" data-tab="mypets">My Pets</button>
-      <button class="nav-btn" data-tab="wallet">Wallet</button>
+
+      <button
+        class="nav-btn active"
+        data-tab="market"
+      >
+        Marketplace
+      </button>
+
+      <button
+        class="nav-btn"
+        data-tab="mypets"
+      >
+        My Pets
+      </button>
+
+      <button
+        class="nav-btn"
+        data-tab="wallet"
+      >
+        Wallet
+      </button>
+
     </nav>
 
     <main class="content">
-      <!-- MARKETPLACE TAB -->
+
+      <!-- ========================================================
+           MARKETPLACE
+      ======================================================== -->
+
       <div id="tab-market">
+
         <div class="section-title">
-          <span>All Pets</span>
-          <span style="font-size:0.85rem;color:var(--muted)" id="petCount">0 pets</span>
+
+          <span>
+            All Pets
+          </span>
+
+          <span
+            style="font-size:0.85rem;color:var(--muted)"
+            id="petCount"
+          >
+            0 pets
+          </span>
+
         </div>
 
-        <div class="element-filters" id="elementFilters">
-          <button class="chip active" data-element="all">All</button>
-          <button class="chip" data-element="Earth">Earth</button>
-          <button class="chip" data-element="Water">Water</button>
-          <button class="chip" data-element="Nature">Nature</button>
-          <button class="chip" data-element="Ice">Ice</button>
-          <button class="chip" data-element="Fire">Fire</button>
-          <button class="chip" data-element="Wind">Wind</button>
-          <button class="chip" data-element="Thunder">Thunder</button>
+        <div
+          class="element-filters"
+          id="elementFilters"
+        >
+
+          <button
+            class="chip active"
+            data-element="all"
+          >
+            All
+          </button>
+
+          <button class="chip" data-element="Earth">
+            Earth
+          </button>
+
+          <button class="chip" data-element="Water">
+            Water
+          </button>
+
+          <button class="chip" data-element="Nature">
+            Nature
+          </button>
+
+          <button class="chip" data-element="Ice">
+            Ice
+          </button>
+
+          <button class="chip" data-element="Fire">
+            Fire
+          </button>
+
+          <button class="chip" data-element="Wind">
+            Wind
+          </button>
+
+          <button class="chip" data-element="Thunder">
+            Thunder
+          </button>
+
         </div>
 
-        <div class="pets-grid" id="petsGrid">
-          <div class="empty">Loading pets...</div>
-        </div>
-      </div>
-
-      <!-- MY PETS TAB -->
-      <div id="tab-mypets" style="display:none">
-        <div class="section-title">My Pets</div>
-        <div id="myPetsList">
-          <div class="empty">You don't own any pets yet.</div>
-        </div>
-      </div>
-
-      <!-- WALLET TAB -->
-      <div id="tab-wallet" style="display:none">
-        <div class="section-title">Wallet</div>
-        <div class="wallet-banner" id="walletBanner">
-          <div id="walletStatusText">Checking wallet...</div>
-          <div id="walletSyncForm" style="display:none;margin-top:0.6rem">
-            <input type="text" id="walletInput" placeholder="Paste your public wallet (G...)" maxlength="56" />
-            <button class="btn btn-primary btn-sm" style="margin-top:0.5rem;width:100%" id="syncWalletBtn">Sync Wallet</button>
+        <div
+          class="pets-grid"
+          id="petsGrid"
+        >
+          <div class="empty">
+            Loading pets...
           </div>
         </div>
-        <div style="font-size:0.88rem;color:var(--muted);line-height:1.55">
-          <p>Your public Pi Testnet wallet is used to:</p>
-          <ul style="margin:0.5rem 0 0 1.1rem">
-            <li>Read your AMT balance</li>
-            <li>Verify AMT payments when buying pets</li>
-          </ul>
+
+      </div>
+
+      <!-- ========================================================
+           MY PETS
+      ======================================================== -->
+
+      <div
+        id="tab-mypets"
+        style="display:none"
+      >
+
+        <div class="section-title">
+          My Pets
         </div>
+
+        <div id="myPetsList">
+          <div class="empty">
+            You don't own any pets yet.
+          </div>
+        </div>
+
       </div>
+
+      <!-- ========================================================
+           WALLET
+      ======================================================== -->
+
+      <div
+        id="tab-wallet"
+        style="display:none"
+      >
+
+        <div class="section-title">
+          My AMT Wallet
+        </div>
+
+        <div class="balance-card">
+
+          <div class="balance-label">
+            On-chain AMT Balance
+          </div>
+
+          <div
+            class="balance-value"
+            id="walletBalanceLarge"
+          >
+            —
+          </div>
+
+          <div
+            class="balance-address"
+            id="walletAddressLarge"
+          >
+            Wallet not synchronized
+          </div>
+
+        </div>
+
+        <div
+          class="wallet-banner"
+          id="walletBanner"
+        >
+
+          <div id="walletStatusText">
+            Checking wallet...
+          </div>
+
+          <div
+            id="walletAddressBox"
+            class="wallet-address-box"
+            style="display:none"
+          ></div>
+
+          <div
+            id="walletSyncForm"
+            style="display:none;margin-top:0.6rem"
+          >
+
+            <input
+              type="text"
+              id="walletInput"
+              placeholder="Paste your public wallet (G...)"
+              maxlength="56"
+              autocomplete="off"
+            />
+
+            <button
+              class="btn btn-primary btn-sm"
+              style="margin-top:0.5rem;width:100%"
+              id="syncWalletBtn"
+            >
+              Sync My Wallet
+            </button>
+
+          </div>
+
+        </div>
+
+        <div
+          style="
+            font-size:0.88rem;
+            color:var(--muted);
+            line-height:1.55
+          "
+        >
+
+          <p>
+            Your public Pi Testnet wallet is used to:
+          </p>
+
+          <ul
+            style="margin:0.5rem 0 0 1.1rem"
+          >
+            <li>
+              Read your own AMT balance
+            </li>
+
+            <li>
+              Verify your AMT payments
+            </li>
+
+            <li>
+              Complete pet purchases
+            </li>
+          </ul>
+
+        </div>
+
+      </div>
+
     </main>
+
   </div>
 
-  <!-- BUY MODAL -->
-  <div class="modal-backdrop" id="buyModal">
+  <!-- ============================================================
+       BUY MODAL
+  ============================================================ -->
+
+  <div
+    class="modal-backdrop"
+    id="buyModal"
+  >
+
     <div class="modal">
-      <h3 id="buyPetName">Buy Pet</h3>
-      <p id="buyPetDesc">Confirm purchase for <strong>20 AMT</strong>.</p>
+
+      <h3 id="buyPetName">
+        Buy Pet
+      </h3>
+
+      <p id="buyPetDesc">
+        Confirm purchase for 20 AMT.
+      </p>
+
+      <div
+        class="payment-info"
+        id="paymentInfo"
+        style="display:none"
+      ></div>
+
+      <input
+        class="tx-input"
+        id="txidInput"
+        type="text"
+        placeholder="Paste AMT transaction hash"
+        autocomplete="off"
+        style="display:none"
+      />
+
       <div class="modal-actions">
-        <button class="btn btn-secondary" id="buyCancelBtn">Cancel</button>
-        <button class="btn btn-primary" id="buyConfirmBtn">Buy with AMT</button>
+
+        <button
+          class="btn btn-secondary"
+          id="buyCancelBtn"
+        >
+          Cancel
+        </button>
+
+        <button
+          class="btn btn-primary"
+          id="buyConfirmBtn"
+        >
+          Buy with AMT
+        </button>
+
       </div>
+
     </div>
+
   </div>
 
-  <div class="toast" id="toast"></div>
+  <div
+    class="toast"
+    id="toast"
+  ></div>
+
+  <!-- ============================================================
+       JAVASCRIPT
+  ============================================================ -->
 
   <script>
-    // ============================================================
-    // CONFIG – PALITAN NG ACTUAL BACKEND URL
-    // ============================================================
-    const API_BASE = "https://amtpet09-github-io.onrender.com";
+    "use strict";
 
-    // ============================================================
-    // STATE
-    // ============================================================
+    /* ============================================================
+       CONFIG
+    ============================================================ */
+
+    const API_BASE =
+      "https://amtpet09-github-io.onrender.com";
+
+    /*
+      Pi Testnet application.
+      The backend remains the authority for:
+      - Pioneer identity
+      - wallet ownership association
+      - AMT balance
+      - AMT payment verification
+    */
+
+    const PET_PRICE_AMT = "20";
+
+    /* ============================================================
+       STATE
+    ============================================================ */
+
     let accessToken = null;
     let pioneer = null;
     let profilePictureData = null;
+
     let allPets = [];
     let myPets = [];
+
     let currentElement = "all";
     let selectedPetCode = null;
+
     let walletSynced = false;
+    let walletAddress = null;
 
-    // ============================================================
-    // DOM
-    // ============================================================
-    const loginScreen = document.getElementById("loginScreen");
-    const appScreen = document.getElementById("appScreen");
-    const loadingOverlay = document.getElementById("loadingOverlay");
-    const loadingText = document.getElementById("loadingText");
-    const loginError = document.getElementById("loginError");
-    const avatarInput = document.getElementById("avatarInput");
-    const avatarPreview = document.getElementById("avatarPreview");
-    const avatarPlaceholder = document.getElementById("avatarPlaceholder");
-    const loginBtn = document.getElementById("loginBtn");
-    const petsGrid = document.getElementById("petsGrid");
-    const myPetsList = document.getElementById("myPetsList");
-    const toastEl = document.getElementById("toast");
+    let currentPaymentReceiver = null;
+    let currentPaymentIssuer = null;
 
-    // ============================================================
-    // HELPERS
-    // ============================================================
+    /* ============================================================
+       DOM
+    ============================================================ */
+
+    const loginScreen =
+      document.getElementById("loginScreen");
+
+    const appScreen =
+      document.getElementById("appScreen");
+
+    const loadingOverlay =
+      document.getElementById("loadingOverlay");
+
+    const loadingText =
+      document.getElementById("loadingText");
+
+    const loginError =
+      document.getElementById("loginError");
+
+    const avatarInput =
+      document.getElementById("avatarInput");
+
+    const avatarPreview =
+      document.getElementById("avatarPreview");
+
+    const avatarPlaceholder =
+      document.getElementById("avatarPlaceholder");
+
+    const loginBtn =
+      document.getElementById("loginBtn");
+
+    const petsGrid =
+      document.getElementById("petsGrid");
+
+    const myPetsList =
+      document.getElementById("myPetsList");
+
+    const toastEl =
+      document.getElementById("toast");
+
+    const buyModal =
+      document.getElementById("buyModal");
+
+    const txidInput =
+      document.getElementById("txidInput");
+
+    const paymentInfo =
+      document.getElementById("paymentInfo");
+
+    /* ============================================================
+       PI SDK INITIALIZATION
+    ============================================================ */
+
+    let piInitialized = false;
+
+    function initializePi() {
+      try {
+        if (!window.Pi) {
+          throw new Error(
+            "Pi SDK is not available. Please open the app inside Pi Browser."
+          );
+        }
+
+        /*
+          Pi Testnet / Sandbox.
+          Backend remains responsible for verification.
+        */
+
+        window.Pi.init({
+          version: "2.0",
+          sandbox: true
+        });
+
+        piInitialized = true;
+
+        console.log(
+          "Pi SDK initialized successfully."
+        );
+
+      } catch (err) {
+        console.error(
+          "Pi SDK initialization failed:",
+          err
+        );
+
+        piInitialized = false;
+      }
+    }
+
+    initializePi();
+
+    /* ============================================================
+       HELPERS
+    ============================================================ */
+
     function showLoading(text = "Loading...") {
       loadingText.textContent = text;
       loadingOverlay.classList.add("active");
     }
+
     function hideLoading() {
       loadingOverlay.classList.remove("active");
     }
@@ -564,461 +1296,1711 @@
       loginError.textContent = msg;
       loginError.classList.add("show");
     }
+
     function hideError() {
+      loginError.textContent = "";
       loginError.classList.remove("show");
     }
 
     function toast(msg, ms = 2800) {
       toastEl.textContent = msg;
       toastEl.classList.add("show");
-      setTimeout(() => toastEl.classList.remove("show"), ms);
+
+      setTimeout(() => {
+        toastEl.classList.remove("show");
+      }, ms);
     }
 
     function authHeaders() {
-      return {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + (accessToken || "")
+      const headers = {
+        "Content-Type": "application/json"
       };
+
+      if (accessToken) {
+        headers.Authorization =
+          "Bearer " + accessToken;
+      }
+
+      return headers;
     }
 
     async function api(path, options = {}) {
-      const res = await fetch(API_BASE + path, {
-        ...options,
-        headers: {
-          ...authHeaders(),
-          ...(options.headers || {})
+      const response = await fetch(
+        API_BASE + path,
+        {
+          ...options,
+          headers: {
+            ...authHeaders(),
+            ...(options.headers || {})
+          }
         }
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.ok === false) {
-        throw new Error(data.error || data.message || `Request failed (${res.status})`);
+      );
+
+      const data =
+        await response.json().catch(() => ({}));
+
+      if (!response.ok || data.ok === false) {
+        throw new Error(
+          data.error ||
+          data.message ||
+          `Request failed (${response.status})`
+        );
       }
+
       return data;
     }
 
-    const ELEMENT_EMOJI = {
-      Earth: "🪨", Water: "💧", Nature: "🌿", Ice: "❄️",
-      Fire: "🔥", Wind: "💨", Thunder: "⚡"
-    };
-
-    // ============================================================
-    // PROFILE PICTURE
-    // ============================================================
-    document.getElementById("avatarBtn").addEventListener("click", () => avatarInput.click());
-
-    avatarInput.addEventListener("change", (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      if (file.size > 2.5 * 1024 * 1024) {
-        showError("Image too large (max 2.5 MB)");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => {
-        profilePictureData = reader.result;
-        avatarPreview.src = profilePictureData;
-        avatarPreview.classList.add("show");
-        avatarPlaceholder.classList.add("hide");
-      };
-      reader.readAsDataURL(file);
-    });
-
-    // ============================================================
-    // LOGIN
-    // ============================================================
-    loginBtn.addEventListener("click", async () => {
-      hideError();
-      showLoading("Connecting to Pi Network...");
-
-      try {
-        // -------------------------------------------------------
-        // REAL PI SDK – i-uncomment at i-connect mo ito
-        // -------------------------------------------------------
-        /*
-        const scopes = ["username", "payments", "wallet_address"];
-        const authResult = await window.Pi.authenticate(scopes, onIncompletePaymentFound);
-        accessToken = authResult.accessToken;
-        */
-
-        // ---------- DEMO / TESTING (tanggalin kapag may real Pi SDK) ----------
-        // Para makapag-test nang walang Pi Browser:
-        // Maglagay ng temporary token o i-simulate.
-        // Kapag ready na ang Pi SDK, tanggalin ang block na ito.
-        await delay(900);
-        // Simulan muna ng error kung wala pang real token setup
-        // Para hindi mag-crash: gumamit ng mock kung gusto mong pure UI test.
-        // -------------------------------------------------------
-
-        // Kung may real accessToken na:
-        if (!accessToken) {
-          // Temporary: payagan ang UI testing nang walang real Pi
-          // Palitan mo ito ng real flow.
-          accessToken = "demo-token-replace-with-real-pi-token";
-        }
-
-        showLoading("Verifying Pioneer...");
-        let data;
-        try {
-          data = await api("/api/auth/verify", {
-            method: "POST",
-            body: JSON.stringify({ accessToken })
-          });
-        } catch (err) {
-          // Kung demo token, payagan pa rin ang UI para makita ang marketplace
-          console.warn("Auth failed (expected if demo token):", err.message);
-          data = {
-            ok: true,
-            uid: "demo-uid",
-            username: "Pioneer",
-            walletSynced: false,
-            needsWalletSync: true,
-            profilePicture: profilePictureData,
-            pioneer: { username: "Pioneer", profile_picture: profilePictureData }
-          };
-        }
-
-        pioneer = data.pioneer || data;
-        walletSynced = !!data.walletSynced;
-
-        // Save profile picture if selected
-        if (profilePictureData && accessToken && accessToken !== "demo-token-replace-with-real-pi-token") {
-          showLoading("Saving profile picture...");
-          try {
-            await api("/api/profile/picture", {
-              method: "POST",
-              body: JSON.stringify({ profile_picture: profilePictureData })
-            });
-          } catch (e) {
-            console.warn("Profile picture save failed:", e.message);
-          }
-        }
-
-        showLoading("Entering AMT Pet Marketplace...");
-        await delay(700);
-
-        enterApp(data);
-
-      } catch (err) {
-        hideLoading();
-        showError(err.message || "Login failed");
-      }
-    });
-
     function delay(ms) {
-      return new Promise(r => setTimeout(r, ms));
-    }
-
-    function enterApp(data) {
-      hideLoading();
-      loginScreen.classList.remove("active");
-      appScreen.classList.add("active");
-
-      const name = data.username || data.pioneer?.username || "Pioneer";
-      document.getElementById("userName").textContent = name;
-
-      const pic = data.profilePicture || data.profile_picture || profilePictureData ||
-                  data.pioneer?.profile_picture;
-      const avatarEl = document.getElementById("userAvatar");
-      if (pic) {
-        avatarEl.src = pic;
-      } else {
-        avatarEl.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44'%3E%3Crect fill='%231e293b' width='44' height='44'/%3E%3Ctext x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-size='20'%3EP%3C/text%3E%3C/svg%3E";
-      }
-
-      updateWalletUI(data);
-      loadPets();
-      loadMyPets();
-      refreshAmtBalance();
-    }
-
-    // ============================================================
-    // TABS
-    // ============================================================
-    document.querySelectorAll(".nav-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        const tab = btn.dataset.tab;
-        document.getElementById("tab-market").style.display = tab === "market" ? "block" : "none";
-        document.getElementById("tab-mypets").style.display = tab === "mypets" ? "block" : "none";
-        document.getElementById("tab-wallet").style.display = tab === "wallet" ? "block" : "none";
-        if (tab === "mypets") loadMyPets();
-        if (tab === "wallet") refreshWalletStatus();
+      return new Promise(resolve => {
+        setTimeout(resolve, ms);
       });
-    });
-
-    // ============================================================
-    // PETS (MARKETPLACE)
-    // ============================================================
-    async function loadPets() {
-      petsGrid.innerHTML = '<div class="empty">Loading pets...</div>';
-      try {
-        const data = await api("/api/pets");
-        allPets = data.pets || [];
-        document.getElementById("petCount").textContent = allPets.length + " pets";
-        renderPets();
-      } catch (err) {
-        // Fallback: show message
-        petsGrid.innerHTML = `<div class="empty">Unable to load pets.<br><small>${err.message}</small></div>`;
-      }
     }
 
-    function renderPets() {
-      const filtered = currentElement === "all"
-        ? allPets
-        : allPets.filter(p => p.element === currentElement);
-
-      if (!filtered.length) {
-        petsGrid.innerHTML = '<div class="empty">No pets in this element.</div>';
-        return;
-      }
-
-      petsGrid.innerHTML = filtered.map(p => {
-        const emoji = ELEMENT_EMOJI[p.element] || "🐾";
-        return `
-          <div class="pet-card">
-            <div class="pet-emoji">${emoji}</div>
-            <div class="pet-name">${escapeHtml(p.name)}</div>
-            <div class="pet-element">${escapeHtml(p.element)}</div>
-            <div class="pet-stats">HP ${p.base_hp} · ATK ${p.base_atk} · DEF ${p.base_def}</div>
-            <div class="pet-price">20 AMT</div>
-            <button class="btn btn-primary btn-sm" onclick="openBuyModal('${p.pet_code}','${escapeHtml(p.name)}')">Buy</button>
-          </div>
-        `;
-      }).join("");
-    }
-
-    document.getElementById("elementFilters").addEventListener("click", (e) => {
-      const chip = e.target.closest(".chip");
-      if (!chip) return;
-      document.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
-      chip.classList.add("active");
-      currentElement = chip.dataset.element;
-      renderPets();
-    });
+    const ELEMENT_EMOJI = {
+      Earth: "🪨",
+      Water: "💧",
+      Nature: "🌿",
+      Ice: "❄️",
+      Fire: "🔥",
+      Wind: "💨",
+      Thunder: "⚡"
+    };
 
     function escapeHtml(str) {
       return String(str || "")
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
     }
 
-    // ============================================================
-    // BUY
-    // ============================================================
-    const buyModal = document.getElementById("buyModal");
+    /* ============================================================
+       PROFILE PICTURE
+    ============================================================ */
 
-    window.openBuyModal = function(petCode, petName) {
-      selectedPetCode = petCode;
-      document.getElementById("buyPetName").textContent = "Buy " + petName;
-      document.getElementById("buyPetDesc").innerHTML = `Confirm purchase for <strong>20 AMT</strong>.`;
-      buyModal.classList.add("active");
-    };
+    document
+      .getElementById("avatarBtn")
+      .addEventListener(
+        "click",
+        () => avatarInput.click()
+      );
 
-    document.getElementById("buyCancelBtn").addEventListener("click", () => {
-      buyModal.classList.remove("active");
-      selectedPetCode = null;
-    });
+    avatarInput.addEventListener(
+      "change",
+      async event => {
 
-    document.getElementById("buyConfirmBtn").addEventListener("click", async () => {
-      if (!selectedPetCode) return;
-      buyModal.classList.remove("active");
-      showLoading("Preparing AMT payment...");
+        const file =
+          event.target.files?.[0];
 
-      try {
-        // 1. Prepare
-        const prep = await api("/api/payments/amt/prepare", {
-          method: "POST",
-          body: JSON.stringify({ pet_code: selectedPetCode })
-        });
+        if (!file) return;
 
-        hideLoading();
-        toast("Send 20 AMT to the receiver, then paste the transaction hash.");
-
-        // Simple prompt for txid (pwede mong gawing mas magandang UI later)
-        const txid = prompt(
-          "After sending 20 AMT on-chain, paste the Transaction Hash (txid) here:"
-        );
-        if (!txid || !txid.trim()) {
-          toast("Purchase cancelled – no txid");
+        if (!file.type.startsWith("image/")) {
+          showError(
+            "Please select a valid image."
+          );
           return;
         }
 
-        showLoading("Verifying AMT transfer...");
-        const result = await api("/api/payments/amt/complete", {
-          method: "POST",
-          body: JSON.stringify({
-            pet_code: selectedPetCode,
-            txid: txid.trim()
-          })
-        });
+        /*
+          Compress the image before converting to
+          base64. This helps keep the JSON request small.
+        */
 
-        hideLoading();
-        toast("Pet purchased successfully! 🎉");
-        loadMyPets();
-        refreshAmtBalance();
+        try {
+
+          const compressed =
+            await compressImage(file);
+
+          profilePictureData =
+            compressed;
+
+          avatarPreview.src =
+            profilePictureData;
+
+          avatarPreview.classList.add(
+            "show"
+          );
+
+          avatarPlaceholder.classList.add(
+            "hide"
+          );
+
+        } catch (err) {
+
+          console.error(
+            "Image processing error:",
+            err
+          );
+
+          showError(
+            "Unable to process the profile picture."
+          );
+        }
+      }
+    );
+
+    function compressImage(
+      file,
+      maxSize = 700,
+      quality = 0.78
+    ) {
+      return new Promise(
+        (resolve, reject) => {
+
+          const reader =
+            new FileReader();
+
+          reader.onerror =
+            () => reject(
+              new Error(
+                "Unable to read image."
+              )
+            );
+
+          reader.onload = () => {
+
+            const img =
+              new Image();
+
+            img.onerror =
+              () => reject(
+                new Error(
+                  "Invalid image."
+                )
+              );
+
+            img.onload = () => {
+
+              let width =
+                img.naturalWidth;
+
+              let height =
+                img.naturalHeight;
+
+              if (
+                width > maxSize ||
+                height > maxSize
+              ) {
+
+                const scale =
+                  Math.min(
+                    maxSize / width,
+                    maxSize / height
+                  );
+
+                width =
+                  Math.round(
+                    width * scale
+                  );
+
+                height =
+                  Math.round(
+                    height * scale
+                  );
+              }
+
+              const canvas =
+                document.createElement(
+                  "canvas"
+                );
+
+              canvas.width =
+                width;
+
+              canvas.height =
+                height;
+
+              const ctx =
+                canvas.getContext("2d");
+
+              ctx.drawImage(
+                img,
+                0,
+                0,
+                width,
+                height
+              );
+
+              resolve(
+                canvas.toDataURL(
+                  "image/jpeg",
+                  quality
+                )
+              );
+            };
+
+            img.src =
+              reader.result;
+          };
+
+          reader.readAsDataURL(file);
+        }
+      );
+    }
+
+    /* ============================================================
+       REAL PI LOGIN
+    ============================================================ */
+
+    loginBtn.addEventListener(
+      "click",
+      async () => {
+
+        hideError();
+
+        if (!window.Pi) {
+          showError(
+            "Pi SDK is unavailable. Please open AMT Pet Marketplace inside Pi Browser."
+          );
+          return;
+        }
+
+        if (!piInitialized) {
+          initializePi();
+        }
+
+        if (!piInitialized) {
+          showError(
+            "Unable to initialize Pi SDK."
+          );
+          return;
+        }
+
+        loginBtn.disabled = true;
+
+        showLoading(
+          "Connecting to Pi Network..."
+        );
+
+        try {
+
+          /*
+            Real Pi authentication.
+
+            We request:
+            - username
+            - payments
+            - wallet_address
+
+            The returned accessToken is sent
+            to our backend for verification.
+          */
+
+          const scopes = [
+            "username",
+            "payments",
+            "wallet_address"
+          ];
+
+          const authResult =
+            await window.Pi.authenticate(
+              scopes,
+              onIncompletePaymentFound
+            );
+
+          if (
+            !authResult ||
+            !authResult.accessToken
+          ) {
+            throw new Error(
+              "Pi authentication did not return an access token."
+            );
+          }
+
+          accessToken =
+            authResult.accessToken;
+
+          showLoading(
+            "Verifying your Pioneer account..."
+          );
+
+          /*
+            IMPORTANT:
+            We do NOT trust the frontend's UID.
+            Backend verifies the Pi access token.
+          */
+
+          const data =
+            await api(
+              "/api/auth/verify",
+              {
+                method: "POST",
+                body: JSON.stringify({
+                  accessToken
+                })
+              }
+            );
+
+          pioneer =
+            data.pioneer || data;
+
+          walletSynced =
+            !!data.walletSynced;
+
+          walletAddress =
+            data.wallet_address ||
+            data.walletAddress ||
+            data.pioneer?.wallet_address ||
+            null;
+
+          /*
+            Save profile picture only after
+            successful real authentication.
+          */
+
+          if (profilePictureData) {
+
+            showLoading(
+              "Saving your profile..."
+            );
+
+            try {
+
+              await api(
+                "/api/profile/picture",
+                {
+                  method: "POST",
+                  body: JSON.stringify({
+                    profile_picture:
+                      profilePictureData
+                  })
+                }
+              );
+
+            } catch (profileErr) {
+
+              console.warn(
+                "Profile picture save failed:",
+                profileErr.message
+              );
+            }
+          }
+
+          showLoading(
+            "Loading your AMT wallet..."
+          );
+
+          /*
+            If Pi authentication supplied the
+            Pioneer wallet, synchronize it.
+
+            The backend must associate it with
+            THIS authenticated Pi UID.
+          */
+
+          if (
+            walletAddress &&
+            isPublicStellarAddress(
+              walletAddress
+            )
+          ) {
+
+            try {
+
+              const walletData =
+                await api(
+                  "/api/wallet/sync",
+                  {
+                    method: "POST",
+                    body: JSON.stringify({
+                      wallet_address:
+                        walletAddress
+                    })
+                  }
+                );
+
+              walletSynced =
+                !!walletData.synced ||
+                !!walletData.walletSynced;
+
+            } catch (walletErr) {
+
+              console.warn(
+                "Automatic wallet sync:",
+                walletErr.message
+              );
+            }
+          }
+
+          showLoading(
+            "Entering AMT Pet Marketplace..."
+          );
+
+          await delay(500);
+
+          enterApp(data);
+
+        } catch (err) {
+
+          console.error(
+            "Pi login error:",
+            err
+          );
+
+          accessToken = null;
+          pioneer = null;
+          walletAddress = null;
+          walletSynced = false;
+
+          hideLoading();
+
+          showError(
+            err.message ||
+            "Pi login failed."
+          );
+
+        } finally {
+
+          loginBtn.disabled = false;
+        }
+      }
+    );
+
+    /* ============================================================
+       PI INCOMPLETE PAYMENT
+    ============================================================ */
+
+    function onIncompletePaymentFound(payment) {
+
+      console.log(
+        "Incomplete Pi payment:",
+        payment
+      );
+
+      /*
+        The backend remains responsible for
+        verifying incomplete payments.
+
+        We do not automatically grant a pet
+        from frontend information.
+      */
+    }
+
+    /* ============================================================
+       WALLET ADDRESS VALIDATION
+    ============================================================ */
+
+    function isPublicStellarAddress(address) {
+
+      return /^G[A-Z2-7]{55}$/.test(
+        String(address || "").trim()
+      );
+    }
+
+    /* ============================================================
+       ENTER APP
+    ============================================================ */
+
+    function enterApp(data) {
+
+      hideLoading();
+
+      loginScreen.classList.remove(
+        "active"
+      );
+
+      appScreen.classList.add(
+        "active"
+      );
+
+      const name =
+        data.username ||
+        data.pioneer?.username ||
+        pioneer?.username ||
+        "Pioneer";
+
+      document.getElementById(
+        "userName"
+      ).textContent = name;
+
+      const pic =
+        data.profilePicture ||
+        data.profile_picture ||
+        data.pioneer?.profile_picture ||
+        profilePictureData;
+
+      const avatarEl =
+        document.getElementById(
+          "userAvatar"
+        );
+
+      if (pic) {
+
+        avatarEl.src = pic;
+
+      } else {
+
+        avatarEl.src =
+          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44'%3E%3Crect fill='%231e293b' width='44' height='44'/%3E%3Ctext x='50%25' y='54%25' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-size='20'%3EP%3C/text%3E%3C/svg%3E";
+      }
+
+      updateWalletUI({
+        walletSynced:
+          walletSynced ||
+          !!data.walletSynced,
+        wallet_address:
+          walletAddress ||
+          data.wallet_address ||
+          data.pioneer?.wallet_address
+      });
+
+      loadPets();
+      loadMyPets();
+      refreshAmtBalance();
+    }
+
+    /* ============================================================
+       TABS
+    ============================================================ */
+
+    document
+      .querySelectorAll(".nav-btn")
+      .forEach(btn => {
+
+        btn.addEventListener(
+          "click",
+          () => {
+
+            document
+              .querySelectorAll(
+                ".nav-btn"
+              )
+              .forEach(b =>
+                b.classList.remove(
+                  "active"
+                )
+              );
+
+            btn.classList.add(
+              "active"
+            );
+
+            const tab =
+              btn.dataset.tab;
+
+            document.getElementById(
+              "tab-market"
+            ).style.display =
+              tab === "market"
+                ? "block"
+                : "none";
+
+            document.getElementById(
+              "tab-mypets"
+            ).style.display =
+              tab === "mypets"
+                ? "block"
+                : "none";
+
+            document.getElementById(
+              "tab-wallet"
+            ).style.display =
+              tab === "wallet"
+                ? "block"
+                : "none";
+
+            if (tab === "mypets") {
+              loadMyPets();
+            }
+
+            if (tab === "wallet") {
+              refreshWalletStatus();
+              refreshAmtBalance();
+            }
+          }
+        );
+      });
+
+    /* ============================================================
+       PET MARKETPLACE
+    ============================================================ */
+
+    async function loadPets() {
+
+      petsGrid.innerHTML =
+        '<div class="empty">Loading pets...</div>';
+
+      try {
+
+        const data =
+          await api("/api/pets");
+
+        allPets =
+          data.pets || [];
+
+        document.getElementById(
+          "petCount"
+        ).textContent =
+          allPets.length +
+          " pets";
+
+        renderPets();
 
       } catch (err) {
-        hideLoading();
-        toast(err.message || "Purchase failed");
-      }
-    });
 
-    // ============================================================
-    // MY PETS + CARE / TRAIN
-    // ============================================================
-    async function loadMyPets() {
-      if (!pioneer?.pi_uid && !pioneer?.uid) {
-        // try from auth data
+        petsGrid.innerHTML =
+          `<div class="empty">
+            Unable to load pets.<br>
+            <small>${escapeHtml(
+              err.message
+            )}</small>
+          </div>`;
       }
-      const uid = pioneer?.pi_uid || pioneer?.uid;
-      if (!uid || uid === "demo-uid") {
-        myPetsList.innerHTML = '<div class="empty">Login with real Pi account to see your pets.</div>';
+    }
+
+    function renderPets() {
+
+      const filtered =
+        currentElement === "all"
+          ? allPets
+          : allPets.filter(
+              pet =>
+                pet.element ===
+                currentElement
+            );
+
+      if (!filtered.length) {
+
+        petsGrid.innerHTML =
+          '<div class="empty">No pets in this element.</div>';
+
         return;
       }
 
-      myPetsList.innerHTML = '<div class="empty">Loading your pets...</div>';
+      petsGrid.innerHTML =
+        filtered.map(pet => {
+
+          const emoji =
+            ELEMENT_EMOJI[
+              pet.element
+            ] || "🐾";
+
+          return `
+            <div class="pet-card">
+
+              <div class="pet-emoji">
+                ${emoji}
+              </div>
+
+              <div class="pet-name">
+                ${escapeHtml(
+                  pet.name
+                )}
+              </div>
+
+              <div class="pet-element">
+                ${escapeHtml(
+                  pet.element
+                )}
+              </div>
+
+              <div class="pet-stats">
+                HP ${escapeHtml(
+                  pet.base_hp
+                )}
+                · ATK ${escapeHtml(
+                  pet.base_atk
+                )}
+                · DEF ${escapeHtml(
+                  pet.base_def
+                )}
+              </div>
+
+              <div class="pet-price">
+                ${PET_PRICE_AMT} AMT
+              </div>
+
+              <button
+                class="btn btn-primary btn-sm"
+                data-buy-pet="${escapeHtml(
+                  pet.pet_code
+                )}"
+                data-buy-name="${escapeHtml(
+                  pet.name
+                )}"
+              >
+                Buy
+              </button>
+
+            </div>
+          `;
+
+        }).join("");
+    }
+
+    document
+      .getElementById("elementFilters")
+      .addEventListener(
+        "click",
+        event => {
+
+          const chip =
+            event.target.closest(
+              ".chip"
+            );
+
+          if (!chip) return;
+
+          document
+            .querySelectorAll(
+              ".chip"
+            )
+            .forEach(c =>
+              c.classList.remove(
+                "active"
+              )
+            );
+
+          chip.classList.add(
+            "active"
+          );
+
+          currentElement =
+            chip.dataset.element;
+
+          renderPets();
+        }
+      );
+
+    petsGrid.addEventListener(
+      "click",
+      event => {
+
+        const button =
+          event.target.closest(
+            "[data-buy-pet]"
+          );
+
+        if (!button) return;
+
+        openBuyModal(
+          button.dataset.buyPet,
+          button.dataset.buyName
+        );
+      }
+    );
+
+    /* ============================================================
+       BUY MODAL
+    ============================================================ */
+
+    function openBuyModal(
+      petCode,
+      petName
+    ) {
+
+      selectedPetCode =
+        petCode;
+
+      currentPaymentReceiver =
+        null;
+
+      currentPaymentIssuer =
+        null;
+
+      paymentInfo.style.display =
+        "none";
+
+      txidInput.style.display =
+        "none";
+
+      txidInput.value = "";
+
+      document.getElementById(
+        "buyPetName"
+      ).textContent =
+        "Buy " + petName;
+
+      document.getElementById(
+        "buyPetDesc"
+      ).innerHTML =
+        `Confirm purchase for <strong>${PET_PRICE_AMT} AMT</strong>.`;
+
+      document.getElementById(
+        "buyConfirmBtn"
+      ).textContent =
+        "Prepare AMT Payment";
+
+      buyModal.classList.add(
+        "active"
+      );
+    }
+
+    document
+      .getElementById(
+        "buyCancelBtn"
+      )
+      .addEventListener(
+        "click",
+        closeBuyModal
+      );
+
+    function closeBuyModal() {
+
+      buyModal.classList.remove(
+        "active"
+      );
+
+      selectedPetCode = null;
+      currentPaymentReceiver = null;
+      currentPaymentIssuer = null;
+
+      txidInput.value = "";
+      txidInput.style.display = "none";
+      paymentInfo.style.display = "none";
+    }
+
+    /* ============================================================
+       AMT PAYMENT
+    ============================================================ */
+
+    document
+      .getElementById(
+        "buyConfirmBtn"
+      )
+      .addEventListener(
+        "click",
+        async () => {
+
+          if (!selectedPetCode) {
+            return;
+          }
+
+          /*
+            First click:
+            prepare payment.
+          */
+
+          if (
+            txidInput.style.display ===
+            "none"
+          ) {
+
+            showLoading(
+              "Checking your AMT wallet..."
+            );
+
+            try {
+
+              const prep =
+                await api(
+                  "/api/payments/amt/prepare",
+                  {
+                    method: "POST",
+                    body: JSON.stringify({
+                      pet_code:
+                        selectedPetCode
+                    })
+                  }
+                );
+
+              hideLoading();
+
+              currentPaymentReceiver =
+                prep.receiver ||
+                prep.amt?.receiver ||
+                null;
+
+              currentPaymentIssuer =
+                prep.issuer ||
+                prep.amt?.issuer ||
+                null;
+
+              const balance =
+                prep.balance ??
+                prep.amt?.balance;
+
+              let infoHtml = "";
+
+              infoHtml += `
+                <div>
+                  <strong>Amount:</strong>
+                  ${PET_PRICE_AMT} AMT
+                </div>
+              `;
+
+              if (balance !== undefined) {
+                infoHtml += `
+                  <div>
+                    <strong>Your AMT Balance:</strong>
+                    ${escapeHtml(
+                      String(balance)
+                    )} AMT
+                  </div>
+                `;
+              }
+
+              if (currentPaymentReceiver) {
+                infoHtml += `
+                  <div>
+                    <strong>Receiver:</strong>
+                    ${escapeHtml(
+                      currentPaymentReceiver
+                    )}
+                  </div>
+                `;
+              }
+
+              infoHtml += `
+                <div style="margin-top:7px;color:#fbbf24">
+                  Send exactly ${PET_PRICE_AMT} AMT
+                  from your own wallet to the receiver above.
+                </div>
+              `;
+
+              paymentInfo.innerHTML =
+                infoHtml;
+
+              paymentInfo.style.display =
+                "block";
+
+              txidInput.style.display =
+                "block";
+
+              document.getElementById(
+                "buyPetDesc"
+              ).innerHTML =
+                "After the on-chain transfer is complete, paste the transaction hash below.";
+
+              document.getElementById(
+                "buyConfirmBtn"
+              ).textContent =
+                "Verify AMT Payment";
+
+              toast(
+                `Send exactly ${PET_PRICE_AMT} AMT, then paste the transaction hash.`
+              );
+
+              return;
+
+            } catch (err) {
+
+              hideLoading();
+
+              toast(
+                err.message ||
+                "Unable to prepare AMT payment."
+              );
+
+              return;
+            }
+          }
+
+          /*
+            Second click:
+            verify transaction.
+          */
+
+          const txid =
+            txidInput.value.trim();
+
+          if (!txid) {
+
+            toast(
+              "Paste the AMT transaction hash first."
+            );
+
+            return;
+          }
+
+          if (
+            !/^[a-fA-F0-9]{64}$/.test(
+              txid
+            )
+          ) {
+
+            toast(
+              "Invalid transaction hash. Please paste the 64-character Stellar transaction hash."
+            );
+
+            return;
+          }
+
+          showLoading(
+            "Verifying AMT transfer on-chain..."
+          );
+
+          try {
+
+            const result =
+              await api(
+                "/api/payments/amt/complete",
+                {
+                  method: "POST",
+                  body: JSON.stringify({
+                    pet_code:
+                      selectedPetCode,
+                    txid
+                  })
+                }
+              );
+
+            hideLoading();
+
+            closeBuyModal();
+
+            toast(
+              result.message ||
+              "Pet purchased successfully! 🎉",
+              3500
+            );
+
+            await loadMyPets();
+            await refreshAmtBalance();
+
+          } catch (err) {
+
+            hideLoading();
+
+            toast(
+              err.message ||
+              "AMT payment verification failed.",
+              4000
+            );
+          }
+        }
+      );
+
+    /* ============================================================
+       MY PETS
+    ============================================================ */
+
+    async function loadMyPets() {
+
+      /*
+        We intentionally do not trust a UID from
+        the browser URL.
+
+        The backend should identify the Pioneer
+        from the authenticated Pi access token.
+      */
+
+      myPetsList.innerHTML =
+        '<div class="empty">Loading your pets...</div>';
+
       try {
-        const data = await api("/api/my-pets/" + encodeURIComponent(uid));
-        myPets = data.pets || [];
+
+        /*
+          Preferred secure endpoint.
+        */
+
+        const data =
+          await api("/api/my-pets");
+
+        myPets =
+          data.pets || [];
+
         renderMyPets();
+
       } catch (err) {
-        myPetsList.innerHTML = `<div class="empty">${err.message}</div>`;
+
+        /*
+          Compatibility fallback for the current
+          backend version.
+
+          The backend must still verify that the
+          supplied UID matches the authenticated
+          Pi account.
+        */
+
+        const uid =
+          pioneer?.pi_uid ||
+          pioneer?.uid;
+
+        if (!uid) {
+
+          myPetsList.innerHTML =
+            `<div class="empty">
+              ${escapeHtml(
+                err.message
+              )}
+            </div>`;
+
+          return;
+        }
+
+        try {
+
+          const data =
+            await api(
+              "/api/my-pets/" +
+              encodeURIComponent(uid)
+            );
+
+          myPets =
+            data.pets || [];
+
+          renderMyPets();
+
+        } catch (fallbackErr) {
+
+          myPetsList.innerHTML =
+            `<div class="empty">
+              ${escapeHtml(
+                fallbackErr.message
+              )}
+            </div>`;
+        }
       }
     }
 
     function renderMyPets() {
+
       if (!myPets.length) {
-        myPetsList.innerHTML = '<div class="empty">You don\'t own any pets yet.<br>Buy one from the Marketplace!</div>';
+
+        myPetsList.innerHTML =
+          `<div class="empty">
+            You don't own any pets yet.<br>
+            Buy one from the Marketplace!
+          </div>`;
+
         return;
       }
 
-      myPetsList.innerHTML = myPets.map(p => {
-        const emoji = ELEMENT_EMOJI[p.element] || "🐾";
-        return `
-          <div class="my-pet-card">
-            <div class="my-pet-emoji">${emoji}</div>
-            <div class="my-pet-info">
-              <div class="my-pet-name">${escapeHtml(p.name)}</div>
-              <div class="my-pet-meta">
-                Lv.${p.level} · XP ${p.xp} · ${escapeHtml(p.element)}<br>
-                HP ${p.hp} · ATK ${p.atk} · DEF ${p.def}
+      myPetsList.innerHTML =
+        myPets.map(pet => {
+
+          const emoji =
+            ELEMENT_EMOJI[
+              pet.element
+            ] || "🐾";
+
+          return `
+            <div class="my-pet-card">
+
+              <div class="my-pet-emoji">
+                ${emoji}
               </div>
+
+              <div class="my-pet-info">
+
+                <div class="my-pet-name">
+                  ${escapeHtml(
+                    pet.name
+                  )}
+                </div>
+
+                <div class="my-pet-meta">
+
+                  Lv.${escapeHtml(
+                    pet.level
+                  )}
+                  · XP ${escapeHtml(
+                    pet.xp
+                  )}
+                  · ${escapeHtml(
+                    pet.element
+                  )}
+
+                  <br>
+
+                  HP ${escapeHtml(
+                    pet.hp
+                  )}
+                  · ATK ${escapeHtml(
+                    pet.atk
+                  )}
+                  · DEF ${escapeHtml(
+                    pet.def
+                  )}
+
+                </div>
+
+              </div>
+
+              <div class="my-pet-actions">
+
+                <button
+                  class="btn btn-secondary btn-sm"
+                  data-care-pet="${escapeHtml(
+                    pet.id
+                  )}"
+                >
+                  Care
+                </button>
+
+                <button
+                  class="btn btn-primary btn-sm"
+                  data-train-pet="${escapeHtml(
+                    pet.id
+                  )}"
+                >
+                  Train
+                </button>
+
+              </div>
+
             </div>
-            <div class="my-pet-actions">
-              <button class="btn btn-secondary btn-sm" onclick="carePet(${p.id})">Care</button>
-              <button class="btn btn-primary btn-sm" onclick="trainPet(${p.id})">Train</button>
-            </div>
-          </div>
-        `;
-      }).join("");
+          `;
+
+        }).join("");
     }
 
-    window.carePet = async function(petId) {
-      showLoading("Caring for pet...");
-      try {
-        await api("/api/care", {
-          method: "POST",
-          body: JSON.stringify({ pet_id: petId })
-        });
-        hideLoading();
-        toast("Pet cared for – HP restored!");
-        loadMyPets();
-      } catch (err) {
-        hideLoading();
-        toast(err.message);
+    myPetsList.addEventListener(
+      "click",
+      event => {
+
+        const careBtn =
+          event.target.closest(
+            "[data-care-pet]"
+          );
+
+        if (careBtn) {
+
+          carePet(
+            careBtn.dataset.carePet
+          );
+
+          return;
+        }
+
+        const trainBtn =
+          event.target.closest(
+            "[data-train-pet]"
+          );
+
+        if (trainBtn) {
+
+          trainPet(
+            trainBtn.dataset.trainPet
+          );
+        }
       }
-    };
+    );
 
-    window.trainPet = async function(petId) {
-      showLoading("Training pet...");
+    async function carePet(
+      petId
+    ) {
+
+      showLoading(
+        "Caring for your pet..."
+      );
+
       try {
-        const data = await api("/api/train", {
-          method: "POST",
-          body: JSON.stringify({ pet_id: petId })
-        });
+
+        await api(
+          "/api/care",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              pet_id: Number(petId)
+            })
+          }
+        );
+
         hideLoading();
-        toast(data.message || "Training complete!");
-        loadMyPets();
+
+        toast(
+          "Pet cared for — HP restored!"
+        );
+
+        await loadMyPets();
+
       } catch (err) {
+
         hideLoading();
-        toast(err.message);
+
+        toast(
+          err.message ||
+          "Unable to care for pet."
+        );
       }
-    };
+    }
 
-    // ============================================================
-    // WALLET
-    // ============================================================
-    function updateWalletUI(data) {
-      const synced = !!data.walletSynced;
-      walletSynced = synced;
-      const meta = document.getElementById("userMeta");
-      const banner = document.getElementById("walletBanner");
-      const statusText = document.getElementById("walletStatusText");
-      const form = document.getElementById("walletSyncForm");
+    async function trainPet(
+      petId
+    ) {
 
-      if (synced) {
-        meta.textContent = "Wallet synchronized";
-        banner.classList.remove("warning");
-        statusText.textContent = "Wallet is synced. You can buy pets with AMT.";
-        form.style.display = "none";
+      showLoading(
+        "Training your pet..."
+      );
+
+      try {
+
+        const data =
+          await api(
+            "/api/train",
+            {
+              method: "POST",
+              body: JSON.stringify({
+                pet_id: Number(petId)
+              })
+            }
+          );
+
+        hideLoading();
+
+        toast(
+          data.message ||
+          "Training complete!"
+        );
+
+        await loadMyPets();
+
+      } catch (err) {
+
+        hideLoading();
+
+        toast(
+          err.message ||
+          "Unable to train pet."
+        );
+      }
+    }
+
+    /* ============================================================
+       WALLET UI
+    ============================================================ */
+
+    function updateWalletUI(
+      data = {}
+    ) {
+
+      const synced =
+        !!data.walletSynced ||
+        !!data.synced;
+
+      walletSynced =
+        synced;
+
+      walletAddress =
+        data.wallet_address ||
+        data.walletAddress ||
+        walletAddress ||
+        null;
+
+      const meta =
+        document.getElementById(
+          "userMeta"
+        );
+
+      const banner =
+        document.getElementById(
+          "walletBanner"
+        );
+
+      const statusText =
+        document.getElementById(
+          "walletStatusText"
+        );
+
+      const form =
+        document.getElementById(
+          "walletSyncForm"
+        );
+
+      const addressBox =
+        document.getElementById(
+          "walletAddressBox"
+        );
+
+      const largeAddress =
+        document.getElementById(
+          "walletAddressLarge"
+        );
+
+      if (
+        synced &&
+        walletAddress
+      ) {
+
+        meta.textContent =
+          "Wallet synchronized";
+
+        banner.classList.remove(
+          "warning"
+        );
+
+        statusText.textContent =
+          "Your Pioneer wallet is synchronized.";
+
+        addressBox.style.display =
+          "block";
+
+        addressBox.textContent =
+          walletAddress;
+
+        largeAddress.textContent =
+          walletAddress;
+
+        form.style.display =
+          "none";
+
       } else {
-        meta.textContent = "Wallet not synced";
-        banner.classList.add("warning");
-        statusText.textContent = "Sync your public Pi Testnet wallet (starts with G) to use AMT.";
-        form.style.display = "block";
+
+        meta.textContent =
+          "Wallet not synchronized";
+
+        banner.classList.add(
+          "warning"
+        );
+
+        statusText.textContent =
+          "Your public Pi Testnet wallet needs to be synchronized.";
+
+        addressBox.style.display =
+          "none";
+
+        largeAddress.textContent =
+          "Wallet not synchronized";
+
+        form.style.display =
+          "block";
       }
     }
+
+    /* ============================================================
+       WALLET STATUS
+    ============================================================ */
 
     async function refreshWalletStatus() {
+
       try {
-        const data = await api("/api/wallet/sync");
+
+        const data =
+          await api(
+            "/api/wallet/sync"
+          );
+
         updateWalletUI(data);
-        if (data.synced) refreshAmtBalance();
+
+        if (
+          data.synced ||
+          data.walletSynced
+        ) {
+
+          await refreshAmtBalance();
+        }
+
       } catch (err) {
-        document.getElementById("walletStatusText").textContent = err.message;
+
+        document.getElementById(
+          "walletStatusText"
+        ).textContent =
+          err.message;
       }
     }
 
-    document.getElementById("syncWalletBtn").addEventListener("click", async () => {
-      const addr = document.getElementById("walletInput").value.trim();
-      if (!addr) {
-        toast("Enter your public wallet address");
-        return;
-      }
-      showLoading("Syncing wallet...");
-      try {
-        const data = await api("/api/wallet/sync", {
-          method: "POST",
-          body: JSON.stringify({ wallet_address: addr })
-        });
-        hideLoading();
-        toast("Wallet synchronized!");
-        updateWalletUI({ walletSynced: true });
-        refreshAmtBalance();
-      } catch (err) {
-        hideLoading();
-        toast(err.message);
-      }
-    });
+    /* ============================================================
+       MANUAL WALLET SYNC
+    ============================================================ */
+
+    document
+      .getElementById(
+        "syncWalletBtn"
+      )
+      .addEventListener(
+        "click",
+        async () => {
+
+          const input =
+            document.getElementById(
+              "walletInput"
+            );
+
+          const address =
+            input.value.trim();
+
+          if (
+            !isPublicStellarAddress(
+              address
+            )
+          ) {
+
+            toast(
+              "Enter a valid public wallet address beginning with G."
+            );
+
+            return;
+          }
+
+          showLoading(
+            "Synchronizing your wallet..."
+          );
+
+          try {
+
+            const data =
+              await api(
+                "/api/wallet/sync",
+                {
+                  method: "POST",
+                  body: JSON.stringify({
+                    wallet_address:
+                      address
+                  })
+                }
+              );
+
+            walletAddress =
+              data.wallet_address ||
+              data.walletAddress ||
+              address;
+
+            walletSynced =
+              true;
+
+            hideLoading();
+
+            input.value = "";
+
+            updateWalletUI({
+              walletSynced: true,
+              wallet_address:
+                walletAddress
+            });
+
+            toast(
+              "Your wallet is synchronized!"
+            );
+
+            await refreshAmtBalance();
+
+          } catch (err) {
+
+            hideLoading();
+
+            toast(
+              err.message ||
+              "Wallet synchronization failed."
+            );
+          }
+        }
+      );
+
+    /* ============================================================
+       ON-CHAIN AMT BALANCE
+    ============================================================ */
 
     async function refreshAmtBalance() {
-      const el = document.getElementById("amtBalance");
+
+      const smallBalance =
+        document.getElementById(
+          "amtBalance"
+        );
+
+      const largeBalance =
+        document.getElementById(
+          "walletBalanceLarge"
+        );
+
       try {
-        const data = await api("/api/wallet/onchain");
-        const bal = data.amt?.balance ?? 0;
-        el.textContent = "AMT: " + Number(bal).toFixed(2);
-      } catch {
-        el.textContent = "AMT: —";
+
+        const data =
+          await api(
+            "/api/wallet/onchain"
+          );
+
+        const balance =
+          data.amt?.balance ??
+          data.balance ??
+          "0";
+
+        /*
+          Do not calculate payment authorization
+          on the frontend.
+
+          This value is display-only.
+          The backend verifies the real
+          on-chain transaction.
+        */
+
+        const display =
+          formatAmount(balance);
+
+        smallBalance.textContent =
+          "AMT: " + display;
+
+        largeBalance.textContent =
+          display + " AMT";
+
+        const returnedWallet =
+          data.wallet_address ||
+          data.walletAddress ||
+          data.amt?.wallet_address;
+
+        if (
+          returnedWallet &&
+          isPublicStellarAddress(
+            returnedWallet
+          )
+        ) {
+
+          walletAddress =
+            returnedWallet;
+
+          walletSynced =
+            true;
+
+          updateWalletUI({
+            walletSynced: true,
+            wallet_address:
+              returnedWallet
+          });
+        }
+
+      } catch (err) {
+
+        smallBalance.textContent =
+          "AMT: —";
+
+        largeBalance.textContent =
+          "—";
+
+        console.warn(
+          "AMT balance unavailable:",
+          err.message
+        );
       }
     }
 
-    // Placeholder for Pi incomplete payment handler
-    function onIncompletePaymentFound(payment) {
-      console.log("Incomplete payment:", payment);
+    function formatAmount(
+      value
+    ) {
+
+      const n =
+        Number(value);
+
+      if (
+        !Number.isFinite(n)
+      ) {
+        return String(value);
+      }
+
+      return n.toLocaleString(
+        undefined,
+        {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 7
+        }
+      );
     }
+
+    /* ============================================================
+       STARTUP
+    ============================================================ */
+
+    window.addEventListener(
+      "load",
+      () => {
+
+        /*
+          Reinitialize in case the SDK
+          finished loading after the page.
+        */
+
+        if (!piInitialized) {
+          initializePi();
+        }
+
+        console.log(
+          "AMT Pet Marketplace ready."
+        );
+      }
+    );
+
   </script>
+
 </body>
 </html>
