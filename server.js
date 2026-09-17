@@ -32,14 +32,15 @@ const AMT_HORIZON_URL =
   "https://api.testnet.minepi.com";
 
 /*
- * Development routes are OFF by default.
+ * AMT payment detection window.
  *
- * Render:
- * ALLOW_DEV_ENDPOINTS=false
- *
- * Only set true temporarily if you specifically need the development
- * helper. Never enable it for a public production deployment.
+ * After the Pioneer prepares an AMT purchase, the backend searches
+ * the authenticated Pioneer wallet for a recent exact AMT payment.
  */
+const AMT_PAYMENT_LOOKBACK_MINUTES = Number(
+  process.env.AMT_PAYMENT_LOOKBACK_MINUTES || 15
+);
+
 const ALLOW_DEV_ENDPOINTS =
   String(process.env.ALLOW_DEV_ENDPOINTS || "false").toLowerCase() === "true";
 
@@ -535,14 +536,6 @@ async function upsertPioneer(
 ) {
   const existing = await getPioneerByUid(pi_uid);
 
-  /*
-   * Important:
-   * If the Pioneer already has a wallet saved, we do NOT silently replace
-   * it with another wallet address.
-   *
-   * This prevents an authenticated user from accidentally overwriting
-   * an existing synchronized wallet.
-   */
   let finalWallet = existing?.wallet_address || null;
 
   if (!finalWallet && wallet_address) {
@@ -611,10 +604,6 @@ async function requirePiAuth(req, res, next) {
       .replace(/^Bearer\s+/i, "")
       .trim();
 
-    /*
-     * Backward compatibility:
-     * Existing frontend may send accessToken in JSON.
-     */
     if (!token) {
       token = String(
         req.body?.accessToken ||
@@ -735,11 +724,6 @@ async function getAMTBalance(wallet) {
     b.asset_issuer === AMT_ISSUER
   );
 
-  /*
-   * Keep balance as a Number for frontend compatibility.
-   * The actual purchase is still verified against the exact Horizon
-   * payment operation before ownership is granted.
-   */
   const balance = matching.reduce(
     (sum, item) =>
       sum + Number(item.balance || 0),
@@ -752,22 +736,6 @@ async function getAMTBalance(wallet) {
   };
 }
 
-/*
- * --------------------------------------------------------------------------
- * PI NATIVE TESTNET BALANCE
- * --------------------------------------------------------------------------
- *
- * This reads the native Pi balance from the SAME Pioneer wallet that is
- * synchronized/authenticated for this account.
- *
- * It does NOT use:
- *   - AMT issuer
- *   - AMT receiver/distributor
- *   - another user's wallet
- *
- * asset_type === "native" represents the native Pi asset on the selected
- * Pi Testnet Horizon.
- */
 async function getPiBalance(wallet) {
   if (!isPublicStellarAddress(wallet)) {
     throw new Error(
@@ -874,8 +842,231 @@ async function verifyAMTTransfer(
     operationId: operation.id,
     from,
     to,
-    amount: wantedAmount
+    amount: wantedAmount,
+    created_at:
+      transaction.created_at ||
+      operation.created_at ||
+      null
   };
+}
+
+/*
+ * Automatically searches the authenticated Pioneer wallet for the most
+ * recent exact AMT payment matching:
+ *
+ *   Pioneer wallet
+ *        ↓
+ *   AMT receiver
+ *
+ * Asset:
+ *   AMT
+ *
+ * Issuer:
+ *   configured AMT issuer
+ *
+ * Amount:
+ *   exact PET_AMT_PRICE
+ *
+ * No transaction hash is supplied by the frontend.
+ */
+async function findRecentAMTPayment({
+  wallet,
+  amount,
+  preparedCreatedAt
+}) {
+  if (!isPublicStellarAddress(wallet)) {
+    throw new Error(
+      "No valid Pioneer wallet is synchronized."
+    );
+  }
+
+  if (!isPublicStellarAddress(AMT_RECEIVER)) {
+    throw new Error(
+      "AMT receiver is not configured correctly."
+    );
+  }
+
+  if (!isPublicStellarAddress(AMT_ISSUER)) {
+    throw new Error(
+      "AMT issuer is not configured correctly."
+    );
+  }
+
+  const lookbackMs =
+    AMT_PAYMENT_LOOKBACK_MINUTES *
+    60 *
+    1000;
+
+  const now = Date.now();
+
+  const preparedTime =
+    preparedCreatedAt
+      ? new Date(preparedCreatedAt).getTime()
+      : now - lookbackMs;
+
+  const minimumTime =
+    Math.max(
+      now - lookbackMs,
+      preparedTime - 5000
+    );
+
+  const data = await horizonGet(
+    "/accounts/" +
+    encodeURIComponent(wallet) +
+    "/payments?order=desc&limit=100"
+  );
+
+  const records =
+    data?._embedded?.records || [];
+
+  const wantedAmount = Number(amount);
+
+  const candidates = records.filter(operation => {
+    if (
+      operation.type !== "payment"
+    ) {
+      return false;
+    }
+
+    if (
+      operation.asset_type !==
+      "credit_alphanum4"
+    ) {
+      return false;
+    }
+
+    if (
+      operation.asset_code !==
+      AMT_ASSET_CODE
+    ) {
+      return false;
+    }
+
+    if (
+      operation.asset_issuer !==
+      AMT_ISSUER
+    ) {
+      return false;
+    }
+
+    if (
+      operation.source_account !==
+      wallet
+    ) {
+      return false;
+    }
+
+    if (
+      operation.to !==
+      AMT_RECEIVER
+    ) {
+      return false;
+    }
+
+    if (
+      Number(operation.amount) !==
+      wantedAmount
+    ) {
+      return false;
+    }
+
+    const created =
+      new Date(
+        operation.created_at
+      ).getTime();
+
+    if (
+      !Number.isFinite(created)
+    ) {
+      return false;
+    }
+
+    if (created < minimumTime) {
+      return false;
+    }
+
+    if (created > now + 60000) {
+      return false;
+    }
+
+    return true;
+  });
+
+  if (!candidates.length) {
+    throw new Error(
+      `No recent ${wantedAmount} ${AMT_ASSET_CODE} payment was found from your synchronized wallet to the marketplace receiver. If you already sent it, wait a few seconds and try again.`
+    );
+  }
+
+  /*
+   * Horizon normally returns newest first, but sort again so the server
+   * always chooses the newest qualifying transfer.
+   */
+  candidates.sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() -
+      new Date(a.created_at).getTime()
+  );
+
+  for (const candidate of candidates) {
+    const transactionHash =
+      String(
+        candidate.transaction_hash ||
+        candidate.transaction_hash ||
+        ""
+      ).trim();
+
+    if (!transactionHash) {
+      continue;
+    }
+
+    /*
+     * Never reuse a transaction that has already purchased something.
+     */
+    const alreadyUsed = await dbQuery(`
+      SELECT id
+      FROM amt_payments
+      WHERE txid=$1
+      LIMIT 1
+    `, [
+      transactionHash
+    ]);
+
+    if (alreadyUsed.rows.length) {
+      continue;
+    }
+
+    try {
+      /*
+       * Final server-side verification.
+       */
+      const verified =
+        await verifyAMTTransfer(
+          transactionHash,
+          {
+            from: wallet,
+            to: AMT_RECEIVER,
+            amount: wantedAmount
+          }
+        );
+
+      return {
+        ...verified,
+        created_at:
+          candidate.created_at
+      };
+    } catch (e) {
+      console.warn(
+        "Skipping AMT candidate:",
+        transactionHash,
+        e.message
+      );
+    }
+  }
+
+  throw new Error(
+    `A recent ${wantedAmount} ${AMT_ASSET_CODE} payment was found, but no unused successful transaction passed final verification.`
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -901,13 +1092,6 @@ async function getCatalogPet(petCode) {
   return result.rows[0] || null;
 }
 
-/*
- * Creates a pet for a Pioneer.
- *
- * Important:
- * We use a transaction for payment-driven grants so the payment record
- * and pet ownership are committed together.
- */
 async function grantPet(
   pi_uid,
   pet_code,
@@ -1123,7 +1307,7 @@ app.get("/", (req, res) => {
   res.json({
     ok: true,
     app: "AMT Pet Marketplace",
-    version: "2.2.0",
+    version: "2.3.0",
     network: "Pi Testnet",
     status: "online"
   });
@@ -1156,7 +1340,9 @@ app.get("/api/health", async (req, res) => {
       assetCode: AMT_ASSET_CODE,
       issuer: AMT_ISSUER,
       receiver: AMT_RECEIVER,
-      horizon: AMT_HORIZON_URL
+      horizon: AMT_HORIZON_URL,
+      paymentLookbackMinutes:
+        AMT_PAYMENT_LOOKBACK_MINUTES
     },
     devEndpointsEnabled: ALLOW_DEV_ENDPOINTS,
     timestamp: new Date().toISOString()
@@ -1308,7 +1494,6 @@ app.post(
 
     res.json({
       ok: true,
-
       uid:
         req.piUser.uid,
 
@@ -1473,10 +1658,6 @@ async function walletBindHandler(
         req.pioneer.wallet_address
       );
 
-    /*
-     * Preferred path:
-     * Use the wallet returned by Pi authentication.
-     */
     const wallet =
       authenticatedWallet ||
       submittedWallet ||
@@ -1490,10 +1671,6 @@ async function walletBindHandler(
       });
     }
 
-    /*
-     * If a wallet already exists and a different wallet is submitted,
-     * refuse to silently replace it.
-     */
     if (
       existingWallet &&
       existingWallet !== wallet
@@ -1674,15 +1851,6 @@ app.get(
         });
       }
 
-      /*
-       * Read both assets from the SAME authenticated Pioneer wallet.
-       *
-       * AMT:
-       *   filtered by AMT code + AMT issuer
-       *
-       * Pi:
-       *   asset_type === native
-       */
       const result =
         await getAMTBalance(wallet);
 
@@ -1725,15 +1893,9 @@ app.get(
 );
 
 /* -------------------------------------------------------------------------- */
-/* PIONEER ROUTES - NOW AUTHENTICATED                                          */
+/* PIONEER ROUTES                                                              */
 /* -------------------------------------------------------------------------- */
 
-/*
- * Legacy endpoint preserved.
- *
- * It is now protected and the submitted pi_uid MUST equal the authenticated
- * Pi account UID.
- */
 app.post(
   "/api/pioneers",
   requirePiAuth,
@@ -1781,9 +1943,6 @@ app.post(
   }
 );
 
-/*
- * Legacy GET endpoint preserved.
- */
 app.get(
   "/api/pioneers/:pi_uid",
   requirePiAuth,
@@ -1831,12 +1990,6 @@ app.get(
 /* MY PETS                                                                     */
 /* -------------------------------------------------------------------------- */
 
-/*
- * New secure endpoint.
- *
- * The server obtains the UID from the verified Pi token.
- * The frontend does not need to send another person's UID.
- */
 app.get(
   "/api/my-pets",
   requirePiAuth,
@@ -1893,9 +2046,6 @@ app.get(
   }
 );
 
-/*
- * Legacy endpoint preserved, but now secured.
- */
 app.get(
   "/api/my-pets/:pi_uid",
   requirePiAuth,
@@ -2816,12 +2966,6 @@ app.post(
         });
       }
 
-      /*
-       * Informational balance check.
-       *
-       * The balance is checked again indirectly by Horizon when the actual
-       * transaction is submitted and verified.
-       */
       const onchain =
         await getAMTBalance(
           wallet
@@ -2833,8 +2977,126 @@ app.post(
       const sufficient =
         onchain.balance >= required;
 
+      if (!sufficient) {
+        return res.json({
+          ok: true,
+
+          pet_code,
+
+          amount:
+            required,
+
+          currency:
+            AMT_ASSET_CODE,
+
+          from_wallet:
+            wallet,
+
+          receiver:
+            AMT_RECEIVER,
+
+          issuer:
+            AMT_ISSUER,
+
+          horizon:
+            AMT_HORIZON_URL,
+
+          current_balance:
+            onchain.balance,
+
+          required_balance:
+            required,
+
+          sufficient_balance:
+            false,
+
+          status:
+            "INSUFFICIENT_AMT_BALANCE",
+
+          message:
+            `Your current AMT balance is ${onchain.balance}. You need ${required} AMT.`
+        });
+      }
+
+      /*
+       * Create a server-side payment intent.
+       *
+       * The frontend does NOT receive or submit a transaction hash.
+       * The transaction hash will be discovered automatically during
+       * /complete.
+       */
+      const prepared =
+        await dbQuery(`
+          SELECT
+            id,
+            pi_uid,
+            pet_code,
+            amount,
+            asset_code,
+            receiver,
+            status,
+            created_at
+          FROM amt_payments
+          WHERE
+            pi_uid=$1
+            AND pet_code=$2
+            AND status='PREPARED'
+            AND created_at >= NOW() -
+              ($3 * INTERVAL '1 minute')
+          ORDER BY created_at DESC
+          LIMIT 1
+        `, [
+          req.piUser.uid,
+          pet_code,
+          AMT_PAYMENT_LOOKBACK_MINUTES
+        ]);
+
+      let paymentId = null;
+
+      if (prepared.rows.length) {
+        paymentId =
+          prepared.rows[0].id;
+      } else {
+        const inserted =
+          await dbQuery(`
+            INSERT INTO amt_payments
+              (
+                pi_uid,
+                pet_code,
+                amount,
+                asset_code,
+                receiver,
+                status
+              )
+            VALUES
+              (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                'PREPARED'
+              )
+            RETURNING
+              id,
+              created_at
+          `, [
+            req.piUser.uid,
+            pet_code,
+            required,
+            AMT_ASSET_CODE,
+            AMT_RECEIVER
+          ]);
+
+        paymentId =
+          inserted.rows[0].id;
+      }
+
       res.json({
         ok: true,
+
+        payment_id:
+          paymentId,
 
         pet_code,
 
@@ -2863,17 +3125,13 @@ app.post(
           required,
 
         sufficient_balance:
-          sufficient,
+          true,
 
         status:
-          sufficient
-            ? "READY_FOR_VERIFIED_AMT_TRANSFER"
-            : "INSUFFICIENT_AMT_BALANCE",
+          "READY_FOR_VERIFIED_AMT_TRANSFER",
 
         message:
-          sufficient
-            ? "Send the exact AMT amount to the receiver, then submit the transaction hash."
-            : `Your current AMT balance is ${onchain.balance}. You need ${required} AMT.`
+          `Send exactly ${required} ${AMT_ASSET_CODE} from your own wallet to the receiver above. When the transfer is complete, tap "I've Completed Payment". No transaction hash is required.`
       });
     } catch (e) {
       console.error(
@@ -2899,26 +3157,31 @@ app.post(
   "/api/payments/amt/complete",
   requirePiAuth,
   async (req, res) => {
+    if (!pool) {
+      return res.status(500).json({
+        ok: false,
+        error:
+          "Database is not configured."
+      });
+    }
+
     const client =
       await pool.connect();
 
     try {
       const {
-        pet_code,
-        txid
+        pet_code
       } = req.body || {};
 
-      const transactionHash =
-        String(txid || "").trim();
-
-      if (
-        !pet_code ||
-        !transactionHash
-      ) {
+      /*
+       * IMPORTANT:
+       * txid is intentionally NOT accepted from the frontend.
+       */
+      if (!pet_code) {
         return res.status(400).json({
           ok: false,
           error:
-            "pet_code and txid are required."
+            "pet_code is required."
         });
       }
 
@@ -2948,85 +3211,47 @@ app.post(
         });
       }
 
-      /*
-       * First check if this exact transaction has already been used.
-       */
-      const used =
-        await client.query(`
-          SELECT
-            id,
-            pi_uid,
-            pet_code,
-            status
-
-          FROM amt_payments
-
-          WHERE txid=$1
-
-          LIMIT 1
-        `, [
-          transactionHash
-        ]);
-
-      if (used.rows.length) {
-        return res.status(409).json({
-          ok: false,
-          error:
-            "This AMT transaction hash has already been used."
-        });
-      }
-
-      /*
-       * Verify directly against Pi Testnet Horizon.
-       *
-       * The transaction must be:
-       *
-       * Pioneer wallet
-       *       ↓
-       * AMT receiver
-       *
-       * Asset:
-       * AMT
-       * exact issuer
-       * exact amount = 20
-       */
-      const verified =
-        await verifyAMTTransfer(
-          transactionHash,
-          {
-            from: wallet,
-            to: AMT_RECEIVER,
-            amount:
-              Number(PET_AMT_PRICE)
-          }
-        );
-
       await client.query(
         "BEGIN"
       );
 
       /*
-       * Race-condition protection:
-       * lock any matching transaction before granting ownership.
+       * Find the latest payment preparation belonging to THIS authenticated
+       * Pioneer and THIS pet.
+       *
+       * The frontend cannot choose another Pioneer or another user's
+       * prepared payment.
        */
-      const locked =
+      const prepared =
         await client.query(`
           SELECT
             id,
             pi_uid,
             pet_code,
-            status
-
+            amount,
+            asset_code,
+            receiver,
+            status,
+            created_at,
+            completed_at,
+            txid
           FROM amt_payments
-
-          WHERE txid=$1
-
+          WHERE
+            pi_uid=$1
+            AND pet_code=$2
+            AND status='PREPARED'
+            AND created_at >= NOW() -
+              ($3 * INTERVAL '1 minute')
+          ORDER BY created_at DESC
+          LIMIT 1
           FOR UPDATE
         `, [
-          verified.txid
+          req.piUser.uid,
+          pet_code,
+          AMT_PAYMENT_LOOKBACK_MINUTES
         ]);
 
-      if (locked.rows.length) {
+      if (!prepared.rows.length) {
         await client.query(
           "ROLLBACK"
         );
@@ -3034,38 +3259,126 @@ app.post(
         return res.status(409).json({
           ok: false,
           error:
-            "This AMT transaction hash has already been processed."
+            "No active AMT payment preparation was found. Start the 20 AMT payment again."
+        });
+      }
+
+      const preparedPayment =
+        prepared.rows[0];
+
+      const preparedAmount =
+        Number(
+          preparedPayment.amount
+        );
+
+      if (
+        preparedAmount !==
+        Number(PET_AMT_PRICE)
+      ) {
+        await client.query(
+          "ROLLBACK"
+        );
+
+        return res.status(409).json({
+          ok: false,
+          error:
+            "The prepared AMT payment amount does not match the current marketplace price."
+        });
+      }
+
+      if (
+        preparedPayment.asset_code !==
+        AMT_ASSET_CODE
+      ) {
+        await client.query(
+          "ROLLBACK"
+        );
+
+        return res.status(409).json({
+          ok: false,
+          error:
+            "The prepared AMT asset does not match the marketplace AMT asset."
+        });
+      }
+
+      if (
+        preparedPayment.receiver !==
+        AMT_RECEIVER
+      ) {
+        await client.query(
+          "ROLLBACK"
+        );
+
+        return res.status(409).json({
+          ok: false,
+          error:
+            "The prepared AMT receiver does not match the configured marketplace receiver."
         });
       }
 
       /*
-       * Record the verified blockchain payment.
+       * Automatically discover the latest qualifying transaction.
+       *
+       * The transaction hash comes from Horizon, not from the frontend.
        */
-      const paymentInsert =
-        await client.query(`
-          INSERT INTO amt_payments
-            (
-              pi_uid,
-              pet_code,
-              amount,
-              asset_code,
-              receiver,
-              txid,
-              status,
-              completed_at
-            )
+      const verified =
+        await findRecentAMTPayment({
+          wallet,
+          amount:
+            Number(PET_AMT_PRICE),
+          preparedCreatedAt:
+            preparedPayment.created_at
+        });
 
-          VALUES
-            (
-              $1,
-              $2,
-              $3,
-              $4,
-              $5,
-              $6,
-              'COMPLETED',
-              NOW()
-            )
+      /*
+       * Final duplicate check while the transaction is protected.
+       */
+      const duplicate =
+        await client.query(`
+          SELECT
+            id,
+            pi_uid,
+            pet_code,
+            status
+          FROM amt_payments
+          WHERE txid=$1
+          LIMIT 1
+          FOR UPDATE
+        `, [
+          verified.txid
+        ]);
+
+      if (duplicate.rows.length) {
+        await client.query(
+          "ROLLBACK"
+        );
+
+        return res.status(409).json({
+          ok: false,
+          error:
+            "This AMT transaction has already been processed."
+        });
+      }
+
+      /*
+       * Save the transaction hash discovered by the backend.
+       */
+      const paymentUpdate =
+        await client.query(`
+          UPDATE amt_payments
+          SET
+            amount=$1,
+            asset_code=$2,
+            receiver=$3,
+            txid=$4,
+            status='COMPLETED',
+            completed_at=NOW()
+
+          WHERE
+            id=$5
+            AND pi_uid=$6
+            AND pet_code=$7
+            AND status='PREPARED'
 
           RETURNING
             id,
@@ -3076,19 +3389,33 @@ app.post(
             receiver,
             txid,
             status,
+            created_at,
             completed_at
         `, [
-          req.piUser.uid,
-          pet_code,
           Number(PET_AMT_PRICE),
           AMT_ASSET_CODE,
           AMT_RECEIVER,
-          verified.txid
+          verified.txid,
+          preparedPayment.id,
+          req.piUser.uid,
+          pet_code
         ]);
 
+      if (!paymentUpdate.rows.length) {
+        await client.query(
+          "ROLLBACK"
+        );
+
+        return res.status(409).json({
+          ok: false,
+          error:
+            "The AMT payment preparation could not be completed."
+        });
+      }
+
       /*
-       * Grant the purchased pet only after the verified payment record
-       * has been created inside the same DB transaction.
+       * Grant the pet only after the on-chain AMT transfer has been
+       * successfully verified and recorded.
        */
       const petRow =
         await grantPet(
@@ -3103,16 +3430,24 @@ app.post(
 
       res.json({
         ok: true,
-        status: "COMPLETED",
+
+        status:
+          "COMPLETED",
 
         transactionId:
           verified.txid,
 
+        transactionHash:
+          verified.txid,
+
         payment:
-          paymentInsert.rows[0],
+          paymentUpdate.rows[0],
 
         pet:
-          petRow
+          petRow,
+
+        message:
+          "20 AMT payment verified on Pi Testnet and pet added to your collection."
       });
     } catch (e) {
       try {
@@ -3121,10 +3456,6 @@ app.post(
         );
       } catch {}
 
-      /*
-       * PostgreSQL unique violation can happen if two requests arrive at
-       * exactly the same time using the same txid.
-       */
       if (e.code === "23505") {
         return res.status(409).json({
           ok: false,
@@ -3154,15 +3485,6 @@ app.post(
 /* DEVELOPMENT HELPER                                                         */
 /* -------------------------------------------------------------------------- */
 
-/*
- * IMPORTANT:
- *
- * This route is disabled unless:
- *
- * ALLOW_DEV_ENDPOINTS=true
- *
- * Keep it false on Render production.
- */
 app.post(
   "/api/dev/give-pet",
   async (req, res) => {
@@ -3343,6 +3665,10 @@ async function startServer() {
         );
 
         console.log(
+          `AMT payment lookback: ${AMT_PAYMENT_LOOKBACK_MINUTES} minutes`
+        );
+
+        console.log(
           `Dev endpoints enabled: ${ALLOW_DEV_ENDPOINTS}`
         );
 
@@ -3360,6 +3686,10 @@ async function startServer() {
 
         console.log(
           "Secure My Pets endpoint: /api/my-pets"
+        );
+
+        console.log(
+          "AMT payment verification: automatic Horizon transaction discovery"
         );
 
         console.log(
