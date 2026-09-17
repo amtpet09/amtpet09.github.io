@@ -752,6 +752,51 @@ async function getAMTBalance(wallet) {
   };
 }
 
+/*
+ * --------------------------------------------------------------------------
+ * PI NATIVE TESTNET BALANCE
+ * --------------------------------------------------------------------------
+ *
+ * This reads the native Pi balance from the SAME Pioneer wallet that is
+ * synchronized/authenticated for this account.
+ *
+ * It does NOT use:
+ *   - AMT issuer
+ *   - AMT receiver/distributor
+ *   - another user's wallet
+ *
+ * asset_type === "native" represents the native Pi asset on the selected
+ * Pi Testnet Horizon.
+ */
+async function getPiBalance(wallet) {
+  if (!isPublicStellarAddress(wallet)) {
+    throw new Error(
+      "No valid Pioneer wallet is synchronized."
+    );
+  }
+
+  const account = await horizonGet(
+    "/accounts/" +
+    encodeURIComponent(wallet)
+  );
+
+  const balances = Array.isArray(account.balances)
+    ? account.balances
+    : [];
+
+  const nativeBalance = balances.find(
+    balance =>
+      balance.asset_type === "native"
+  );
+
+  return {
+    balance:
+      nativeBalance?.balance || "0",
+
+    asset_type: "native"
+  };
+}
+
 /* -------------------------------------------------------------------------- */
 /* AMT TRANSACTION VERIFICATION                                                */
 /* -------------------------------------------------------------------------- */
@@ -1553,7 +1598,62 @@ app.get(
 );
 
 /* -------------------------------------------------------------------------- */
-/* ACTUAL ON-CHAIN AMT BALANCE                                                 */
+/* ACTUAL PI TESTNET NATIVE BALANCE                                            */
+/* -------------------------------------------------------------------------- */
+
+app.get(
+  "/api/wallet/pi-balance",
+  requirePiAuth,
+  async (req, res) => {
+    try {
+      const wallet =
+        req.pioneer.wallet_address ||
+        req.piUser.wallet_address ||
+        "";
+
+      if (!isPublicStellarAddress(wallet)) {
+        return res.status(400).json({
+          ok: false,
+          error:
+            "No synchronized public Pi Testnet wallet address found for this Pioneer."
+        });
+      }
+
+      const result =
+        await getPiBalance(wallet);
+
+      res.json({
+        ok: true,
+        pi_uid: req.piUser.uid,
+        username: req.piUser.username,
+        wallet_address: wallet,
+        walletAddress: wallet,
+
+        pi: {
+          wallet,
+          balance: result.balance,
+          network: "Pi Testnet",
+          asset_type: "native"
+        }
+      });
+    } catch (e) {
+      console.error(
+        "pi balance:",
+        e
+      );
+
+      res.status(400).json({
+        ok: false,
+        error:
+          e.message ||
+          "Unable to load Pi Testnet native balance."
+      });
+    }
+  }
+);
+
+/* -------------------------------------------------------------------------- */
+/* ACTUAL ON-CHAIN PI + AMT BALANCE                                            */
 /* -------------------------------------------------------------------------- */
 
 app.get(
@@ -1574,8 +1674,20 @@ app.get(
         });
       }
 
+      /*
+       * Read both assets from the SAME authenticated Pioneer wallet.
+       *
+       * AMT:
+       *   filtered by AMT code + AMT issuer
+       *
+       * Pi:
+       *   asset_type === native
+       */
       const result =
         await getAMTBalance(wallet);
+
+      const piResult =
+        await getPiBalance(wallet);
 
       res.json({
         ok: true,
@@ -1583,6 +1695,13 @@ app.get(
         username: req.piUser.username,
         wallet_address: wallet,
         walletAddress: wallet,
+
+        pi: {
+          wallet,
+          balance: piResult.balance,
+          network: "Pi Testnet",
+          asset_type: "native"
+        },
 
         amt: {
           wallet,
@@ -3236,7 +3355,7 @@ async function startServer() {
         );
 
         console.log(
-          "Wallet endpoints: /api/wallet/bind, /api/wallet/sync"
+          "Wallet endpoints: /api/wallet/bind, /api/wallet/sync, /api/wallet/pi-balance, /api/wallet/onchain"
         );
 
         console.log(
